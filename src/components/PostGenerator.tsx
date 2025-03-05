@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCw, Calendar, Send, Check } from 'lucide-react';
+import { RefreshCw, Calendar, Send, Check, Share } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
 
@@ -23,15 +22,12 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const [isPosting, setIsPosting] = useState(false);
   const { toast } = useToast();
 
-  // This would connect to an actual AI API in a real implementation
   const generatePost = async () => {
     setIsGenerating(true);
     
     try {
-      // Simulate AI generation delay
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Generate mock content based on topics
       const topic = selectedTopics[Math.floor(Math.random() * selectedTopics.length)];
       
       const mockContents = {
@@ -79,7 +75,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
 
     setIsSaving(true);
     
-    // Simulate API delay
     setTimeout(() => {
       onSchedule(content);
       setIsSaving(false);
@@ -102,7 +97,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
 
     setIsPosting(true);
     
-    // Simulate API delay
     setTimeout(() => {
       onPost(content);
       setIsPosting(false);
@@ -111,6 +105,27 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         description: "Post published successfully",
       });
     }, 800);
+  };
+
+  const postToX = () => {
+    if (!content.trim()) {
+      toast({
+        title: "Error",
+        description: "Please generate or write content first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let intentUrl = "https://twitter.com/intent/tweet?";
+    intentUrl += "text=" + encodeURIComponent(content);
+    
+    window.open(intentUrl, "_blank", "width=550,height=420");
+    
+    toast({
+      title: "X Post Window Opened",
+      description: "Complete your post in the X window",
+    });
   };
 
   return (
@@ -170,6 +185,20 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
                 <Calendar className="w-4 h-4" />
               )}
               {isSaving ? "Scheduling..." : "Schedule"}
+            </Button>
+            
+            <Button 
+              onClick={postToX}
+              disabled={!content.trim()}
+              className="flex items-center gap-2"
+              style={{ 
+                backgroundColor: "#1DA1F2", 
+                color: "white",
+                border: "none"
+              }}
+            >
+              <Share className="w-4 h-4" />
+              Post to X
             </Button>
             
             <Button 
