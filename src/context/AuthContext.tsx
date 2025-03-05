@@ -112,7 +112,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           setUser(currentUser);
           localStorage.setItem('user', JSON.stringify(currentUser));
-        } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        } else if (event === 'SIGNED_OUT') {
+          // Fixed: Removed invalid "USER_DELETED" comparison that caused the type error
           setUser(null);
           localStorage.removeItem('user');
         }
