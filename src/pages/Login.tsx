@@ -1,27 +1,53 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { toast } from "@/hooks/use-toast";
+import { supabase } from '@/integrations/supabase/client';
 
 const Login: React.FC = () => {
-  const { login, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
-  // Redirect if already logged in
+  // Check if user is already logged in
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        setUser(data.session.user);
+        navigate('/dashboard');
+      }
+    };
+    
+    checkUser();
+    
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
+        if (session?.user) {
+          setUser(session.user);
+          navigate('/dashboard');
+        } else {
+          setUser(null);
+        }
+      }
+    );
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   // Check for saved account access
   useEffect(() => {
@@ -32,23 +58,46 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    if (email.trim() === '') {
-      setError('Email is required');
-      return;
-    }
-    
-    if (password.trim() === '') {
-      setError('Password is required');
-      return;
-    }
+    setIsLoading(true);
     
     try {
-      await login(email, password);
-      console.log('Login successful');
+      if (email.trim() === '') {
+        setError('Email is required');
+        setIsLoading(false);
+        return;
+      }
+      
+      if (password.trim() === '') {
+        setError('Password is required');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Use Supabase authentication
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        toast({
+          title: "Login successful",
+          description: "Welcome back!",
+        });
+        navigate('/dashboard');
+      }
     } catch (err) {
       console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'Failed to login');
+      toast({
+        title: "Login failed",
+        description: err instanceof Error ? err.message : "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 

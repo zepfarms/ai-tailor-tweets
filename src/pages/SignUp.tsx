@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,25 +8,48 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 const SignUp: React.FC = () => {
-  const { signup, isLoading, user } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
-  // Redirect if already logged in
+  // Check if user is already logged in
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        setUser(data.session.user);
+        navigate('/dashboard');
+      }
+    };
+    
+    checkUser();
+    
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
+        if (session?.user) {
+          setUser(session.user);
+          navigate('/dashboard');
+        } else {
+          setUser(null);
+        }
+      }
+    );
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +82,8 @@ const SignUp: React.FC = () => {
         return;
       }
       
+      console.log('Starting signup with:', { email, name });
+      
       // Try to sign up directly with Supabase
       const { data, error: signupError } = await supabase.auth.signUp({
         email,
@@ -70,6 +94,8 @@ const SignUp: React.FC = () => {
           }
         }
       });
+      
+      console.log('Signup response:', data, signupError);
       
       if (signupError) {
         console.error('Signup error from Supabase:', signupError);
