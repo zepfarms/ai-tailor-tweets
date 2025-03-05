@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -21,7 +20,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Load user from localStorage on initial render
   useEffect(() => {
     const loadUser = () => {
       try {
@@ -44,7 +42,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     loadUser();
     
-    // Also check for redirected user data
     const redirectUser = localStorage.getItem('auth_redirect_user');
     if (redirectUser) {
       try {
@@ -60,9 +57,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('auth_redirect_user');
       }
     }
-  }, []);
+    
+    const xAuthSuccess = localStorage.getItem('x_auth_success');
+    const xAuthTimestamp = localStorage.getItem('x_auth_timestamp');
+    
+    if (xAuthSuccess === 'true' && xAuthTimestamp) {
+      const timestamp = parseInt(xAuthTimestamp, 10);
+      const now = Date.now();
+      if (now - timestamp < 30000) {
+        toast({
+          title: "X Account Linked",
+          description: "Your X account has been successfully linked!",
+        });
+        
+        if (user) {
+          const updatedUser = {
+            ...user,
+            xLinked: true,
+            xUsername: user.xUsername || '@user',
+          };
+          setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
+        
+        localStorage.removeItem('x_auth_success');
+        localStorage.removeItem('x_auth_timestamp');
+      }
+    }
+  }, [user, toast]);
 
-  // Save user to localStorage whenever it changes
   useEffect(() => {
     if (user) {
       console.log('Saving user to localStorage:', user);
@@ -70,7 +93,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  // Handle X auth success message events
   useEffect(() => {
     const handleXAuthSuccess = (event: MessageEvent) => {
       if (
@@ -94,7 +116,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         } else {
           console.log('Received X auth success but no active user found');
-          // Try to get from the auth_redirect_user
           const redirectUser = localStorage.getItem('auth_redirect_user');
           if (redirectUser) {
             try {
@@ -141,10 +162,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         navigate('/dashboard');
       } else {
-        // Check if this email exists in saved accounts
         const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
         if (savedAccounts[email] && savedAccounts[email].password === password) {
-          // Load the user account
           const userData = savedAccounts[email].user;
           setUser(userData);
           localStorage.setItem('user', JSON.stringify(userData));
@@ -176,7 +195,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      // Create a unique ID for the new user
       const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       
       const newUser: User = {
@@ -188,11 +206,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log('Creating new user:', newUser);
       
-      // Save user to localStorage
       setUser(newUser);
       localStorage.setItem('user', JSON.stringify(newUser));
       
-      // Also save to a 'saved_accounts' object to persist for future logins
       const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
       savedAccounts[email] = {
         password,
@@ -222,7 +238,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('user');
     localStorage.removeItem('auth_redirect_user');
     setUser(null);
-    // Also clear any OAuth params to ensure clean state
     clearOAuthParams();
     navigate('/');
     toast({
@@ -235,10 +250,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Initiating X account linking');
       
-      // Clear any existing OAuth params first to ensure clean state
       clearOAuthParams();
       
-      // Store the current user for retrieval after the OAuth flow
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
         console.log('Stored current user for retrieval after OAuth flow:', user);
@@ -252,13 +265,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Start the OAuth flow
       const authUrl = await startXOAuthFlow();
       
       console.log('Opening X authorization URL:', authUrl);
       const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
       
-      // Check if popup was blocked
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         toast({
           title: "Popup Blocked",
@@ -271,15 +282,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           description: "Please complete the authorization in the popup window",
         });
         
-        // Focus the popup to ensure user attention
         popup.focus();
       }
       
     } catch (error) {
       console.error('Error initiating X account linking:', error);
-      
-      // Clear any partial OAuth data
-      clearOAuthParams();
       
       toast({
         title: "Failed to link X account",

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -18,9 +17,13 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     if (!isLoading && !user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to access the dashboard",
+      });
       navigate('/login');
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, toast]);
 
   const handleLinkAccount = async () => {
     setIsLinking(true);
@@ -28,6 +31,11 @@ const Dashboard: React.FC = () => {
       await linkXAccount();
     } catch (error) {
       console.error('Error linking account:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start X account linking process",
+        variant: "destructive",
+      });
     } finally {
       setIsLinking(false);
     }
@@ -37,12 +45,16 @@ const Dashboard: React.FC = () => {
     navigate('/create');
   };
 
-  if (isLoading || !user) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse-slow">Loading...</div>
+        <div className="animate-pulse text-xl">Loading dashboard...</div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { X, Menu } from 'lucide-react';
@@ -8,9 +8,22 @@ import { X, Menu } from 'lucide-react';
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const handleLogout = () => {
+    logout();
+    // Don't need to navigate as logout function will already do this
+  };
+
+  const handleDashboardClick = (e: React.MouseEvent) => {
+    if (!user) {
+      e.preventDefault();
+      navigate('/login');
+    }
   };
 
   return (
@@ -40,7 +53,7 @@ const Navbar: React.FC = () => {
               <Link to="/dashboard">
                 <Button variant="ghost">Dashboard</Button>
               </Link>
-              <Button onClick={logout} variant="outline">Logout</Button>
+              <Button onClick={handleLogout} variant="outline">Logout</Button>
             </div>
           ) : (
             <div className="flex items-center space-x-4">
@@ -101,7 +114,7 @@ const Navbar: React.FC = () => {
                 </Link>
                 <Button 
                   onClick={() => {
-                    logout();
+                    handleLogout();
                     setMobileMenuOpen(false);
                   }} 
                   variant="outline" 

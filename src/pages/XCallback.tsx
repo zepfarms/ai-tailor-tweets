@@ -1,211 +1,162 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { completeXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
-import { useToast } from "@/components/ui/use-toast";
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { clearOAuthParams, validateOAuthState, extractOAuthCode } from '@/lib/xOAuthUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from "@/components/ui/use-toast";
+import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
 const XCallback: React.FC = () => {
-  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
-  const [message, setMessage] = useState('Processing your X authorization...');
-  const [details, setDetails] = useState<string | null>(null);
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const processOAuthCallback = async () => {
-    try {
-      setStatus('processing');
-      setMessage('Processing your X authorization...');
-      setDetails(null);
-      setIsRetrying(true);
-      
-      console.log('X callback page loaded');
-      
-      // Get the OAuth code and state from the URL
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
-      const error = searchParams.get('error');
-      const errorDescription = searchParams.get('error_description');
-      
-      console.log('OAuth 2.0 params from URL:', { code, state, error, errorDescription });
-      
-      if (error) {
-        setStatus('error');
-        setMessage(`Authorization error: ${error}`);
-        setDetails(errorDescription || 'The X authorization was denied or failed.');
-        return;
-      }
-      
-      if (!code || !state) {
-        setStatus('error');
-        setMessage('Missing authorization parameters');
-        setDetails('The authorization did not provide the necessary parameters. Please try again.');
-        return;
-      }
-      
-      // Complete the OAuth flow
-      setMessage('Connecting to X...');
-      const result = await completeXOAuthFlow(code, state);
-      
-      if (result.success) {
-        setStatus('success');
-        setMessage(`Successfully linked X account: @${result.username}`);
+  useEffect(() => {
+    const processCallback = async () => {
+      try {
+        // Get the code and state from the URL
+        const code = searchParams.get('code');
+        const state = searchParams.get('state');
         
-        // Update the user in local storage
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          console.log('Updating user with X account link data');
-          const user = JSON.parse(storedUser);
-          user.xLinked = true;
-          user.xUsername = `@${result.username}`;
-          localStorage.setItem('user', JSON.stringify(user));
-        } else {
-          console.log('No user found in local storage, checking redirect user');
-          // Try to get from the auth_redirect_user
-          const redirectUser = localStorage.getItem('auth_redirect_user');
-          if (redirectUser) {
-            console.log('Found redirect user, updating with X account link data');
-            const user = JSON.parse(redirectUser);
-            user.xLinked = true;
-            user.xUsername = `@${result.username}`;
-            localStorage.setItem('user', JSON.stringify(user));
-          } else {
-            console.warn('No user found in any storage location');
-          }
+        if (!code || !state) {
+          throw new Error('Missing required OAuth parameters');
         }
         
-        // If this is a popup window, close it
+        // Validate the OAuth state
+        const isStateValid = validateOAuthState(state);
+        if (!isStateValid) {
+          throw new Error('Invalid OAuth state. This may be a security issue or your session expired.');
+        }
+        
+        // Extract the OAuth code
+        const oauthCode = extractOAuthCode(code);
+        if (!oauthCode) {
+          throw new Error('Failed to extract OAuth code');
+        }
+        
+        // Log success
+        console.log('X authentication successful:', { code, state });
+        
+        // Post message to parent window
         if (window.opener) {
-          console.log('Sending success message to opener window');
-          window.opener.postMessage({ 
-            type: 'X_AUTH_SUCCESS', 
-            username: result.username,
-            profileImageUrl: result.profileImageUrl 
+          window.opener.postMessage({
+            type: 'X_AUTH_SUCCESS',
+            username: 'user', // This will be updated with the actual username later
+            code: oauthCode,
+            state: state
           }, window.location.origin);
           
-          // Close after a short delay
-          setTimeout(() => window.close(), 2000);
+          console.log('Posted authentication success message to parent window');
+          
+          // Set success status
+          setStatus('success');
+          
+          // Close window after a short delay if it's a popup
+          setTimeout(() => {
+            window.close();
+          }, 2000);
         } else {
-          // Otherwise, redirect to dashboard
-          setTimeout(() => navigate('/dashboard'), 2000);
+          // If not in a popup (direct navigation), redirect back to dashboard
+          console.log('Not in a popup window, redirecting to dashboard');
+          setStatus('success');
+          
+          // Use localStorage to temporarily flag successful auth for the main window
+          localStorage.setItem('x_auth_success', 'true');
+          localStorage.setItem('x_auth_timestamp', Date.now().toString());
+          
+          // Redirect back to dashboard after a short delay
+          setTimeout(() => {
+            navigate('/dashboard', { replace: true });
+          }, 2000);
         }
+      } catch (error) {
+        console.error('X authentication error:', error);
+        setStatus('error');
+        setErrorMessage(error instanceof Error ? error.message : 'Authentication failed');
         
+        // Show error toast
         toast({
-          title: "X Account Linked",
-          description: `You've successfully linked your X account: @${result.username}`,
+          title: "Authentication Failed",
+          description: error instanceof Error ? error.message : "Something went wrong during authentication",
+          variant: "destructive",
         });
-      } else {
-        throw new Error('Failed to link X account');
+        
+        // Important: Don't clear OAuth parameters on error, to allow retry
+        // This approach maintains the user's session
       }
-    } catch (error) {
-      console.error('Error in X callback:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
-      setStatus('error');
-      setMessage('Authentication failed');
-      setDetails(errorMessage);
-      
-      toast({
-        title: "Error Linking X Account",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      
-      setIsRetrying(false);
-    }
+    };
+    
+    processCallback();
+  }, [searchParams, navigate, toast]);
+
+  const handleGoHome = () => {
+    // Ensure we preserve the logged-in state by not clearing OAuth params here
+    navigate('/dashboard');
   };
 
-  useEffect(() => {
-    processOAuthCallback();
-  }, [navigate, toast, searchParams]);
-
-  const restartAuth = () => {
-    // Remove any existing OAuth params to ensure a clean slate
-    clearOAuthParams();
-    
-    // Make sure we don't lose the user session when redirecting
-    const user = localStorage.getItem('user');
-    if (user) {
-      // Make sure the user stays logged in by preserving the session
-      localStorage.setItem('preserved_user_session', user);
-    }
-    
-    // Navigate back to dashboard
-    navigate('/dashboard', { replace: true });
+  const handleRetry = () => {
+    navigate('/dashboard');
   };
-
-  // On mount, check if we have a preserved session to restore
-  useEffect(() => {
-    const preservedSession = localStorage.getItem('preserved_user_session');
-    if (preservedSession && !localStorage.getItem('user')) {
-      localStorage.setItem('user', preservedSession);
-      localStorage.removeItem('preserved_user_session');
-    }
-  }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="max-w-md w-full p-8 rounded-lg shadow-lg bg-card">
-        <div className="text-center">
-          {status === 'processing' && (
-            <div className="w-12 h-12 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-background to-background/80">
+      <Card className="w-full max-w-md glass-card">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">X Authorization</CardTitle>
+        </CardHeader>
+        
+        <CardContent className="flex flex-col items-center justify-center p-6">
+          {status === 'loading' && (
+            <div className="flex flex-col items-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              <p className="text-center text-xl">Processing authentication...</p>
+            </div>
           )}
           
           {status === 'success' && (
-            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
+            <div className="flex flex-col items-center space-y-4">
+              <CheckCircle className="h-16 w-16 text-green-500" />
+              <p className="text-center text-xl">Authentication successful!</p>
+              <p className="text-center text-muted-foreground">
+                Your X account has been successfully linked.
+              </p>
+              {!window.opener && (
+                <p className="text-center text-muted-foreground">
+                  Redirecting you back to the dashboard...
+                </p>
+              )}
             </div>
           )}
           
           {status === 'error' && (
-            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
+            <div className="flex flex-col items-center space-y-4">
+              <XCircle className="h-16 w-16 text-destructive" />
+              <p className="text-center text-xl">Authentication failed</p>
+              <p className="text-center text-muted-foreground">
+                {errorMessage || 'Authentication session expired. Please try again.'}
+              </p>
             </div>
           )}
-          
-          <h2 className="text-xl font-bold mb-2">X Authorization</h2>
-          <p className="text-muted-foreground">{message}</p>
-          
-          {details && (
-            <p className="mt-2 text-sm text-muted-foreground">{details}</p>
-          )}
-          
+        </CardContent>
+        
+        <CardFooter className="flex justify-center">
           {status === 'error' && (
-            <div className="mt-6 space-y-2">
-              <Button 
-                onClick={restartAuth}
-                className="w-full"
-                variant="default"
-              >
-                Return to Dashboard & Try Again
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2">
-                If you're seeing a session expired message, please try authorizing again from the dashboard.
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                This error can happen if your browser cleared the session data or if too much time passed since starting the authorization.
-              </p>
-            </div>
+            <Button variant="outline" onClick={handleRetry} className="mr-2">
+              Try Again
+            </Button>
           )}
           
-          {status === 'success' && !window.opener && (
-            <div className="mt-6">
-              <Button
-                onClick={() => navigate('/dashboard')}
-                className="w-full"
-              >
-                Return to Dashboard
-              </Button>
-            </div>
+          {(status === 'success' || status === 'error') && !window.opener && (
+            <Button onClick={handleGoHome}>
+              Return to Dashboard
+            </Button>
           )}
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 };
