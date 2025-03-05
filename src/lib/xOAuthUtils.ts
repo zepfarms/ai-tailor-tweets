@@ -1,24 +1,24 @@
 
-// Utilities for X (Twitter) OAuth process
+// Utilities for X (Twitter) OAuth 2.0 process
 import { supabase } from "@/integrations/supabase/client";
 
-// Store the OAuth request token and secret in session storage
-export const storeOAuthTokens = (requestToken: string, requestTokenSecret: string) => {
-  sessionStorage.setItem('x_request_token', requestToken);
-  sessionStorage.setItem('x_request_token_secret', requestTokenSecret);
+// Store the OAuth state and code verifier in session storage
+export const storeOAuthParams = (state: string, codeVerifier: string) => {
+  sessionStorage.setItem('x_oauth_state', state);
+  sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
 };
 
-// Retrieve the OAuth token and secret from session storage
-export const getStoredOAuthTokens = () => {
-  const requestToken = sessionStorage.getItem('x_request_token');
-  const requestTokenSecret = sessionStorage.getItem('x_request_token_secret');
-  return { requestToken, requestTokenSecret };
+// Retrieve the OAuth state and code verifier from session storage
+export const getStoredOAuthParams = () => {
+  const state = sessionStorage.getItem('x_oauth_state');
+  const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
+  return { state, codeVerifier };
 };
 
-// Clear the OAuth tokens from session storage
-export const clearOAuthTokens = () => {
-  sessionStorage.removeItem('x_request_token');
-  sessionStorage.removeItem('x_request_token_secret');
+// Clear the OAuth params from session storage
+export const clearOAuthParams = () => {
+  sessionStorage.removeItem('x_oauth_state');
+  sessionStorage.removeItem('x_oauth_code_verifier');
 };
 
 // Start the X OAuth flow
@@ -43,14 +43,12 @@ export const startXOAuthFlow = async (): Promise<string> => {
       throw new Error('User not authenticated');
     }
 
-    console.log('Starting X OAuth flow with access token:', accessToken.substring(0, 10) + '...');
+    console.log('Starting X OAuth 2.0 flow with access token:', accessToken.substring(0, 10) + '...');
     
-    // Call the edge function to get a request token
-    // Get the Supabase URL from environment variables or use the project ID directly
+    // Call the edge function to start the OAuth 2.0 process
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rsbzrlvezpcejzyvkmpx.supabase.co';
     console.log('Using Supabase URL:', supabaseUrl);
     
-    // Make sure we're using the correct URL format for the function
     const functionUrl = `${supabaseUrl}/functions/v1/twitter-request-token`;
     console.log('Calling edge function at URL:', functionUrl);
     
@@ -65,46 +63,47 @@ export const startXOAuthFlow = async (): Promise<string> => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Error response from twitter-request-token:', errorText);
-      throw new Error(`Failed to get request token: ${response.status} ${errorText}`);
+      throw new Error(`Failed to start OAuth flow: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Received OAuth request token response:', data);
+    console.log('Received OAuth 2.0 authorization data:', data);
     
-    if (!data.requestToken || !data.authorizeUrl) {
+    if (!data.authorizeUrl || !data.state || !data.codeVerifier) {
       console.error('Invalid response data:', data);
-      throw new Error('Invalid response from request token endpoint');
+      throw new Error('Invalid response from OAuth 2.0 authorization endpoint');
     }
     
-    console.log('Received OAuth request token:', data.requestToken);
+    console.log('Received OAuth 2.0 state:', data.state);
     console.log('Authorize URL:', data.authorizeUrl);
     
-    // Store the tokens
-    storeOAuthTokens(data.requestToken, data.requestTokenSecret);
+    // Store the OAuth params
+    storeOAuthParams(data.state, data.codeVerifier);
     
     // Return the authorization URL
     return data.authorizeUrl;
   } catch (error) {
-    console.error('Error starting X OAuth flow:', error);
+    console.error('Error starting X OAuth 2.0 flow:', error);
     throw error;
   }
 };
 
 // Complete the X OAuth flow
-export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
+export const completeXOAuthFlow = async (code: string, state: string): Promise<{
   success: boolean;
   username: string;
   profileImageUrl?: string;
 }> => {
   try {
-    const { requestToken, requestTokenSecret } = getStoredOAuthTokens();
+    const { state: expectedState, codeVerifier } = getStoredOAuthParams();
     
-    console.log('Completing X OAuth flow with:');
-    console.log('- Request token:', requestToken);
-    console.log('- Verifier:', oauthVerifier);
+    console.log('Completing X OAuth 2.0 flow with:');
+    console.log('- Authorization code:', code);
+    console.log('- State:', state);
+    console.log('- Expected state:', expectedState);
     
-    if (!requestToken || !requestTokenSecret) {
-      throw new Error('OAuth tokens not found');
+    if (!expectedState || !codeVerifier) {
+      throw new Error('OAuth parameters not found');
     }
 
     // For the mock user case - use a mock access token if there's no real session
@@ -130,12 +129,11 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
 
     console.log('User ID for X account linking:', userId);
 
-    // Call the edge function to get an access token
-    // Fix: Use the correct URL format for the edge function
+    // Call the edge function to exchange the code for an access token
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rsbzrlvezpcejzyvkmpx.supabase.co';
     console.log('Using Supabase URL for completing OAuth:', supabaseUrl);
     
-    console.log('Calling twitter-access-token endpoint with request token and verifier');
+    console.log('Calling twitter-access-token endpoint with authorization code');
     const response = await fetch(`${supabaseUrl}/functions/v1/twitter-access-token`, {
       method: 'POST',
       headers: {
@@ -143,21 +141,22 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
         'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        token: requestToken,
-        verifier: oauthVerifier,
-        tokenSecret: requestTokenSecret,
-        userId: userId,
+        code,
+        state,
+        codeVerifier,
+        expectedState,
+        userId,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Error response from twitter-access-token:', errorText);
-      throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
+      throw new Error(`Failed to exchange code for token: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('X OAuth completion response:', data);
+    console.log('X OAuth 2.0 completion response:', data);
     
     if (!data.success || !data.username) {
       console.error('Invalid response data from access token endpoint:', data);
@@ -167,7 +166,7 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
     console.log('X OAuth successfully completed for username:', data.username);
     
     // Clear the tokens
-    clearOAuthTokens();
+    clearOAuthParams();
     
     return {
       success: data.success,
@@ -175,7 +174,7 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
       profileImageUrl: data.profileImageUrl,
     };
   } catch (error) {
-    console.error('Error completing X OAuth flow:', error);
+    console.error('Error completing X OAuth 2.0 flow:', error);
     throw error;
   }
 };

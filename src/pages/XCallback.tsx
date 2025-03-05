@@ -16,23 +16,32 @@ const XCallback: React.FC = () => {
       try {
         console.log('X callback page loaded');
         
-        // Get the OAuth verifier from the URL
+        // Get the OAuth code and state from the URL
         const params = new URLSearchParams(window.location.search);
-        const oauthVerifier = params.get('oauth_verifier');
-        const oauthToken = params.get('oauth_token');
+        const code = params.get('code');
+        const state = params.get('state');
+        const error = params.get('error');
+        const errorDescription = params.get('error_description');
         
-        console.log('OAuth params from URL:', { oauthToken, oauthVerifier });
+        console.log('OAuth 2.0 params from URL:', { code, state, error, errorDescription });
         
-        if (!oauthVerifier) {
+        if (error) {
           setStatus('error');
-          setMessage('OAuth verifier not found in the URL');
-          setDetails('The X authorization did not provide the necessary verification code.');
+          setMessage(`Authorization error: ${error}`);
+          setDetails(errorDescription || 'The X authorization was denied or failed.');
+          return;
+        }
+        
+        if (!code || !state) {
+          setStatus('error');
+          setMessage('Missing authorization parameters');
+          setDetails('The X authorization did not provide the necessary parameters.');
           return;
         }
         
         // Complete the OAuth flow
         setMessage('Connecting to X...');
-        const result = await completeXOAuthFlow(oauthVerifier);
+        const result = await completeXOAuthFlow(code, state);
         
         if (result.success) {
           setStatus('success');
