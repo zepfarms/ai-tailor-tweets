@@ -28,6 +28,8 @@ export const startXOAuthFlow = async (): Promise<string> => {
       throw new Error(`Failed to start X authorization: ${error.message}`);
     }
     
+    console.log("Twitter request token response:", data);
+    
     if (!data || !data.authorizeUrl || !data.state || !data.codeVerifier) {
       console.error("Invalid response from twitter-request-token function:", data);
       throw new Error("Invalid response from OAuth initialization");

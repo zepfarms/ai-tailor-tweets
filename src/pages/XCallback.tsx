@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { validateOAuthState, extractOAuthCode, exchangeCodeForToken, clearOAuthParams } from '@/lib/xOAuthUtils';
-import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
 const XCallback: React.FC = () => {
@@ -13,7 +12,6 @@ const XCallback: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   useEffect(() => {
     const processCallback = async () => {
@@ -71,38 +69,60 @@ const XCallback: React.FC = () => {
           return;
         }
         
-        // Get stored user from localStorage for X account linking
-        const redirectUser = localStorage.getItem('auth_redirect_user');
-        const userId = user?.id || (redirectUser ? JSON.parse(redirectUser).id : null);
+        // Get user info for X account linking
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData.session?.user?.id;
         
         if (!userId) {
-          console.error('No user ID available');
-          setStatus('error');
-          setErrorMessage('User not authenticated');
-          clearOAuthParams();
-          return;
+          // Try to get from localStorage if session is lost
+          const redirectUser = localStorage.getItem('auth_redirect_user');
+          const parsedUserId = redirectUser ? JSON.parse(redirectUser).id : null;
+          
+          if (!parsedUserId) {
+            console.error('No user ID available');
+            setStatus('error');
+            setErrorMessage('User not authenticated');
+            clearOAuthParams();
+            return;
+          }
+          
+          console.log('Using user ID from localStorage:', parsedUserId);
+          
+          // Exchange code for token
+          const result = await exchangeCodeForToken(code, codeVerifier, parsedUserId);
+          
+          if (!result.success) {
+            console.error('Token exchange failed:', result.error);
+            setStatus('error');
+            setErrorMessage(result.error || 'Failed to authenticate with X');
+            clearOAuthParams();
+            return;
+          }
+          
+          console.log('Token exchange successful with stored user ID');
+        } else {
+          console.log('Using user ID from active session:', userId);
+          
+          // Exchange code for token
+          const result = await exchangeCodeForToken(code, codeVerifier, userId);
+          
+          if (!result.success) {
+            console.error('Token exchange failed:', result.error);
+            setStatus('error');
+            setErrorMessage(result.error || 'Failed to authenticate with X');
+            clearOAuthParams();
+            return;
+          }
+          
+          console.log('Token exchange successful with session user ID');
         }
 
-        // Exchange code for token
-        console.log('Calling exchangeCodeForToken with code, verifier and userId');
-        const result = await exchangeCodeForToken(code, codeVerifier, userId);
-        
-        if (!result.success) {
-          console.error('Token exchange failed:', result.error);
-          setStatus('error');
-          setErrorMessage(result.error || 'Failed to authenticate with X');
-          clearOAuthParams();
-          return;
-        }
-
-        console.log('Token exchange successful');
-        
         // Send success message to parent window if we're in a popup
         if (window.opener) {
           console.log('We are in a popup, posting message to parent');
           window.opener.postMessage({
             type: 'X_AUTH_SUCCESS',
-            username: result.username
+            username: result?.username
           }, window.location.origin);
 
           // Close the popup after a brief delay
@@ -112,23 +132,6 @@ const XCallback: React.FC = () => {
           console.log('Not in a popup, storing success in localStorage');
           localStorage.setItem('x_auth_success', 'true');
           localStorage.setItem('x_auth_timestamp', Date.now().toString());
-
-          // Ensure the current session state is preserved
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (!sessionData.session) {
-            // If session is lost, attempt to restore it
-            console.log('Session lost during X auth, attempting to restore');
-            if (redirectUser) {
-              const parsedUser = JSON.parse(redirectUser);
-              toast({
-                title: "Session expired",
-                description: "Please log in again to complete X account linking",
-                variant: "destructive",
-              });
-              navigate('/login');
-              return;
-            }
-          }
         }
         
         setStatus('success');

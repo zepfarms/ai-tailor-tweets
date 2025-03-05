@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,8 @@ const Dashboard: React.FC = () => {
           return;
         }
 
+        console.log('User data from session:', userData);
+
         // Check for X account linking
         const { data: xAccount, error: xError } = await supabase
           .from('x_accounts')
@@ -62,7 +65,7 @@ const Dashboard: React.FC = () => {
         const currentUser: User = {
           id: userData.id,
           email: userData.email || '',
-          name: userData.user_metadata.name || '',
+          name: userData.user_metadata?.name || '',
           xLinked: !!xAccount,
           xUsername: xAccount ? `@${xAccount.x_username}` : undefined
         };
@@ -112,7 +115,7 @@ const Dashboard: React.FC = () => {
           const currentUser: User = {
             id: userData.id,
             email: userData.email || '',
-            name: userData.user_metadata.name || '',
+            name: userData.user_metadata?.name || '',
             xLinked: !!xAccount,
             xUsername: xAccount ? `@${xAccount.x_username}` : undefined
           };
@@ -132,38 +135,59 @@ const Dashboard: React.FC = () => {
   const handleLinkAccount = async () => {
     setIsLinking(true);
     try {
+      console.log('Starting X account linking process');
+      
       // Store current user info for after OAuth flow
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
+        console.log('Stored user data for OAuth flow:', user);
+      } else {
+        console.error('Cannot link X account - no active user');
+        toast({
+          title: "Error",
+          description: "You must be logged in to link an X account",
+          variant: "destructive",
+        });
+        setIsLinking(false);
+        return;
       }
       
       // Clear any previous OAuth parameters
       clearOAuthParams();
       
-      // Use the startXOAuthFlow from xOAuthUtils
-      const authUrl = await startXOAuthFlow();
-      console.log('Generated X authorization URL:', authUrl);
-      
-      if (!authUrl) {
-        throw new Error('Failed to get X authorization URL');
-      }
-      
-      // Open popup with error handling
-      const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
-      
-      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      try {
+        // Use the startXOAuthFlow from xOAuthUtils
+        const authUrl = await startXOAuthFlow();
+        console.log('Generated X authorization URL:', authUrl);
+        
+        if (!authUrl) {
+          throw new Error('Failed to get X authorization URL');
+        }
+        
+        // Open popup with error handling
+        const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
+        
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+          toast({
+            title: "Popup Blocked",
+            description: "Please allow popups for this site and try again",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "X Authorization Started",
+            description: "Please complete the authorization in the popup window",
+          });
+          
+          popup.focus();
+        }
+      } catch (error) {
+        console.error('Error starting X OAuth flow:', error);
         toast({
-          title: "Popup Blocked",
-          description: "Please allow popups for this site and try again",
+          title: "Failed to start X authorization",
+          description: error instanceof Error ? error.message : "Something went wrong",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "X Authorization Started",
-          description: "Please complete the authorization in the popup window",
-        });
-        
-        popup.focus();
       }
     } catch (error) {
       console.error('Error linking X account:', error);
