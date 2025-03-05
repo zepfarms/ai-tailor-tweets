@@ -23,11 +23,11 @@ const SignUp: React.FC = () => {
 
   // Check if user is already logged in
   useEffect(() => {
-    if (user && !isLoading) {
+    if (user) {
       console.log('SignUp: User already logged in, redirecting to dashboard');
       navigate('/dashboard');
     }
-  }, [user, isLoading, navigate]);
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,15 +64,30 @@ const SignUp: React.FC = () => {
       
       await signup(email, password, name);
       
+      // Show success toast
+      toast({
+        title: "Account created",
+        description: "Welcome to PostAI!",
+      });
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+      
     } catch (err) {
       console.error('SignUp: Signup error:', err);
       setError(err instanceof Error ? err.message : 'Failed to sign up');
+      toast({
+        title: "Sign up failed",
+        description: err instanceof Error ? err.message : "Something went wrong",
+        variant: "destructive",
+      });
     } finally {
       setLocalLoading(false);
     }
   };
 
-  if (isLoading) {
+  // Show loading state only on initial auth check
+  if (isLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-xl">Loading...</div>
@@ -149,7 +164,7 @@ const SignUp: React.FC = () => {
                   <div className="text-sm text-destructive">{error}</div>
                 )}
                 
-                <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
+                <Button type="submit" className="w-full" disabled={localLoading}>
                   {localLoading ? "Creating account..." : "Create account"}
                 </Button>
               </form>
