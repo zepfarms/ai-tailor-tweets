@@ -1,13 +1,16 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ImagePlus, Video } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 
-export const MediaPicker: React.FC = () => {
-  const [selectedMedia, setSelectedMedia] = useState<File[]>([]);
+interface MediaPickerProps {
+  selectedMedia: File[];
+  setSelectedMedia: React.Dispatch<React.SetStateAction<File[]>>;
+}
 
+export const MediaPicker: React.FC<MediaPickerProps> = ({ selectedMedia, setSelectedMedia }) => {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;

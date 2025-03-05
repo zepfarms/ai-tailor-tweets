@@ -12,19 +12,14 @@ import {
   AlignRight,
   Plus
 } from 'lucide-react';
+import { TextElement } from '@/pages/VideoStudio';
 
-interface TextElement {
-  id: string;
-  text: string;
-  fontSize: number;
-  color: string;
-  bold: boolean;
-  italic: boolean;
-  alignment: 'left' | 'center' | 'right';
+interface TextEditorProps {
+  textElements: TextElement[];
+  setTextElements: React.Dispatch<React.SetStateAction<TextElement[]>>;
 }
 
-export const TextEditor: React.FC = () => {
-  const [textElements, setTextElements] = useState<TextElement[]>([]);
+export const TextEditor: React.FC<TextEditorProps> = ({ textElements, setTextElements }) => {
   const [currentElement, setCurrentElement] = useState<TextElement>({
     id: '',
     text: '',

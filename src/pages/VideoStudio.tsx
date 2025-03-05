@@ -14,10 +14,25 @@ import { MusicPanel } from '@/components/VideoStudio/MusicPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, Share } from 'lucide-react';
 
+export interface TextElement {
+  id: string;
+  text: string;
+  fontSize: number;
+  color: string;
+  bold: boolean;
+  italic: boolean;
+  alignment: 'left' | 'center' | 'right';
+  position?: { x: number; y: number };
+}
+
 const VideoStudio: React.FC = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [currentProject, setCurrentProject] = useState<any>(null);
+  
+  // State to store selected media and text elements
+  const [selectedMedia, setSelectedMedia] = useState<File[]>([]);
+  const [textElements, setTextElements] = useState<TextElement[]>([]);
   
   useEffect(() => {
     if (!isLoading && !user) {
@@ -100,7 +115,11 @@ const VideoStudio: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <div className="glass-card p-4 rounded-xl mb-4">
-              <VideoStudioCanvas />
+              <VideoStudioCanvas 
+                selectedMedia={selectedMedia} 
+                textElements={textElements} 
+                setTextElements={setTextElements}
+              />
             </div>
           </div>
           
@@ -115,11 +134,17 @@ const VideoStudio: React.FC = () => {
               </TabsList>
               
               <TabsContent value="media">
-                <MediaPicker />
+                <MediaPicker 
+                  selectedMedia={selectedMedia}
+                  setSelectedMedia={setSelectedMedia}
+                />
               </TabsContent>
               
               <TabsContent value="text">
-                <TextEditor />
+                <TextEditor 
+                  textElements={textElements}
+                  setTextElements={setTextElements}
+                />
               </TabsContent>
               
               <TabsContent value="effects">
