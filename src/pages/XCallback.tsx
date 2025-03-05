@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
@@ -23,12 +22,23 @@ const XCallback: React.FC = () => {
         const error = params.get('error');
         const errorDescription = params.get('error_description');
         
-        console.log('OAuth 2.0 params from URL:', { code, state, error, errorDescription });
+        console.log('OAuth 2.0 params from URL:', { 
+          code: code ? `${code.substring(0, 10)}...` : null,
+          state, 
+          error, 
+          errorDescription 
+        });
         
         if (error) {
           setStatus('error');
           setMessage(`Authorization error: ${error}`);
           setDetails(errorDescription || 'The X authorization was denied or failed.');
+          
+          toast({
+            title: "X Authorization Failed",
+            description: errorDescription || "The authorization was denied or failed.",
+            variant: "destructive",
+          });
           return;
         }
         
@@ -36,6 +46,12 @@ const XCallback: React.FC = () => {
           setStatus('error');
           setMessage('Missing authorization parameters');
           setDetails('The authorization did not provide the necessary parameters. Please try again.');
+          
+          toast({
+            title: "Missing Authorization Parameters",
+            description: "The authorization did not provide the necessary parameters.",
+            variant: "destructive",
+          });
           return;
         }
         
@@ -47,16 +63,17 @@ const XCallback: React.FC = () => {
           setStatus('success');
           setMessage(`Successfully linked X account: @${result.username}`);
           
-          // Update the user in local storage
+          // Update the user in local storage if needed
           const storedUser = localStorage.getItem('user');
           if (storedUser) {
             const user = JSON.parse(storedUser);
             user.xLinked = true;
             user.xUsername = `@${result.username}`;
+            user.profileImageUrl = result.profileImageUrl;
             localStorage.setItem('user', JSON.stringify(user));
           }
           
-          // If this is a popup window, close it
+          // If this is a popup window, communicate success to parent
           if (window.opener) {
             window.opener.postMessage({ 
               type: 'X_AUTH_SUCCESS', 
@@ -68,13 +85,12 @@ const XCallback: React.FC = () => {
             setTimeout(() => window.close(), 2000);
           } else {
             // Otherwise, redirect to dashboard
+            toast({
+              title: "X Account Linked",
+              description: `You've successfully linked your X account: @${result.username}`,
+            });
             setTimeout(() => navigate('/dashboard'), 2000);
           }
-          
-          toast({
-            title: "X Account Linked",
-            description: `You've successfully linked your X account: @${result.username}`,
-          });
         } else {
           throw new Error('Failed to link X account');
         }

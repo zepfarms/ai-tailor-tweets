@@ -14,21 +14,42 @@ const generateRandomString = (length: number): string => {
 
 // Store the OAuth state and code verifier in session storage
 export const storeOAuthParams = (state: string, codeVerifier: string) => {
-  sessionStorage.setItem('x_oauth_state', state);
-  sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
+  try {
+    sessionStorage.setItem('x_oauth_state', state);
+    sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
+    console.log('OAuth parameters stored in session storage');
+  } catch (error) {
+    console.error('Error storing OAuth parameters:', error);
+    throw new Error('Failed to store OAuth parameters. Please ensure cookies are enabled.');
+  }
 };
 
 // Retrieve the OAuth state and code verifier from session storage
 export const getStoredOAuthParams = () => {
-  const state = sessionStorage.getItem('x_oauth_state');
-  const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
-  return { state, codeVerifier };
+  try {
+    const state = sessionStorage.getItem('x_oauth_state');
+    const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
+    
+    if (!state || !codeVerifier) {
+      console.warn('OAuth parameters not found in session storage');
+    }
+    
+    return { state, codeVerifier };
+  } catch (error) {
+    console.error('Error retrieving OAuth parameters:', error);
+    return { state: null, codeVerifier: null };
+  }
 };
 
 // Clear the OAuth params from session storage
 export const clearOAuthParams = () => {
-  sessionStorage.removeItem('x_oauth_state');
-  sessionStorage.removeItem('x_oauth_code_verifier');
+  try {
+    sessionStorage.removeItem('x_oauth_state');
+    sessionStorage.removeItem('x_oauth_code_verifier');
+    console.log('OAuth parameters cleared from session storage');
+  } catch (error) {
+    console.error('Error clearing OAuth parameters:', error);
+  }
 };
 
 // Start the X OAuth flow using Edge Function
@@ -74,7 +95,7 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
 }> => {
   try {
     console.log('Completing X OAuth flow with:');
-    console.log('- Code:', code);
+    console.log('- Code:', code.substring(0, 10) + '...');
     console.log('- State:', state);
     
     const { state: expectedState, codeVerifier } = getStoredOAuthParams();
@@ -87,12 +108,19 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
       throw new Error('Authentication session expired. Please try again.');
     }
     
+    if (state !== expectedState) {
+      console.error('State parameter mismatch');
+      throw new Error('Invalid state parameter. Security validation failed.');
+    }
+    
     // Get the current user ID if available
     let userId = null;
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    if (user && user.id) {
-      userId = user.id;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      userId = session.user.id;
       console.log('User ID for account linking:', userId);
+    } else {
+      console.warn('No authenticated user found for account linking');
     }
     
     // Call the edge function to exchange the code for tokens
