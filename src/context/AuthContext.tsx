@@ -8,26 +8,66 @@ import { startXOAuthFlow } from '@/lib/xOAuthUtils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const mockUser: User = {
-  id: "1",
-  email: "user@example.com",
-  name: "Demo User",
-  xLinked: false
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Check for existing session on initial load
   useEffect(() => {
-    const loggedInUser = localStorage.getItem('user');
-    
-    if (loggedInUser) {
-      setUser(JSON.parse(loggedInUser));
-    }
-    setIsLoading(false);
+    const checkSession = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        if (sessionData.session) {
+          const { user: authUser } = sessionData.session;
+          
+          // Transform Supabase user to our application User type
+          const appUser: User = {
+            id: authUser.id,
+            email: authUser.email || '',
+            name: authUser.user_metadata.name || 'User',
+            xLinked: false, // We'll check for X linking in a separate query if needed
+          };
+          
+          setUser(appUser);
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSession();
+  }, []);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
+      
+      if (event === 'SIGNED_IN' && session) {
+        const authUser = session.user;
+        
+        // Transform Supabase user to our application User type
+        const appUser: User = {
+          id: authUser.id,
+          email: authUser.email || '',
+          name: authUser.user_metadata.name || 'User',
+          xLinked: false, // We'll update this if/when they link X
+        };
+        
+        setUser(appUser);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -45,7 +85,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             xUsername: `@${event.data.username}`,
           };
           setUser(updatedUser);
-          localStorage.setItem('user', JSON.stringify(updatedUser));
           
           toast({
             title: "X Account Linked",
@@ -63,20 +102,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      if (email === "demo@example.com" && password === "password") {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        setUser(mockUser);
+      if (error) throw error;
+      
+      if (data.user) {
         toast({
           title: "Login successful",
           description: "Welcome back!",
         });
         navigate('/dashboard');
-      } else {
-        throw new Error("Invalid credentials");
       }
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
         description: error instanceof Error ? error.message : "Something went wrong",
@@ -92,22 +133,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      const newUser: User = {
-        ...mockUser,
+      // Create a new user in Supabase
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-      };
-      
-      localStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
-      toast({
-        title: "Account created",
-        description: "Welcome to PostAI!",
+        password,
+        options: {
+          data: {
+            name, // Store name in user metadata
+          },
+        },
       });
-      navigate('/dashboard');
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        toast({
+          title: "Account created",
+          description: "Welcome to PostAI!",
+        });
+        navigate('/dashboard');
+      }
     } catch (error) {
+      console.error('Signup error:', error);
       toast({
         title: "Sign up failed",
         description: error instanceof Error ? error.message : "Something went wrong",
@@ -119,14 +166,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('user');
-    setUser(null);
-    navigate('/');
-    toast({
-      title: "Logged out",
-      description: "You've been successfully logged out",
-    });
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      navigate('/');
+      toast({
+        title: "Logged out",
+        description: "You've been successfully logged out",
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast({
+        title: "Logout failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+    }
   };
 
   const linkXAccount = async () => {
