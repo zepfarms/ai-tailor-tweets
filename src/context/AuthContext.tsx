@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -7,57 +8,98 @@ import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const mockUser: User = {
-  id: "1",
-  email: "demo@example.com",
-  name: "Demo User",
-  xLinked: false
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Initialize session on load
   useEffect(() => {
-    const loadUser = () => {
+    const initSession = async () => {
       try {
-        const storedUser = localStorage.getItem('user');
+        setIsLoading(true);
         
-        if (storedUser) {
-          console.log('Loading user from localStorage:', storedUser);
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
+        // Check for existing Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          const { data: userData } = await supabase.auth.getUser();
+          
+          if (userData.user) {
+            const currentUser: User = {
+              id: userData.user.id,
+              email: userData.user.email || '',
+              name: userData.user.user_metadata.name || '',
+              xLinked: false // We'll check X linking status separately
+            };
+            
+            // Check if user has linked X account
+            const { data: xAccount } = await supabase
+              .from('x_accounts')
+              .select('*')
+              .eq('user_id', userData.user.id)
+              .maybeSingle();
+              
+            if (xAccount) {
+              currentUser.xLinked = true;
+              currentUser.xUsername = `@${xAccount.x_username}`;
+            }
+            
+            console.log('Setting user from Supabase session:', currentUser);
+            setUser(currentUser);
+            localStorage.setItem('user', JSON.stringify(currentUser));
+          }
         } else {
-          console.log('No user found in localStorage');
+          console.log('No active Supabase session found');
+          setUser(null);
+          localStorage.removeItem('user');
         }
-      } catch (e) {
-        console.error("Error parsing user from localStorage:", e);
-        localStorage.removeItem('user');
+      } catch (error) {
+        console.error('Error initializing auth session:', error);
       } finally {
         setIsLoading(false);
       }
     };
     
-    loadUser();
+    initSession();
     
-    const redirectUser = localStorage.getItem('auth_redirect_user');
-    if (redirectUser) {
-      try {
-        const parsedRedirectUser = JSON.parse(redirectUser);
-        if (!user) {
-          console.log('Restoring user from redirect data:', parsedRedirectUser);
-          setUser(parsedRedirectUser);
-          localStorage.setItem('user', redirectUser);
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
+        if (event === 'SIGNED_IN' && session) {
+          const userData = session.user;
+          const currentUser: User = {
+            id: userData.id,
+            email: userData.email || '',
+            name: userData.user_metadata.name || '',
+            xLinked: false
+          };
+          
+          // Check if user has linked X account
+          const { data: xAccount } = await supabase
+            .from('x_accounts')
+            .select('*')
+            .eq('user_id', userData.id)
+            .maybeSingle();
+            
+          if (xAccount) {
+            currentUser.xLinked = true;
+            currentUser.xUsername = `@${xAccount.x_username}`;
+          }
+          
+          setUser(currentUser);
+          localStorage.setItem('user', JSON.stringify(currentUser));
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          localStorage.removeItem('user');
         }
-        localStorage.removeItem('auth_redirect_user');
-      } catch (e) {
-        console.error("Error parsing redirected user data:", e);
-        localStorage.removeItem('auth_redirect_user');
       }
-    }
+    );
     
+    // Check for X auth success on start
     const xAuthSuccess = localStorage.getItem('x_auth_success');
     const xAuthTimestamp = localStorage.getItem('x_auth_timestamp');
     
@@ -71,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         
         if (user) {
+          // We'll update the user with the X link status
           const updatedUser = {
             ...user,
             xLinked: true,
@@ -84,15 +127,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('x_auth_timestamp');
       }
     }
-  }, [user, toast]);
+    
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
-  useEffect(() => {
-    if (user) {
-      console.log('Saving user to localStorage:', user);
-      localStorage.setItem('user', JSON.stringify(user));
-    }
-  }, [user]);
-
+  // Handle X auth success message from OAuth popup
   useEffect(() => {
     const handleXAuthSuccess = (event: MessageEvent) => {
       if (
@@ -116,27 +158,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         } else {
           console.log('Received X auth success but no active user found');
-          const redirectUser = localStorage.getItem('auth_redirect_user');
-          if (redirectUser) {
-            try {
-              const parsedUser = JSON.parse(redirectUser);
-              const updatedUser = {
-                ...parsedUser,
-                xLinked: true,
-                xUsername: `@${event.data.username}`,
-              };
-              setUser(updatedUser);
-              localStorage.setItem('user', JSON.stringify(updatedUser));
-              localStorage.removeItem('auth_redirect_user');
-              
-              toast({
-                title: "X Account Linked",
-                description: `Successfully linked to @${event.data.username}`,
-              });
-            } catch (e) {
-              console.error("Error processing redirected user for X auth:", e);
-            }
-          }
+          toast({
+            title: "Authentication Error",
+            description: "Please log in before linking your X account",
+            variant: "destructive",
+          });
         }
       }
     };
@@ -149,38 +175,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Use Supabase authentication
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      if (email === "demo@example.com" && password === "password") {
-        const userData = { ...mockUser };
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
+      if (error) throw error;
+      
+      if (data.user) {
         toast({
           title: "Login successful",
           description: "Welcome back!",
         });
         navigate('/dashboard');
-      } else {
-        const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
-        if (savedAccounts[email] && savedAccounts[email].password === password) {
-          const userData = savedAccounts[email].user;
-          setUser(userData);
-          localStorage.setItem('user', JSON.stringify(userData));
-          
-          toast({
-            title: "Login successful",
-            description: "Welcome back!",
-          });
-          navigate('/dashboard');
-        } else {
-          throw new Error("Invalid credentials");
-        }
       }
     } catch (error) {
+      console.error("Login error:", error);
       toast({
         title: "Login failed",
-        description: error instanceof Error ? error.message : "Something went wrong",
+        description: error instanceof Error ? error.message : "Invalid credentials",
         variant: "destructive",
       });
       throw error;
@@ -193,35 +207,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      
-      const newUser: User = {
-        id: userId,
+      // Use Supabase authentication
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-        xLinked: false,
-      };
-      
-      console.log('Creating new user:', newUser);
-      
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      
-      const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
-      savedAccounts[email] = {
         password,
-        user: newUser
-      };
-      localStorage.setItem('saved_accounts', JSON.stringify(savedAccounts));
-      
-      toast({
-        title: "Account created",
-        description: "Welcome to PostAI!",
+        options: {
+          data: {
+            name: name
+          }
+        }
       });
-      navigate('/dashboard');
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        toast({
+          title: "Account created",
+          description: "Welcome to PostAI!",
+        });
+        navigate('/dashboard');
+      }
     } catch (error) {
+      console.error("Signup error:", error);
       toast({
         title: "Sign up failed",
         description: error instanceof Error ? error.message : "Something went wrong",
@@ -233,17 +240,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    console.log('Logging out user');
-    localStorage.removeItem('user');
-    localStorage.removeItem('auth_redirect_user');
-    setUser(null);
-    clearOAuthParams();
-    navigate('/');
-    toast({
-      title: "Logged out",
-      description: "You've been successfully logged out",
-    });
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      localStorage.removeItem('user');
+      localStorage.removeItem('auth_redirect_user');
+      clearOAuthParams();
+      navigate('/');
+      toast({
+        title: "Logged out",
+        description: "You've been successfully logged out",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   const linkXAccount = async () => {
