@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 const XCallback: React.FC = () => {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [xUsername, setXUsername] = useState<string | undefined>();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -100,6 +101,7 @@ const XCallback: React.FC = () => {
           }
           
           console.log('Token exchange successful with stored user ID');
+          setXUsername(result.username);
         } else {
           console.log('Using user ID from active session:', userId);
           
@@ -115,6 +117,7 @@ const XCallback: React.FC = () => {
           }
           
           console.log('Token exchange successful with session user ID');
+          setXUsername(result.username);
         }
 
         // Send success message to parent window if we're in a popup
@@ -122,7 +125,7 @@ const XCallback: React.FC = () => {
           console.log('We are in a popup, posting message to parent');
           window.opener.postMessage({
             type: 'X_AUTH_SUCCESS',
-            username: result?.username
+            username: xUsername
           }, window.location.origin);
 
           // Close the popup after a brief delay
@@ -132,6 +135,9 @@ const XCallback: React.FC = () => {
           console.log('Not in a popup, storing success in localStorage');
           localStorage.setItem('x_auth_success', 'true');
           localStorage.setItem('x_auth_timestamp', Date.now().toString());
+          if (xUsername) {
+            localStorage.setItem('x_auth_username', xUsername);
+          }
         }
         
         setStatus('success');

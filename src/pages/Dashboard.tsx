@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -18,24 +17,31 @@ const Dashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLinking, setIsLinking] = useState(false);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
 
-  // Initialize user data
   useEffect(() => {
+    let isMounted = true;
+    
     const checkSession = async () => {
       try {
+        console.log('Dashboard: Checking session...');
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error('Error fetching session:', sessionError);
-          setIsLoading(false);
-          navigate('/login');
+          console.error('Dashboard: Error fetching session:', sessionError);
+          if (isMounted) {
+            setLoadingError(sessionError.message);
+            setIsLoading(false);
+          }
           return;
         }
         
         if (!sessionData.session) {
-          console.log('No active session found');
-          setIsLoading(false);
-          navigate('/login');
+          console.log('Dashboard: No active session found, redirecting to login');
+          if (isMounted) {
+            setIsLoading(false);
+            navigate('/login');
+          }
           return;
         }
         
@@ -43,64 +49,17 @@ const Dashboard: React.FC = () => {
         const userData = sessionData.session.user;
         
         if (!userData) {
-          console.log('No user data found in session');
-          setIsLoading(false);
-          navigate('/login');
+          console.log('Dashboard: No user data found in session, redirecting to login');
+          if (isMounted) {
+            setIsLoading(false);
+            navigate('/login');
+          }
           return;
         }
 
-        console.log('User data from session:', userData);
+        console.log('Dashboard: User data from session:', userData);
 
-        // Check for X account linking
-        const { data: xAccount, error: xError } = await supabase
-          .from('x_accounts')
-          .select('*')
-          .eq('user_id', userData.id)
-          .maybeSingle();
-          
-        if (xError) {
-          console.error('Error fetching X account:', xError);
-        }
-        
-        const currentUser: User = {
-          id: userData.id,
-          email: userData.email || '',
-          name: userData.user_metadata?.name || '',
-          xLinked: !!xAccount,
-          xUsername: xAccount ? `@${xAccount.x_username}` : undefined
-        };
-        
-        console.log('Setting user from session:', currentUser);
-        setUser(currentUser);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error initializing dashboard:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load dashboard data. Please try again.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        navigate('/login');
-      }
-    };
-    
-    checkSession();
-    
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed in Dashboard:', event, session?.user?.id);
-        
-        if (event === 'SIGNED_OUT' || !session) {
-          setUser(null);
-          navigate('/login');
-          return;
-        }
-        
-        if (session?.user) {
-          const userData = session.user;
-          
+        try {
           // Check for X account linking
           const { data: xAccount, error: xError } = await supabase
             .from('x_accounts')
@@ -109,7 +68,7 @@ const Dashboard: React.FC = () => {
             .maybeSingle();
             
           if (xError) {
-            console.error('Error fetching X account on auth change:', xError);
+            console.error('Dashboard: Error fetching X account:', xError);
           }
           
           const currentUser: User = {
@@ -120,29 +79,101 @@ const Dashboard: React.FC = () => {
             xUsername: xAccount ? `@${xAccount.x_username}` : undefined
           };
           
-          console.log('Setting user from auth change:', currentUser);
-          setUser(currentUser);
+          console.log('Dashboard: Setting user from session:', currentUser);
+          if (isMounted) {
+            setUser(currentUser);
+            setIsLoading(false);
+          }
+        } catch (error) {
+          console.error('Dashboard: Error checking X account:', error);
+          if (isMounted) {
+            setLoadingError('Error checking linked accounts');
+            setIsLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error('Dashboard: Error initializing dashboard:', error);
+        if (isMounted) {
+          setLoadingError('Failed to load dashboard data');
           setIsLoading(false);
         }
       }
-    );
+    };
+    
+    checkSession();
+    
+    // Check for X auth success every time the dashboard is loaded
+    const xAuthSuccess = localStorage.getItem('x_auth_success');
+    const xAuthTimestamp = localStorage.getItem('x_auth_timestamp');
+    const xAuthUsername = localStorage.getItem('x_auth_username');
+    
+    if (xAuthSuccess === 'true' && xAuthTimestamp) {
+      const timestamp = parseInt(xAuthTimestamp, 10);
+      const now = Date.now();
+      if (now - timestamp < 30000) {
+        toast({
+          title: "X Account Linked",
+          description: "Your X account has been successfully linked!",
+        });
+        
+        // If we have a user, update it with X linking
+        if (user) {
+          const updatedUser = {
+            ...user,
+            xLinked: true,
+            xUsername: xAuthUsername ? `@${xAuthUsername}` : '@user',
+          };
+          setUser(updatedUser);
+        }
+        
+        localStorage.removeItem('x_auth_success');
+        localStorage.removeItem('x_auth_timestamp');
+        localStorage.removeItem('x_auth_username');
+      }
+    }
+    
+    // Handle X auth success message from OAuth popup
+    const handleXAuthSuccess = (event: MessageEvent) => {
+      if (
+        event.origin === window.location.origin &&
+        event.data?.type === 'X_AUTH_SUCCESS'
+      ) {
+        console.log('Dashboard: Received X auth success event:', event.data);
+        
+        if (user && event.data.username) {
+          const updatedUser = {
+            ...user,
+            xLinked: true,
+            xUsername: `@${event.data.username}`,
+          };
+          setUser(updatedUser);
+          
+          toast({
+            title: "X Account Linked",
+            description: `Successfully linked to @${event.data.username}`,
+          });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleXAuthSuccess);
     
     return () => {
-      subscription.unsubscribe();
+      isMounted = false;
+      window.removeEventListener('message', handleXAuthSuccess);
     };
-  }, [navigate, toast]);
+  }, [navigate, toast, user]);
 
   const handleLinkAccount = async () => {
     setIsLinking(true);
     try {
-      console.log('Starting X account linking process');
+      console.log('Dashboard: Starting X account linking process');
       
       // Store current user info for after OAuth flow
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
-        console.log('Stored user data for OAuth flow:', user);
       } else {
-        console.error('Cannot link X account - no active user');
+        console.error('Dashboard: Cannot link X account - no active user');
         toast({
           title: "Error",
           description: "You must be logged in to link an X account",
@@ -155,10 +186,23 @@ const Dashboard: React.FC = () => {
       // Clear any previous OAuth parameters
       clearOAuthParams();
       
+      // Get the current user's session to ensure we're authenticated
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        console.error('Dashboard: No active session found for X linking');
+        toast({
+          title: "Authentication Error",
+          description: "Please login again before linking your X account",
+          variant: "destructive",
+        });
+        setIsLinking(false);
+        return;
+      }
+      
       try {
         // Use the startXOAuthFlow from xOAuthUtils
         const authUrl = await startXOAuthFlow();
-        console.log('Generated X authorization URL:', authUrl);
+        console.log('Dashboard: Generated X authorization URL:', authUrl);
         
         if (!authUrl) {
           throw new Error('Failed to get X authorization URL');
@@ -182,7 +226,7 @@ const Dashboard: React.FC = () => {
           popup.focus();
         }
       } catch (error) {
-        console.error('Error starting X OAuth flow:', error);
+        console.error('Dashboard: Error starting X OAuth flow:', error);
         toast({
           title: "Failed to start X authorization",
           description: error instanceof Error ? error.message : "Something went wrong",
@@ -190,7 +234,7 @@ const Dashboard: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('Error linking X account:', error);
+      console.error('Dashboard: Error linking X account:', error);
       toast({
         title: "Failed to link X account",
         description: error instanceof Error ? error.message : "Something went wrong",
@@ -213,7 +257,17 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  if (loadingError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <div className="text-destructive mb-4">Error: {loadingError}</div>
+        <Button onClick={() => navigate('/login')}>Return to Login</Button>
+      </div>
+    );
+  }
+
   if (!user) {
+    console.log('Dashboard: No user found, redirecting to login');
     navigate('/login');
     return null;
   }
