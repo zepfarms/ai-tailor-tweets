@@ -19,6 +19,7 @@ const XCallback: React.FC = () => {
     const processCallback = async () => {
       try {
         const url = window.location.href;
+        console.log('Processing X callback URL:', url);
         const urlObj = new URL(url);
         
         // Extract parameters
@@ -26,6 +27,13 @@ const XCallback: React.FC = () => {
         const code = urlObj.searchParams.get('code');
         const error = urlObj.searchParams.get('error');
         const errorDescription = urlObj.searchParams.get('error_description');
+        
+        console.log('X callback parameters:', {
+          state: receivedState ? receivedState.substring(0, 10) + '...' : null,
+          code: code ? code.substring(0, 10) + '...' : null,
+          error,
+          errorDescription
+        });
         
         if (error) {
           console.error('OAuth error:', error, errorDescription);
@@ -53,6 +61,7 @@ const XCallback: React.FC = () => {
         }
         
         const codeVerifier = localStorage.getItem('x_oauth_code_verifier');
+        console.log('Retrieved code verifier length:', codeVerifier?.length);
         
         if (!codeVerifier) {
           console.error('Missing code verifier');
@@ -75,6 +84,7 @@ const XCallback: React.FC = () => {
         }
 
         // Exchange code for token
+        console.log('Calling exchangeCodeForToken with code, verifier and userId');
         const result = await exchangeCodeForToken(code, codeVerifier, userId);
         
         if (!result.success) {
@@ -85,8 +95,11 @@ const XCallback: React.FC = () => {
           return;
         }
 
+        console.log('Token exchange successful');
+        
         // Send success message to parent window if we're in a popup
         if (window.opener) {
+          console.log('We are in a popup, posting message to parent');
           window.opener.postMessage({
             type: 'X_AUTH_SUCCESS',
             username: result.username
@@ -96,6 +109,7 @@ const XCallback: React.FC = () => {
           setTimeout(() => window.close(), 2000);
         } else {
           // If not in a popup, mark success and handle accordingly
+          console.log('Not in a popup, storing success in localStorage');
           localStorage.setItem('x_auth_success', 'true');
           localStorage.setItem('x_auth_timestamp', Date.now().toString());
 

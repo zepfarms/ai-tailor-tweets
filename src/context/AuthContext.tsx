@@ -275,26 +275,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      const authUrl = await startXOAuthFlow();
-      
-      console.log('Opening X authorization URL:', authUrl);
-      const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
-      
-      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      // Call startXOAuthFlow and catch potential errors
+      try {
+        const authUrl = await startXOAuthFlow();
+        console.log('Opening X authorization URL:', authUrl);
+        
+        // Open popup with error handling
+        const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
+        
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+          toast({
+            title: "Popup Blocked",
+            description: "Please allow popups for this site and try again",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "X Authorization Started",
+            description: "Please complete the authorization in the popup window",
+          });
+          
+          popup.focus();
+        }
+      } catch (error) {
+        console.error('Error getting X authorization URL:', error);
         toast({
-          title: "Popup Blocked",
-          description: "Please allow popups for this site and try again",
+          title: "Failed to start X authorization",
+          description: error instanceof Error ? error.message : "Something went wrong",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "X Authorization Started",
-          description: "Please complete the authorization in the popup window",
-        });
-        
-        popup.focus();
       }
-      
     } catch (error) {
       console.error('Error initiating X account linking:', error);
       
