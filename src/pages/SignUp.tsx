@@ -8,15 +8,19 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 const SignUp: React.FC = () => {
   const { signup, isLoading, user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -28,40 +32,81 @@ const SignUp: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-    
-    if (name.trim() === '') {
-      setError('Name is required');
-      return;
-    }
-    
-    if (email.trim() === '') {
-      setError('Email is required');
-      return;
-    }
-    
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-    
-    // Check if email already exists in saved accounts
-    const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
-    if (savedAccounts[email]) {
-      setError('An account with this email already exists');
-      return;
-    }
+    setIsSubmitting(true);
     
     try {
-      await signup(email, password, name);
-      console.log('Signup successful');
+      // Basic validations
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (name.trim() === '') {
+        setError('Name is required');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (email.trim() === '') {
+        setError('Email is required');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Try to sign up directly with Supabase
+      const { data, error: signupError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name
+          }
+        }
+      });
+      
+      if (signupError) {
+        console.error('Signup error from Supabase:', signupError);
+        setError(signupError.message);
+        toast({
+          title: "Sign Up Failed",
+          description: signupError.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (data?.user) {
+        console.log('Signup successful, user created:', data.user);
+        toast({
+          title: "Account Created",
+          description: "Your account has been created successfully. Redirecting to dashboard...",
+        });
+        
+        // Wait a moment before redirecting to make sure the toast is shown
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      } else {
+        console.warn('Signup completed but no user data returned');
+        setError('Account created but login failed. Please try logging in.');
+      }
     } catch (err) {
-      console.error('Signup error:', err);
+      console.error('Unexpected error during signup:', err);
       setError(err instanceof Error ? err.message : 'Failed to sign up');
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to sign up',
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -134,8 +179,8 @@ const SignUp: React.FC = () => {
                   <div className="text-sm text-destructive">{error}</div>
                 )}
                 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Create account"}
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? "Creating account..." : "Create account"}
                 </Button>
               </form>
             </CardContent>
