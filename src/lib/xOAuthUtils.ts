@@ -14,21 +14,78 @@ const generateRandomString = (length: number): string => {
 
 // Store the OAuth state and code verifier in session storage
 export const storeOAuthParams = (state: string, codeVerifier: string) => {
-  sessionStorage.setItem('x_oauth_state', state);
-  sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
+  try {
+    // Store in session storage (primary method)
+    sessionStorage.setItem('x_oauth_state', state);
+    sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
+    
+    // Backup in localStorage with timestamp to handle cases where session storage fails
+    const timestamp = Date.now();
+    localStorage.setItem('x_oauth_backup', JSON.stringify({
+      state,
+      codeVerifier,
+      timestamp
+    }));
+    
+    console.log('OAuth parameters stored successfully');
+    console.log('- State:', state);
+    console.log('- Code Verifier (partial):', codeVerifier.substring(0, 10) + '...');
+  } catch (error) {
+    console.error('Error storing OAuth parameters:', error);
+    // If sessionStorage fails, try localStorage as fallback
+    try {
+      localStorage.setItem('x_oauth_backup', JSON.stringify({
+        state,
+        codeVerifier,
+        timestamp: Date.now()
+      }));
+    } catch (fallbackError) {
+      console.error('Fallback storage also failed:', fallbackError);
+    }
+  }
 };
 
-// Retrieve the OAuth state and code verifier from session storage
+// Retrieve the OAuth state and code verifier from storage
 export const getStoredOAuthParams = () => {
-  const state = sessionStorage.getItem('x_oauth_state');
-  const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
-  return { state, codeVerifier };
+  try {
+    // First try session storage
+    let state = sessionStorage.getItem('x_oauth_state');
+    let codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
+    
+    // If not found in session storage, try the localStorage backup
+    if (!state || !codeVerifier) {
+      console.log('OAuth params not found in session storage, trying localStorage backup');
+      const backup = localStorage.getItem('x_oauth_backup');
+      
+      if (backup) {
+        const parsed = JSON.parse(backup);
+        // Check if backup is less than 10 minutes old
+        if (Date.now() - parsed.timestamp < 10 * 60 * 1000) {
+          state = parsed.state;
+          codeVerifier = parsed.codeVerifier;
+          console.log('Using backup OAuth params from localStorage');
+        } else {
+          console.log('Backup OAuth params are too old, not using them');
+        }
+      }
+    }
+    
+    return { state, codeVerifier };
+  } catch (error) {
+    console.error('Error retrieving OAuth parameters:', error);
+    return { state: null, codeVerifier: null };
+  }
 };
 
-// Clear the OAuth params from session storage
+// Clear the OAuth params from storage
 export const clearOAuthParams = () => {
-  sessionStorage.removeItem('x_oauth_state');
-  sessionStorage.removeItem('x_oauth_code_verifier');
+  try {
+    sessionStorage.removeItem('x_oauth_state');
+    sessionStorage.removeItem('x_oauth_code_verifier');
+    localStorage.removeItem('x_oauth_backup');
+  } catch (error) {
+    console.error('Error clearing OAuth parameters:', error);
+  }
 };
 
 // Start the X OAuth flow using Edge Function
@@ -84,7 +141,7 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
     console.log('- Code Verifier length:', codeVerifier?.length);
     
     if (!expectedState || !codeVerifier) {
-      console.error('OAuth parameters not found in session storage');
+      console.error('OAuth parameters not found in storage');
       throw new Error('Authentication session expired. Please try again.');
     }
     

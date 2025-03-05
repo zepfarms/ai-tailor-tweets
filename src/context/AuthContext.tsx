@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { startXOAuthFlow } from '@/lib/xOAuthUtils';
+import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -122,6 +122,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     localStorage.removeItem('user');
     setUser(null);
+    // Also clear any OAuth params to ensure clean state
+    clearOAuthParams();
     navigate('/');
     toast({
       title: "Logged out",
@@ -132,6 +134,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const linkXAccount = async () => {
     try {
       console.log('Initiating X account linking');
+      
+      // Clear any existing OAuth params first to ensure clean state
+      clearOAuthParams();
+      
       const authUrl = await startXOAuthFlow();
       
       if (user) {
@@ -139,12 +145,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       console.log('Opening X authorization URL:', authUrl);
-      window.open(authUrl, 'xAuthWindow', 'width=600,height=600');
+      const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
       
-      toast({
-        title: "X Authorization Started",
-        description: "Please complete the authorization in the popup window",
-      });
+      // Check if popup was blocked
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        toast({
+          title: "Popup Blocked",
+          description: "Please allow popups for this site and try again",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "X Authorization Started",
+          description: "Please complete the authorization in the popup window",
+        });
+      }
       
     } catch (error) {
       console.error('Error initiating X account linking:', error);
