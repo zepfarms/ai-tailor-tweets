@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -6,10 +5,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { startXOAuthFlow } from '@/lib/xOAuthUtils';
 
-// Create the auth context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data (in a real app, this would come from a backend)
 const mockUser: User = {
   id: "1",
   email: "user@example.com",
@@ -23,7 +20,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Check if user is already logged in on mount
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
     
@@ -33,14 +29,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
+  useEffect(() => {
+    const handleXAuthSuccess = (event: MessageEvent) => {
+      if (
+        event.origin === window.location.origin &&
+        event.data?.type === 'X_AUTH_SUCCESS'
+      ) {
+        console.log('Received X auth success event:', event.data);
+        
+        if (user) {
+          const updatedUser = {
+            ...user,
+            xLinked: true,
+            xUsername: `@${event.data.username}`,
+          };
+          setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          
+          toast({
+            title: "X Account Linked",
+            description: `Successfully linked to @${event.data.username}`,
+          });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleXAuthSuccess);
+    return () => window.removeEventListener('message', handleXAuthSuccess);
+  }, [user, toast]);
+
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
     try {
-      // Mock login delay
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      // In a real app, this would validate credentials with a backend
       if (email === "demo@example.com" && password === "password") {
         localStorage.setItem('user', JSON.stringify(mockUser));
         setUser(mockUser);
@@ -68,10 +91,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      // Mock signup delay
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      // In a real app, this would create a user in the backend
       const newUser: User = {
         ...mockUser,
         email,
@@ -109,15 +130,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const linkXAccount = async () => {
     try {
-      // Start the X OAuth flow
+      console.log('Initiating X account linking');
       const authUrl = await startXOAuthFlow();
       
-      // Store current user state before redirecting
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
       }
       
-      // Open the X authorization page in a new window
+      console.log('Opening X authorization URL:', authUrl);
       window.open(authUrl, 'xAuthWindow', 'width=600,height=600');
       
       toast({
@@ -125,9 +145,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "Please complete the authorization in the popup window",
       });
       
-      // The rest of the flow will be handled by the callback page
-      
     } catch (error) {
+      console.error('Error initiating X account linking:', error);
       toast({
         title: "Failed to link X account",
         description: error instanceof Error ? error.message : "Something went wrong",

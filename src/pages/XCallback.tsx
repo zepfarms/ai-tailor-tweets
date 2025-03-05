@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
@@ -6,23 +7,31 @@ import { useToast } from "@/components/ui/use-toast";
 const XCallback: React.FC = () => {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState('Processing your X authorization...');
+  const [details, setDetails] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     const processOAuthCallback = async () => {
       try {
+        console.log('X callback page loaded');
+        
         // Get the OAuth verifier from the URL
         const params = new URLSearchParams(window.location.search);
         const oauthVerifier = params.get('oauth_verifier');
+        const oauthToken = params.get('oauth_token');
+        
+        console.log('OAuth params from URL:', { oauthToken, oauthVerifier });
         
         if (!oauthVerifier) {
           setStatus('error');
           setMessage('OAuth verifier not found in the URL');
+          setDetails('The X authorization did not provide the necessary verification code.');
           return;
         }
         
         // Complete the OAuth flow
+        setMessage('Connecting to X...');
         const result = await completeXOAuthFlow(oauthVerifier);
         
         if (result.success) {
@@ -62,11 +71,13 @@ const XCallback: React.FC = () => {
         }
       } catch (error) {
         setStatus('error');
-        setMessage(error instanceof Error ? error.message : 'An error occurred');
+        const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+        setMessage(errorMessage);
+        setDetails('There was a problem connecting to X. Please try again later.');
         
         toast({
           title: "Error Linking X Account",
-          description: error instanceof Error ? error.message : "Something went wrong",
+          description: errorMessage,
           variant: "destructive",
         });
         
@@ -111,6 +122,10 @@ const XCallback: React.FC = () => {
           
           <h2 className="text-xl font-bold mb-2">X Authorization</h2>
           <p className="text-muted-foreground">{message}</p>
+          
+          {details && (
+            <p className="mt-2 text-sm text-muted-foreground">{details}</p>
+          )}
           
           {(status === 'success' || status === 'error') && !window.opener && (
             <div className="mt-6">

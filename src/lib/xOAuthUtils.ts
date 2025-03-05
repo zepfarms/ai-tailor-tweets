@@ -32,6 +32,8 @@ export const startXOAuthFlow = async (): Promise<string> => {
       throw new Error('User not authenticated');
     }
 
+    console.log('Starting X OAuth flow with access token:', accessToken.substring(0, 10) + '...');
+    
     // Call the edge function to get a request token
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/twitter-request-token`, {
       method: 'POST',
@@ -48,6 +50,7 @@ export const startXOAuthFlow = async (): Promise<string> => {
     }
 
     const data = await response.json();
+    console.log('Received OAuth request token:', data.requestToken);
     
     // Store the tokens
     storeOAuthTokens(data.requestToken, data.requestTokenSecret);
@@ -69,6 +72,10 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
   try {
     const { requestToken, requestTokenSecret } = getStoredOAuthTokens();
     
+    console.log('Completing X OAuth flow with:');
+    console.log('- Request token:', requestToken);
+    console.log('- Verifier:', oauthVerifier);
+    
     if (!requestToken || !requestTokenSecret) {
       throw new Error('OAuth tokens not found');
     }
@@ -82,7 +89,10 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
       throw new Error('User not authenticated');
     }
 
+    console.log('User ID for X account linking:', user.id);
+
     // Call the edge function to get an access token
+    console.log('Calling twitter-access-token endpoint with request token and verifier');
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/twitter-access-token`, {
       method: 'POST',
       headers: {
@@ -104,6 +114,7 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
     }
 
     const data = await response.json();
+    console.log('X OAuth successfully completed for username:', data.username);
     
     // Clear the tokens
     clearOAuthTokens();
