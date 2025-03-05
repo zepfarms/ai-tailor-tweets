@@ -45,6 +45,7 @@ export type Topic =
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isLinkingX: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
