@@ -15,24 +15,54 @@ const generateRandomString = (length: number): string => {
 // Store the OAuth state and code verifier in session storage
 export const storeOAuthParams = (state: string, codeVerifier: string) => {
   try {
-    sessionStorage.setItem('x_oauth_state', state);
-    sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
-    console.log('OAuth parameters stored in session storage');
+    // Use localStorage instead of sessionStorage for more persistence
+    // This helps prevent "session expired" errors when the popup closes/refreshes
+    localStorage.setItem('x_oauth_state', state);
+    localStorage.setItem('x_oauth_code_verifier', codeVerifier);
+    localStorage.setItem('x_oauth_timestamp', Date.now().toString());
+    console.log('OAuth parameters stored in local storage');
   } catch (error) {
     console.error('Error storing OAuth parameters:', error);
     throw new Error('Failed to store OAuth parameters. Please ensure cookies are enabled.');
   }
 };
 
-// Retrieve the OAuth state and code verifier from session storage
+// Retrieve the OAuth state and code verifier from storage
 export const getStoredOAuthParams = () => {
   try {
-    const state = sessionStorage.getItem('x_oauth_state');
-    const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
+    // Try localStorage first (our new approach)
+    let state = localStorage.getItem('x_oauth_state');
+    let codeVerifier = localStorage.getItem('x_oauth_code_verifier');
+    let timestamp = localStorage.getItem('x_oauth_timestamp');
+    
+    // If not found in localStorage, try sessionStorage (fallback for existing users)
+    if (!state || !codeVerifier) {
+      console.log('OAuth parameters not found in localStorage, trying sessionStorage');
+      state = sessionStorage.getItem('x_oauth_state');
+      codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
+    }
     
     if (!state || !codeVerifier) {
-      console.warn('OAuth parameters not found in session storage');
+      console.warn('OAuth parameters not found in storage');
+      return { state: null, codeVerifier: null };
     }
+    
+    // Check if the oauth request is too old (30 minutes)
+    if (timestamp) {
+      const timestampNum = parseInt(timestamp, 10);
+      const now = Date.now();
+      const thirtyMinutesInMs = 30 * 60 * 1000;
+      
+      if (now - timestampNum > thirtyMinutesInMs) {
+        console.warn('OAuth session has expired (older than 30 minutes)');
+        clearOAuthParams();
+        return { state: null, codeVerifier: null };
+      }
+    }
+    
+    console.log('OAuth parameters retrieved successfully');
+    console.log('- State:', state);
+    console.log('- Code Verifier exists:', !!codeVerifier);
     
     return { state, codeVerifier };
   } catch (error) {
@@ -41,12 +71,18 @@ export const getStoredOAuthParams = () => {
   }
 };
 
-// Clear the OAuth params from session storage
+// Clear the OAuth params from storage
 export const clearOAuthParams = () => {
   try {
+    // Clear from both localStorage and sessionStorage to be thorough
+    localStorage.removeItem('x_oauth_state');
+    localStorage.removeItem('x_oauth_code_verifier');
+    localStorage.removeItem('x_oauth_timestamp');
+    
     sessionStorage.removeItem('x_oauth_state');
     sessionStorage.removeItem('x_oauth_code_verifier');
-    console.log('OAuth parameters cleared from session storage');
+    
+    console.log('OAuth parameters cleared from storage');
   } catch (error) {
     console.error('Error clearing OAuth parameters:', error);
   }
@@ -104,12 +140,14 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
     console.log('- Code Verifier exists:', !!codeVerifier);
     
     if (!expectedState || !codeVerifier) {
-      console.error('OAuth parameters not found in session storage');
-      throw new Error('Authentication session expired. Please try again.');
+      console.error('OAuth parameters not found in storage');
+      throw new Error('Authentication session expired or not found. Please try again.');
     }
     
     if (state !== expectedState) {
       console.error('State parameter mismatch');
+      console.error('Received state:', state);
+      console.error('Expected state:', expectedState);
       throw new Error('Invalid state parameter. Security validation failed.');
     }
     

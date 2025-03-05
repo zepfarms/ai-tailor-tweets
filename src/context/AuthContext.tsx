@@ -192,12 +192,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Initiating X account linking');
       const authUrl = await startXOAuthFlow();
       
+      // Ensure we have a valid auth URL before proceeding
+      if (!authUrl) {
+        throw new Error("Failed to get authorization URL from Twitter");
+      }
+      
+      // Store user data if needed for the callback
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
       }
       
       console.log('Opening X authorization URL:', authUrl);
-      window.open(authUrl, 'xAuthWindow', 'width=600,height=600');
+      // Open in a popup for better user experience
+      const width = 600;
+      const height = 600;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      const popup = window.open(
+        authUrl, 
+        'xAuthWindow', 
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+      
+      // Make sure popup was successfully opened
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        throw new Error("Popup blocked. Please allow popups for this website.");
+      }
       
       toast({
         title: "X Authorization Started",

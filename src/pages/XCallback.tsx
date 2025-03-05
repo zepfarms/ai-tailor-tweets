@@ -63,16 +63,6 @@ const XCallback: React.FC = () => {
           setStatus('success');
           setMessage(`Successfully linked X account: @${result.username}`);
           
-          // Update the user in local storage if needed
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            const user = JSON.parse(storedUser);
-            user.xLinked = true;
-            user.xUsername = `@${result.username}`;
-            user.profileImageUrl = result.profileImageUrl;
-            localStorage.setItem('user', JSON.stringify(user));
-          }
-          
           // If this is a popup window, communicate success to parent
           if (window.opener) {
             window.opener.postMessage({ 
@@ -151,6 +141,15 @@ const XCallback: React.FC = () => {
           
           {details && (
             <p className="mt-2 text-sm text-muted-foreground">{details}</p>
+          )}
+          
+          {status === 'error' && (
+            <button 
+              onClick={() => window.close()}
+              className="mt-4 px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
+            >
+              Close Window
+            </button>
           )}
           
           {(status === 'success' || status === 'error') && !window.opener && (
