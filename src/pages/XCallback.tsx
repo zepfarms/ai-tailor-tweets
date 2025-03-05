@@ -85,7 +85,8 @@ const XCallback: React.FC = () => {
           // Redirect back to dashboard with success parameters
           setTimeout(() => {
             console.log('Redirecting to dashboard with success parameters');
-            navigate('/dashboard?x_auth_success=true&username=' + result.username);
+            const redirectUrl = `/dashboard?x_auth_success=true&username=${result.username}`;
+            navigate(redirectUrl);
           }, 1500);
         }
       } catch (error) {

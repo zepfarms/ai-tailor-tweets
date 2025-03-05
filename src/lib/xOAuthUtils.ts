@@ -16,9 +16,10 @@ export const storeOAuthParams = (state: string, codeVerifier: string) => {
       state: state.substring(0, 5) + '...',
       codeVerifier: codeVerifier.substring(0, 5) + '...'
     });
+    return true;
   } catch (error) {
     console.error('Error storing OAuth parameters:', error);
-    throw new Error('Failed to store OAuth parameters');
+    return false;
   }
 };
 
@@ -54,13 +55,25 @@ export const clearOAuthParams = () => {
 
 // Store current page for redirect
 export const storeCurrentPage = () => {
-  sessionStorage.setItem('x_auth_redirect', '/dashboard');
-  console.log('Stored redirect page: /dashboard');
+  try {
+    sessionStorage.setItem('x_auth_redirect', '/dashboard');
+    console.log('Stored redirect page: /dashboard');
+    return true;
+  } catch (error) {
+    console.error('Error storing redirect page:', error);
+    return false;
+  }
 };
 
 // Get stored redirect page
 export const getStoredRedirectPage = (): string => {
-  return '/dashboard'; // Always return dashboard to avoid blank screens
+  try {
+    const redirectPage = sessionStorage.getItem('x_auth_redirect');
+    return redirectPage || '/dashboard';
+  } catch (error) {
+    console.error('Error getting stored redirect page:', error);
+    return '/dashboard';
+  }
 };
 
 // Start X OAuth flow
@@ -69,7 +82,9 @@ export const startXOAuthFlow = async (): Promise<void> => {
     console.log('Starting X OAuth flow');
     
     // Store current page for redirect after auth
-    storeCurrentPage();
+    if (!storeCurrentPage()) {
+      throw new Error('Failed to store current page for redirect');
+    }
     
     // Clear any existing OAuth parameters
     clearOAuthParams();
@@ -96,14 +111,18 @@ export const startXOAuthFlow = async (): Promise<void> => {
     });
     
     // Store OAuth parameters
-    storeOAuthParams(data.state, data.codeVerifier);
+    const paramStored = storeOAuthParams(data.state, data.codeVerifier);
+    if (!paramStored) {
+      throw new Error('Failed to store OAuth parameters');
+    }
     
     // Redirect to Twitter authorization page
     console.log('Redirecting to Twitter authorization URL:', data.authorizeUrl.substring(0, 30) + '...');
     window.location.href = data.authorizeUrl;
   } catch (error) {
     console.error('Error starting X OAuth flow:', error);
-    throw error;
+    // Don't rethrow - instead show error in UI
+    return Promise.reject(error);
   }
 };
 

@@ -212,13 +212,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const linkXAccount = async () => {
-    if (isLinkingX) return; // Prevent multiple simultaneous attempts
+    if (isLinkingX) {
+      console.log('Already in the process of linking X account');
+      return Promise.reject(new Error('Already in the process of linking X account'));
+    }
     
     setIsLinkingX(true);
     
     try {
       console.log('Initiating X account linking');
       
+      // Clear any previous OAuth params
       clearOAuthParams();
       
       toast({
@@ -226,7 +230,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "Redirecting to X for authorization...",
       });
       
-      await startXOAuthFlow();
+      // This may redirect the user away from the current page
+      await startXOAuthFlow().catch((error) => {
+        console.error('Error in startXOAuthFlow:', error);
+        setIsLinkingX(false);
+        throw error;
+      });
       
     } catch (error) {
       console.error('Error initiating X account linking:', error);
@@ -236,6 +245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variant: "destructive",
       });
       setIsLinkingX(false);
+      return Promise.reject(error);
     }
   };
 

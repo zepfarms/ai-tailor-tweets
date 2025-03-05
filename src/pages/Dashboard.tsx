@@ -14,6 +14,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [linkingError, setLinkingError] = useState<string | null>(null);
   const [linkButtonClicked, setLinkButtonClicked] = useState(false);
   
   // Get auth context
@@ -57,8 +58,12 @@ const Dashboard: React.FC = () => {
   }, [toast]);
 
   const handleLinkAccount = async () => {
+    if (linkButtonClicked || isLinkingX) return; // Prevent multiple clicks
+    
     try {
       setLinkButtonClicked(true);
+      setLinkingError(null);
+      
       console.log("Initiating X account linking from Dashboard");
       await linkXAccount();
       
@@ -69,9 +74,11 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error linking account:', error);
       setLinkButtonClicked(false);
+      setLinkingError(error instanceof Error ? error.message : 'Failed to link account');
+      
       toast({
         title: "Failed to link X account",
-        description: "Please try again later",
+        description: error instanceof Error ? error.message : "Please try again later",
         variant: "destructive",
       });
     }
@@ -181,6 +188,11 @@ const Dashboard: React.FC = () => {
                   <p className="text-center text-muted-foreground">
                     Connect your X account to start creating and scheduling posts
                   </p>
+                  {linkingError && (
+                    <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded-md w-full">
+                      {linkingError}
+                    </div>
+                  )}
                   <Button 
                     onClick={handleLinkAccount} 
                     className="group button-glow"
