@@ -24,18 +24,27 @@ export const clearOAuthTokens = () => {
 // Start the X OAuth flow
 export const startXOAuthFlow = async (): Promise<string> => {
   try {
+    // Get the session first
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    
+    if (!accessToken) {
+      throw new Error('User not authenticated');
+    }
+
     // Call the edge function to get a request token
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/twitter-request-token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabase.auth.getSession().then(res => res.data.session?.access_token)}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to get request token');
+      const errorText = await response.text();
+      console.error('Error response from twitter-request-token:', errorText);
+      throw new Error(`Failed to get request token: ${response.status}`);
     }
 
     const data = await response.json();
@@ -64,9 +73,12 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
       throw new Error('OAuth tokens not found');
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get the session first
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    const user = sessionData.session?.user;
     
-    if (!user) {
+    if (!accessToken || !user) {
       throw new Error('User not authenticated');
     }
 
@@ -75,7 +87,7 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabase.auth.getSession().then(res => res.data.session?.access_token)}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         token: requestToken,
@@ -86,8 +98,9 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to get access token');
+      const errorText = await response.text();
+      console.error('Error response from twitter-access-token:', errorText);
+      throw new Error(`Failed to get access token: ${response.status}`);
     }
 
     const data = await response.json();
