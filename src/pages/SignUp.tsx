@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import Footer from '@/components/Footer';
 
 const SignUp: React.FC = () => {
   const { signup, isLoading } = useAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,9 +27,26 @@ const SignUp: React.FC = () => {
       return;
     }
     
+    if (name.trim() === '') {
+      setError('Name is required');
+      return;
+    }
+    
+    if (email.trim() === '') {
+      setError('Email is required');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    
     try {
       await signup(email, password, name);
+      console.log('Signup successful');
     } catch (err) {
+      console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'Failed to sign up');
     }
   };
@@ -82,6 +100,7 @@ const SignUp: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    minLength={6}
                   />
                 </div>
                 

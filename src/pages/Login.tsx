@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,18 +10,38 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 const Login: React.FC = () => {
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, user } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
+    if (email.trim() === '') {
+      setError('Email is required');
+      return;
+    }
+    
+    if (password.trim() === '') {
+      setError('Password is required');
+      return;
+    }
+    
     try {
       await login(email, password);
+      console.log('Login successful');
     } catch (err) {
+      console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'Failed to login');
     }
   };

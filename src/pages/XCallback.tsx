@@ -56,23 +56,29 @@ const XCallback: React.FC = () => {
         // Update the user in local storage
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
+          console.log('Updating user with X account link data');
           const user = JSON.parse(storedUser);
           user.xLinked = true;
           user.xUsername = `@${result.username}`;
           localStorage.setItem('user', JSON.stringify(user));
         } else {
+          console.log('No user found in local storage, checking redirect user');
           // Try to get from the auth_redirect_user
           const redirectUser = localStorage.getItem('auth_redirect_user');
           if (redirectUser) {
+            console.log('Found redirect user, updating with X account link data');
             const user = JSON.parse(redirectUser);
             user.xLinked = true;
             user.xUsername = `@${result.username}`;
             localStorage.setItem('user', JSON.stringify(user));
+          } else {
+            console.warn('No user found in any storage location');
           }
         }
         
         // If this is a popup window, close it
         if (window.opener) {
+          console.log('Sending success message to opener window');
           window.opener.postMessage({ 
             type: 'X_AUTH_SUCCESS', 
             username: result.username,
@@ -120,6 +126,9 @@ const XCallback: React.FC = () => {
     localStorage.removeItem('x_oauth_code_verifier');
     localStorage.removeItem('x_oauth_timestamp');
     localStorage.removeItem('x_oauth_backup');
+    sessionStorage.removeItem('x_oauth_state');
+    sessionStorage.removeItem('x_oauth_code_verifier');
+    sessionStorage.removeItem('x_oauth_timestamp');
     document.cookie = 'x_oauth_data=; max-age=0; path=/';
     
     // Navigate back to dashboard

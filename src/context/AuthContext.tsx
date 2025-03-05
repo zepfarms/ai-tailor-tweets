@@ -10,7 +10,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const mockUser: User = {
   id: "1",
-  email: "user@example.com",
+  email: "demo@example.com",
   name: "Demo User",
   xLinked: false
 };
@@ -21,26 +21,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Load user from localStorage on initial render
   useEffect(() => {
-    const loggedInUser = localStorage.getItem('user');
-    
-    if (loggedInUser) {
+    const loadUser = () => {
       try {
-        setUser(JSON.parse(loggedInUser));
+        const storedUser = localStorage.getItem('user');
+        
+        if (storedUser) {
+          console.log('Loading user from localStorage:', storedUser);
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+        } else {
+          console.log('No user found in localStorage');
+        }
       } catch (e) {
         console.error("Error parsing user from localStorage:", e);
-        // If there's an error parsing, clear the invalid data
         localStorage.removeItem('user');
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+    
+    loadUser();
     
     // Also check for redirected user data
     const redirectUser = localStorage.getItem('auth_redirect_user');
-    if (redirectUser && !loggedInUser) {
+    if (redirectUser) {
       try {
-        setUser(JSON.parse(redirectUser));
-        localStorage.setItem('user', redirectUser);
+        const parsedRedirectUser = JSON.parse(redirectUser);
+        if (!user) {
+          console.log('Restoring user from redirect data:', parsedRedirectUser);
+          setUser(parsedRedirectUser);
+          localStorage.setItem('user', redirectUser);
+        }
         localStorage.removeItem('auth_redirect_user');
       } catch (e) {
         console.error("Error parsing redirected user data:", e);
@@ -49,6 +62,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Save user to localStorage whenever it changes
+  useEffect(() => {
+    if (user) {
+      console.log('Saving user to localStorage:', user);
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+  }, [user]);
+
+  // Handle X auth success message events
   useEffect(() => {
     const handleXAuthSuccess = (event: MessageEvent) => {
       if (
@@ -64,7 +86,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             xUsername: `@${event.data.username}`,
           };
           setUser(updatedUser);
-          localStorage.setItem('user', JSON.stringify(updatedUser));
           
           toast({
             title: "X Account Linked",
@@ -109,8 +130,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
       if (email === "demo@example.com" && password === "password") {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        setUser(mockUser);
+        const userData = { ...mockUser };
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        
         toast({
           title: "Login successful",
           description: "Welcome back!",
@@ -137,14 +160,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
+      // Create a unique ID for the new user
+      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
       const newUser: User = {
-        ...mockUser,
+        id: userId,
         email,
         name,
+        xLinked: false,
       };
       
-      localStorage.setItem('user', JSON.stringify(newUser));
+      console.log('Creating new user:', newUser);
       setUser(newUser);
+      localStorage.setItem('user', JSON.stringify(newUser));
+      
       toast({
         title: "Account created",
         description: "Welcome to PostAI!",
@@ -163,6 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    console.log('Logging out user');
     localStorage.removeItem('user');
     localStorage.removeItem('auth_redirect_user');
     setUser(null);
@@ -185,7 +215,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Store the current user for retrieval after the OAuth flow
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
-        console.log('Stored current user for retrieval after OAuth flow');
+        console.log('Stored current user for retrieval after OAuth flow:', user);
+      } else {
+        console.error('Cannot link X account - no active user');
+        toast({
+          title: "Error",
+          description: "You must be logged in to link an X account",
+          variant: "destructive",
+        });
+        return;
       }
       
       // Start the OAuth flow
