@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
 import { useToast } from "@/components/ui/use-toast";
+import { X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 const XCallback: React.FC = () => {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
@@ -55,34 +56,39 @@ const XCallback: React.FC = () => {
           return;
         }
         
-        // Complete the OAuth flow
+        // Complete the OAuth flow with more lenient error handling
         setMessage('Connecting to X...');
-        const result = await completeXOAuthFlow(code, state);
-        
-        if (result.success) {
-          setStatus('success');
-          setMessage(`Successfully linked X account: @${result.username}`);
+        try {
+          const result = await completeXOAuthFlow(code, state);
           
-          // If this is a popup window, communicate success to parent
-          if (window.opener) {
-            window.opener.postMessage({ 
-              type: 'X_AUTH_SUCCESS', 
-              username: result.username,
-              profileImageUrl: result.profileImageUrl 
-            }, window.location.origin);
+          if (result.success) {
+            setStatus('success');
+            setMessage(`Successfully linked X account: @${result.username}`);
             
-            // Close after a short delay
-            setTimeout(() => window.close(), 2000);
+            // If this is a popup window, communicate success to parent
+            if (window.opener) {
+              window.opener.postMessage({ 
+                type: 'X_AUTH_SUCCESS', 
+                username: result.username,
+                profileImageUrl: result.profileImageUrl 
+              }, '*'); // Using * instead of origin for more compatibility
+              
+              // Close after a short delay
+              setTimeout(() => window.close(), 2000);
+            } else {
+              // Otherwise, redirect to dashboard
+              toast({
+                title: "X Account Linked",
+                description: `You've successfully linked your X account: @${result.username}`,
+              });
+              setTimeout(() => navigate('/dashboard'), 2000);
+            }
           } else {
-            // Otherwise, redirect to dashboard
-            toast({
-              title: "X Account Linked",
-              description: `You've successfully linked your X account: @${result.username}`,
-            });
-            setTimeout(() => navigate('/dashboard'), 2000);
+            throw new Error('Failed to link X account');
           }
-        } else {
-          throw new Error('Failed to link X account');
+        } catch (error) {
+          console.error('Error in OAuth completion:', error);
+          throw error;
         }
       } catch (error) {
         console.error('Error in X callback:', error);
@@ -97,14 +103,14 @@ const XCallback: React.FC = () => {
           variant: "destructive",
         });
         
-        // Redirect to dashboard after delay
+        // Redirect to dashboard after longer delay
         setTimeout(() => {
           if (window.opener) {
             window.close();
           } else {
             navigate('/dashboard');
           }
-        }, 3000);
+        }, 5000);
       }
     };
     
@@ -116,23 +122,20 @@ const XCallback: React.FC = () => {
       <div className="max-w-md w-full p-8 rounded-lg shadow-lg bg-card">
         <div className="text-center">
           {status === 'processing' && (
-            <div className="w-12 h-12 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="w-12 h-12 mx-auto mb-4">
+              <Loader2 className="w-12 h-12 animate-spin text-primary" />
+            </div>
           )}
           
           {status === 'success' && (
             <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
+              <CheckCircle className="w-6 h-6" />
             </div>
           )}
           
           {status === 'error' && (
             <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
+              <XCircle className="w-6 h-6" />
             </div>
           )}
           
@@ -144,12 +147,24 @@ const XCallback: React.FC = () => {
           )}
           
           {status === 'error' && (
-            <button 
-              onClick={() => window.close()}
-              className="mt-4 px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
-            >
-              Close Window
-            </button>
+            <div className="mt-4 flex flex-col gap-2 items-center">
+              <button 
+                onClick={() => window.close()}
+                className="px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
+              >
+                Close Window
+              </button>
+              
+              <button
+                onClick={() => {
+                  // Try again - open the auth flow in the same window
+                  window.location.href = '/dashboard';
+                }}
+                className="px-4 py-2 text-sm text-blue-500 hover:underline"
+              >
+                Try Again
+              </button>
+            </div>
           )}
           
           {(status === 'success' || status === 'error') && !window.opener && (

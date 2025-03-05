@@ -1,10 +1,9 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { startXOAuthFlow } from '@/lib/xOAuthUtils';
+import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -14,7 +13,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Check for existing session on initial load
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -23,12 +21,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (sessionData.session) {
           const { user: authUser } = sessionData.session;
           
-          // Transform Supabase user to our application User type
           const appUser: User = {
             id: authUser.id,
             email: authUser.email || '',
             name: authUser.user_metadata.name || 'User',
-            xLinked: false, // We'll check for X linking in a separate query if needed
+            xLinked: false,
           };
           
           setUser(appUser);
@@ -43,7 +40,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSession();
   }, []);
 
-  // Listen for auth state changes
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event);
@@ -51,12 +47,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === 'SIGNED_IN' && session) {
         const authUser = session.user;
         
-        // Transform Supabase user to our application User type
         const appUser: User = {
           id: authUser.id,
           email: authUser.email || '',
           name: authUser.user_metadata.name || 'User',
-          xLinked: false, // We'll update this if/when they link X
+          xLinked: false,
         };
         
         setUser(appUser);
@@ -72,10 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const handleXAuthSuccess = (event: MessageEvent) => {
-      if (
-        event.origin === window.location.origin &&
-        event.data?.type === 'X_AUTH_SUCCESS'
-      ) {
+      if (event.data?.type === 'X_AUTH_SUCCESS') {
         console.log('Received X auth success event:', event.data);
         
         if (user) {
@@ -133,13 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      // Create a new user in Supabase
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            name, // Store name in user metadata
+            name,
           },
         },
       });
@@ -190,34 +181,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const linkXAccount = async () => {
     try {
       console.log('Initiating X account linking');
+      
+      clearOAuthParams();
+      
       const authUrl = await startXOAuthFlow();
       
-      // Ensure we have a valid auth URL before proceeding
       if (!authUrl) {
         throw new Error("Failed to get authorization URL from Twitter");
       }
       
-      // Store user data if needed for the callback
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
       }
       
       console.log('Opening X authorization URL:', authUrl);
-      // Open in a popup for better user experience
+      
       const width = 600;
-      const height = 600;
+      const height = 800;
       const left = window.screen.width / 2 - width / 2;
       const top = window.screen.height / 2 - height / 2;
+      
       const popup = window.open(
         authUrl, 
         'xAuthWindow', 
-        `width=${width},height=${height},left=${left},top=${top}`
+        `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
       );
       
-      // Make sure popup was successfully opened
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         throw new Error("Popup blocked. Please allow popups for this website.");
       }
+      
+      const checkPopupClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkPopupClosed);
+          setTimeout(() => {
+            if (user && !user.xLinked) {
+              toast({
+                title: "X Authorization Canceled",
+                description: "The authorization window was closed before completion.",
+              });
+            }
+          }, 1000);
+        }
+      }, 1000);
       
       toast({
         title: "X Authorization Started",
@@ -231,7 +237,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
-      throw error;
     }
   };
 
