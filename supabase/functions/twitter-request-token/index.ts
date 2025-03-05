@@ -39,6 +39,7 @@ serve(async (req) => {
 
   try {
     console.log("twitter-request-token function called (OAuth 2.0)");
+    console.log("Headers:", JSON.stringify([...req.headers.entries()]));
     
     if (!TWITTER_CLIENT_ID) {
       console.error("Missing Twitter Client ID");

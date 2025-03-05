@@ -24,8 +24,13 @@ serve(async (req) => {
     console.log("twitter-access-token function called (OAuth 2.0)");
     
     const { code, state, codeVerifier, expectedState, userId } = await req.json();
-    console.log("Received parameters:", { code, state, userId });
-    console.log("CodeVerifier length:", codeVerifier?.length);
+    console.log("Received parameters:", { 
+      code: code ? `${code.substring(0, 10)}...` : "missing", 
+      state, 
+      codeVerifierExists: !!codeVerifier,
+      expectedState,
+      userId 
+    });
 
     if (!code) {
       throw new Error("Missing required authorization code parameter");
@@ -58,6 +63,12 @@ serve(async (req) => {
       code_verifier: codeVerifier || "" // Allow empty string as fallback
     });
     
+    console.log("Token request parameters:", {
+      code: code ? `${code.substring(0, 10)}...` : null,
+      redirect_uri: CALLBACK_URL,
+      code_verifier_length: codeVerifier?.length || 0
+    });
+
     const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
     
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
@@ -69,6 +80,8 @@ serve(async (req) => {
       body: tokenParams.toString()
     });
 
+    console.log("Token response status:", tokenResponse.status);
+
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error(`Twitter token API error (${tokenResponse.status}):`, errorText);
@@ -77,6 +90,7 @@ serve(async (req) => {
 
     const tokenData = await tokenResponse.json();
     console.log("Twitter token response received successfully");
+    console.log("Access token expires in:", tokenData.expires_in, "seconds");
     
     // Get user data from Twitter
     console.log("Fetching user data from Twitter");
@@ -85,6 +99,8 @@ serve(async (req) => {
         "Authorization": `Bearer ${tokenData.access_token}`
       }
     });
+
+    console.log("User data response status:", userResponse.status);
 
     if (!userResponse.ok) {
       const errorText = await userResponse.text();
@@ -106,28 +122,34 @@ serve(async (req) => {
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       console.log("Storing X account data for user:", userId);
 
-      // Save the X account data to Supabase
-      const { data, error } = await supabase
-        .from("x_accounts")
-        .upsert({
-          user_id: userId,
-          x_user_id: userData.data.id,
-          x_username: userData.data.username,
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-          profile_image_url: userData.data.profile_image_url || null,
-        })
-        .select()
-        .single();
+      try {
+        // Save the X account data to Supabase
+        const { data, error } = await supabase
+          .from("x_accounts")
+          .upsert({
+            user_id: userId,
+            x_user_id: userData.data.id,
+            x_username: userData.data.username,
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token,
+            expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+            profile_image_url: userData.data.profile_image_url || null,
+          })
+          .select()
+          .single();
 
-      if (error) {
-        console.error("Error saving X account:", error);
-        // Don't throw here - we still want to return the successful authentication
+        if (error) {
+          console.error("Error saving X account:", error);
+          // Don't throw here - we still want to return the successful authentication
+          console.log("Continuing despite database error");
+        } else {
+          xAccountData = data;
+          console.log("Successfully saved X account data");
+        }
+      } catch (dbError) {
+        console.error("Database operation error:", dbError);
         console.log("Continuing despite database error");
-      } else {
-        xAccountData = data;
-        console.log("Successfully saved X account data");
+        // Still return success for the authorization part
       }
     } else {
       console.log("No userId provided, skipping database storage");

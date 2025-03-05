@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
 import { useToast } from "@/components/ui/use-toast";
-import { X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { X, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 
 const XCallback: React.FC = () => {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState('Processing your X authorization...');
   const [details, setDetails] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
     const processOAuthCallback = async () => {
       try {
         console.log('X callback page loaded');
+        console.log('URL:', window.location.href);
         
         // Get the OAuth code and state from the URL
         const params = new URLSearchParams(window.location.search);
@@ -34,6 +37,7 @@ const XCallback: React.FC = () => {
           setStatus('error');
           setMessage(`Authorization error: ${error}`);
           setDetails(errorDescription || 'The X authorization was denied or failed.');
+          setErrorCode(error);
           
           toast({
             title: "X Authorization Failed",
@@ -47,6 +51,7 @@ const XCallback: React.FC = () => {
           setStatus('error');
           setMessage('Missing authorization parameters');
           setDetails('The authorization did not provide the necessary parameters. Please try again.');
+          setErrorCode('missing_params');
           
           toast({
             title: "Missing Authorization Parameters",
@@ -58,7 +63,9 @@ const XCallback: React.FC = () => {
         
         // Complete the OAuth flow with more lenient error handling
         setMessage('Connecting to X...');
+        
         try {
+          console.log('Attempting to complete OAuth flow with code and state');
           const result = await completeXOAuthFlow(code, state);
           
           if (result.success) {
@@ -67,6 +74,7 @@ const XCallback: React.FC = () => {
             
             // If this is a popup window, communicate success to parent
             if (window.opener) {
+              console.log('This is a popup window, sending message to parent');
               window.opener.postMessage({ 
                 type: 'X_AUTH_SUCCESS', 
                 username: result.username,
@@ -77,6 +85,7 @@ const XCallback: React.FC = () => {
               setTimeout(() => window.close(), 2000);
             } else {
               // Otherwise, redirect to dashboard
+              console.log('This is not a popup, redirecting to dashboard');
               toast({
                 title: "X Account Linked",
                 description: `You've successfully linked your X account: @${result.username}`,
@@ -96,6 +105,7 @@ const XCallback: React.FC = () => {
         const errorMessage = error instanceof Error ? error.message : 'An error occurred';
         setMessage('Authentication failed');
         setDetails(errorMessage);
+        setErrorCode('auth_failed');
         
         toast({
           title: "Error Linking X Account",
@@ -115,7 +125,28 @@ const XCallback: React.FC = () => {
     };
     
     processOAuthCallback();
-  }, [navigate, toast]);
+  }, [navigate, toast, location]);
+
+  const handleTryAgain = () => {
+    // Clear any existing state
+    localStorage.removeItem('x_oauth_state');
+    localStorage.removeItem('x_oauth_code_verifier');
+    localStorage.removeItem('x_oauth_timestamp');
+    sessionStorage.removeItem('x_oauth_state');
+    sessionStorage.removeItem('x_oauth_code_verifier');
+    sessionStorage.removeItem('x_oauth_timestamp');
+    
+    // Redirect to dashboard to try again
+    navigate('/dashboard');
+  };
+
+  const handleClose = () => {
+    if (window.opener) {
+      window.close();
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -135,7 +166,11 @@ const XCallback: React.FC = () => {
           
           {status === 'error' && (
             <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <XCircle className="w-6 h-6" />
+              {errorCode === 'session_expired' ? (
+                <AlertTriangle className="w-6 h-6" />
+              ) : (
+                <XCircle className="w-6 h-6" />
+              )}
             </div>
           )}
           
@@ -143,27 +178,31 @@ const XCallback: React.FC = () => {
           <p className="text-muted-foreground">{message}</p>
           
           {details && (
-            <p className="mt-2 text-sm text-muted-foreground">{details}</p>
+            <p className="mt-2 text-sm text-muted-foreground break-words">{details}</p>
           )}
           
           {status === 'error' && (
             <div className="mt-4 flex flex-col gap-2 items-center">
               <button 
-                onClick={() => window.close()}
+                onClick={handleClose}
                 className="px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
               >
                 Close Window
               </button>
               
               <button
-                onClick={() => {
-                  // Try again - open the auth flow in the same window
-                  window.location.href = '/dashboard';
-                }}
+                onClick={handleTryAgain}
                 className="px-4 py-2 text-sm text-blue-500 hover:underline"
               >
                 Try Again
               </button>
+              
+              {errorCode === 'session_expired' && (
+                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+                  <p className="font-medium">Session Expired</p>
+                  <p className="mt-1">The authorization session has expired or cannot be found. Please try again.</p>
+                </div>
+              )}
             </div>
           )}
           
