@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -117,9 +118,11 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
+    // Simple X Web Intent implementation that doesn't require authentication
     let intentUrl = "https://twitter.com/intent/tweet?";
     intentUrl += "text=" + encodeURIComponent(content);
     
+    // Open in a popup window
     window.open(intentUrl, "_blank", "width=550,height=420");
     
     toast({

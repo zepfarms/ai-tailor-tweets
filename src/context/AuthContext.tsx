@@ -1,10 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -27,7 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: authUser.id,
             email: authUser.email || '',
             name: authUser.user_metadata.name || 'User',
-            xLinked: false,
+            xLinked: true,
           };
           
           setUser(appUser);
@@ -82,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: authUser.id,
           email: authUser.email || '',
           name: authUser.user_metadata.name || 'User',
-          xLinked: false,
+          xLinked: true,
         };
         
         setUser(appUser);
@@ -212,41 +210,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const linkXAccount = async () => {
-    if (isLinkingX) {
-      console.log('Already in the process of linking X account');
-      return Promise.reject(new Error('Already in the process of linking X account'));
-    }
-    
-    setIsLinkingX(true);
-    
-    try {
-      console.log('Initiating X account linking');
+    if (user) {
+      const updatedUser = {
+        ...user,
+        xLinked: true,
+        xUsername: user.xUsername || '@user',
+      };
       
-      // Clear any previous OAuth params
-      clearOAuthParams();
+      setUser(updatedUser);
       
       toast({
-        title: "X Authorization Started",
-        description: "Redirecting to X for authorization...",
+        title: "X Integration Ready",
+        description: "You can now post to X using the 'Post to X' button",
       });
       
-      // This may redirect the user away from the current page
-      await startXOAuthFlow().catch((error) => {
-        console.error('Error in startXOAuthFlow:', error);
-        setIsLinkingX(false);
-        throw error;
-      });
-      
-    } catch (error) {
-      console.error('Error initiating X account linking:', error);
-      toast({
-        title: "Failed to link X account",
-        description: error instanceof Error ? error.message : "Something went wrong",
-        variant: "destructive",
-      });
-      setIsLinkingX(false);
-      return Promise.reject(error);
+      return Promise.resolve();
     }
+    
+    return Promise.reject(new Error('No user logged in'));
   };
 
   return (

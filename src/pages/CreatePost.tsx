@@ -28,15 +28,7 @@ const CreatePost: React.FC = () => {
       return;
     }
     
-    if (!isLoading && user && !user.xLinked) {
-      toast({
-        title: "X Account Not Linked",
-        description: "Please link your X account before creating posts",
-        variant: "destructive",
-      });
-      navigate('/dashboard');
-      return;
-    }
+    // Remove X-linked check to avoid redirects causing blank screens
     
     // Simulate account analysis
     if (stage === "analyze") {
