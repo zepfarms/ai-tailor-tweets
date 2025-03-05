@@ -3,8 +3,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
-const CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://your-app-url.com/x-callback";
-// OAuth 2.0 doesn't use the consumer secret for the authorization step
+const CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +17,18 @@ function generateRandomString(length: number): string {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
+}
+
+// Generate PKCE code challenge from verifier
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 serve(async (req) => {
@@ -41,14 +52,16 @@ serve(async (req) => {
     
     // Generate state parameter to prevent CSRF attacks
     const state = generateRandomString(32);
-    // Generate PKCE code verifier and code challenge
+    // Generate PKCE code verifier
     const codeVerifier = generateRandomString(128);
-    // In a real implementation, we'd need to hash this for the code challenge
-    // For simplicity, we're using the same value
-    const codeChallenge = codeVerifier;
+    // Generate code challenge using S256 method (more secure than plain)
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
     
-    // Store these in a secure location for later validation
-    // For now, we'll return them to be stored client-side
+    console.log("OAuth parameters generated:");
+    console.log(`- State: ${state}`);
+    console.log(`- Code Verifier: ${codeVerifier.substring(0, 10)}...`);
+    console.log(`- Code Challenge: ${codeChallenge.substring(0, 10)}...`);
+    console.log(`- Using callback URL: ${CALLBACK_URL}`);
     
     // Build the authorization URL for Twitter OAuth 2.0
     const scope = "tweet.read tweet.write users.read offline.access";
@@ -59,7 +72,7 @@ serve(async (req) => {
     authUrl.searchParams.append("scope", scope);
     authUrl.searchParams.append("state", state);
     authUrl.searchParams.append("code_challenge", codeChallenge);
-    authUrl.searchParams.append("code_challenge_method", "plain"); // Use S256 in production
+    authUrl.searchParams.append("code_challenge_method", "S256");
     
     console.log("Generated authorization URL:", authUrl.toString());
     

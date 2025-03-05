@@ -35,7 +35,7 @@ const XCallback: React.FC = () => {
         if (!code || !state) {
           setStatus('error');
           setMessage('Missing authorization parameters');
-          setDetails('The X authorization did not provide the necessary parameters.');
+          setDetails('The authorization did not provide the necessary parameters. Please try again.');
           return;
         }
         
@@ -79,10 +79,11 @@ const XCallback: React.FC = () => {
           throw new Error('Failed to link X account');
         }
       } catch (error) {
+        console.error('Error in X callback:', error);
         setStatus('error');
         const errorMessage = error instanceof Error ? error.message : 'An error occurred';
-        setMessage(errorMessage);
-        setDetails('There was a problem connecting to X. Please try again later.');
+        setMessage('Authentication failed');
+        setDetails(errorMessage);
         
         toast({
           title: "Error Linking X Account",

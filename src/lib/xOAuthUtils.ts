@@ -12,25 +12,6 @@ const generateRandomString = (length: number): string => {
   return result;
 };
 
-// Generate a code verifier for PKCE
-const generateCodeVerifier = (): string => {
-  return generateRandomString(64);
-};
-
-// Generate a code challenge from a code verifier
-const generateCodeChallenge = async (codeVerifier: string): Promise<string> => {
-  // Use the subtle crypto API to hash the code verifier
-  const encoder = new TextEncoder();
-  const data = encoder.encode(codeVerifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  
-  // Convert the hash to base64url encoding
-  return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-};
-
 // Store the OAuth state and code verifier in session storage
 export const storeOAuthParams = (state: string, codeVerifier: string) => {
   sessionStorage.setItem('x_oauth_state', state);
@@ -50,40 +31,35 @@ export const clearOAuthParams = () => {
   sessionStorage.removeItem('x_oauth_code_verifier');
 };
 
-// Start the X OAuth flow
+// Start the X OAuth flow using Edge Function
 export const startXOAuthFlow = async (): Promise<string> => {
   try {
-    const state = generateRandomString(32);
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
+    console.log('Initiating X account linking');
     
-    console.log('OAuth 2.0 Flow Parameters:');
-    console.log('- State:', state);
-    console.log('- Code Verifier:', codeVerifier.substring(0, 10) + '...');
-    console.log('- Code Challenge:', codeChallenge.substring(0, 10) + '...');
+    // Call the Edge Function to generate authorization URL
+    const { data, error } = await supabase.functions.invoke('twitter-request-token', {
+      method: 'POST'
+    });
     
-    // Store the state and code verifier
-    storeOAuthParams(state, codeVerifier);
+    if (error) {
+      console.error('Error calling twitter-request-token function:', error);
+      throw new Error(error.message || 'Failed to start X authorization');
+    }
     
-    // OAuth 2.0 parameters
-    const clientId = import.meta.env.VITE_TWITTER_CLIENT_ID || 'mock_client_id';
-    const redirectUri = import.meta.env.VITE_TWITTER_CALLBACK_URL || window.location.origin + '/x-callback';
-    console.log('Using redirect URI:', redirectUri);
+    if (!data || !data.authorizeUrl || !data.state || !data.codeVerifier) {
+      console.error('Invalid response from twitter-request-token function:', data);
+      throw new Error('Invalid response from server');
+    }
     
-    // Construct the authorization URL
-    const authUrl = new URL('https://twitter.com/i/oauth2/authorize');
-    authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('client_id', clientId);
-    authUrl.searchParams.append('redirect_uri', redirectUri);
-    authUrl.searchParams.append('scope', 'tweet.read tweet.write users.read offline.access');
-    authUrl.searchParams.append('state', state);
-    authUrl.searchParams.append('code_challenge', codeChallenge);
-    authUrl.searchParams.append('code_challenge_method', 'S256');
+    // Store the OAuth params for the callback
+    storeOAuthParams(data.state, data.codeVerifier);
     
-    const authorizeUrl = authUrl.toString();
-    console.log('Generated authorization URL:', authorizeUrl);
+    console.log('OAuth parameters received from Edge Function:');
+    console.log('- State:', data.state);
+    console.log('- Code Verifier (partial):', data.codeVerifier.substring(0, 10) + '...');
+    console.log('- Authorization URL:', data.authorizeUrl);
     
-    return authorizeUrl;
+    return data.authorizeUrl;
   } catch (error) {
     console.error('Error starting X OAuth 2.0 flow:', error);
     throw error;
@@ -97,72 +73,64 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
   profileImageUrl?: string;
 }> => {
   try {
+    console.log('Completing X OAuth flow with:');
+    console.log('- Code:', code);
+    console.log('- State:', state);
+    
     const { state: expectedState, codeVerifier } = getStoredOAuthParams();
     
-    console.log('Completing X OAuth 2.0 flow with:');
-    console.log('- Authorization code:', code);
-    console.log('- State:', state);
-    console.log('- Expected state:', expectedState);
+    console.log('- Expected State:', expectedState);
+    console.log('- Code Verifier exists:', !!codeVerifier);
     
     if (!expectedState || !codeVerifier) {
-      throw new Error('OAuth parameters not found');
+      console.error('OAuth parameters not found in session storage');
+      throw new Error('Authentication session expired. Please try again.');
     }
     
-    if (state !== expectedState) {
-      throw new Error('State mismatch - potential CSRF attack');
-    }
-
-    // For the mock user case - use a mock access token if there's no real session
-    const { data: sessionData } = await supabase.auth.getSession();
-    console.log('Session data for completing OAuth:', sessionData);
-    
-    // Check if we have a real session with access token, or if we're using the mock user
-    let accessToken = sessionData.session?.access_token;
-    let userId = sessionData.session?.user?.id;
-    
+    // Get the current user ID if available
+    let userId = null;
     const user = JSON.parse(localStorage.getItem('user') || 'null');
-    
-    if (!accessToken && user) {
-      // We're using a mock user, so use a placeholder token and ID
-      console.log('Using mock authentication for user completion:', user.name);
-      accessToken = 'mock_token_for_development';
+    if (user && user.id) {
       userId = user.id;
+      console.log('User ID for account linking:', userId);
     }
     
-    if (!accessToken || !userId) {
-      throw new Error('User not authenticated');
+    // Call the edge function to exchange the code for tokens
+    const { data, error } = await supabase.functions.invoke('twitter-access-token', {
+      method: 'POST',
+      body: {
+        code,
+        state,
+        codeVerifier,
+        expectedState,
+        userId
+      }
+    });
+    
+    if (error) {
+      console.error('Error calling twitter-access-token function:', error);
+      throw new Error(error.message || 'Failed to complete X authorization');
     }
-
-    console.log('User ID for X account linking:', userId);
-
-    // Call the token exchange endpoint directly from the client
-    // In a real production app, you should do this server-side to protect your client secret
-    const clientId = import.meta.env.VITE_TWITTER_CLIENT_ID || 'mock_client_id';
-    const clientSecret = import.meta.env.VITE_TWITTER_CLIENT_SECRET || 'mock_client_secret';
-    const redirectUri = import.meta.env.VITE_TWITTER_CALLBACK_URL || window.location.origin + '/x-callback';
     
-    // For local development/demo, we'll exchange the code for a token directly
-    // Note: In production, this should be done on the server side
-    console.log('Exchanging code for token with code verifier:', codeVerifier.substring(0, 10) + '...');
-    
-    // Simulate successful token exchange and user info fetching for demo purposes
-    // In a real app, you would make an actual API call to Twitter
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-    
-    // For demo, we'll just return mock data
-    // In a real app, you would be making actual API calls to Twitter
-    const mockUsername = "TwitterUser" + Math.floor(Math.random() * 1000);
+    if (!data || !data.success) {
+      console.error('Invalid response from twitter-access-token function:', data);
+      throw new Error(data?.error || 'Failed to complete X authorization');
+    }
     
     // Clear the OAuth params
     clearOAuthParams();
     
+    console.log('X account successfully linked:', data.username);
+    
     return {
       success: true,
-      username: mockUsername,
-      profileImageUrl: `https://ui-avatars.com/api/?name=${mockUsername}&background=random`,
+      username: data.username,
+      profileImageUrl: data.profileImageUrl
     };
   } catch (error) {
-    console.error('Error completing X OAuth 2.0 flow:', error);
+    console.error('Error completing X OAuth flow:', error);
+    // Make sure to clear OAuth params even on error
+    clearOAuthParams();
     throw error;
   }
 };

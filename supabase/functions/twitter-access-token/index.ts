@@ -25,8 +25,9 @@ serve(async (req) => {
     
     const { code, state, codeVerifier, expectedState, userId } = await req.json();
     console.log("Received parameters:", { code, state, userId });
+    console.log("CodeVerifier length:", codeVerifier?.length);
 
-    if (!code || !state || !codeVerifier || !expectedState || !userId) {
+    if (!code || !state || !codeVerifier || !expectedState) {
       throw new Error("Missing required parameters");
     }
     
@@ -35,31 +36,46 @@ serve(async (req) => {
       throw new Error("Invalid state parameter");
     }
 
+    // Log all environment variables we need
+    console.log("Environment variables check:");
+    console.log("- TWITTER_CLIENT_ID exists:", !!TWITTER_CLIENT_ID);
+    console.log("- TWITTER_CLIENT_SECRET exists:", !!TWITTER_CLIENT_SECRET);
+    console.log("- CALLBACK_URL exists:", !!CALLBACK_URL);
+    
+    if (!TWITTER_CLIENT_ID || !TWITTER_CLIENT_SECRET || !CALLBACK_URL) {
+      throw new Error("Missing required environment variables");
+    }
+
     // Exchange the authorization code for an access token
     console.log("Exchanging authorization code for access token");
+    
+    const tokenParams = new URLSearchParams({
+      code: code,
+      grant_type: "authorization_code",
+      client_id: TWITTER_CLIENT_ID,
+      redirect_uri: CALLBACK_URL,
+      code_verifier: codeVerifier
+    });
+    
+    const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
+    
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": `Basic ${btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`)}`
+        "Authorization": `Basic ${authString}`
       },
-      body: new URLSearchParams({
-        code: code,
-        grant_type: "authorization_code",
-        client_id: TWITTER_CLIENT_ID,
-        redirect_uri: CALLBACK_URL,
-        code_verifier: codeVerifier
-      })
+      body: tokenParams.toString()
     });
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error(`Twitter API error (${tokenResponse.status}):`, errorText);
-      throw new Error(`Twitter API error: ${errorText}`);
+      console.error(`Twitter token API error (${tokenResponse.status}):`, errorText);
+      throw new Error(`Twitter API error: ${tokenResponse.status} - ${errorText}`);
     }
 
     const tokenData = await tokenResponse.json();
-    console.log("Twitter token response:", JSON.stringify(tokenData));
+    console.log("Twitter token response received successfully");
     
     // Get user data from Twitter
     console.log("Fetching user data from Twitter");
@@ -72,41 +88,49 @@ serve(async (req) => {
     if (!userResponse.ok) {
       const errorText = await userResponse.text();
       console.error(`Twitter user data error (${userResponse.status}):`, errorText);
-      throw new Error(`Twitter user data error: ${errorText}`);
+      throw new Error(`Twitter user data error: ${userResponse.status} - ${errorText}`);
     }
 
     const userData = await userResponse.json();
-    console.log("Twitter user data:", JSON.stringify(userData));
+    console.log("Twitter user data received:", JSON.stringify(userData));
     
     if (!userData.data || !userData.data.id || !userData.data.username) {
       throw new Error("Invalid user data received from Twitter");
     }
 
-    // Initialize Supabase client
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log("Storing X account data for user:", userId);
+    // If we have a userId, store the X account data
+    let xAccountData = null;
+    if (userId) {
+      // Initialize Supabase client
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log("Storing X account data for user:", userId);
 
-    // Save the X account data to Supabase
-    const { data: xAccountData, error: xAccountError } = await supabase
-      .from("x_accounts")
-      .upsert({
-        user_id: userId,
-        x_user_id: userData.data.id,
-        x_username: userData.data.username,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-        profile_image_url: userData.data.profile_image_url || null,
-      })
-      .select()
-      .single();
+      // Save the X account data to Supabase
+      const { data, error } = await supabase
+        .from("x_accounts")
+        .upsert({
+          user_id: userId,
+          x_user_id: userData.data.id,
+          x_username: userData.data.username,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+          profile_image_url: userData.data.profile_image_url || null,
+        })
+        .select()
+        .single();
 
-    if (xAccountError) {
-      console.error("Error saving X account:", xAccountError);
-      throw new Error(`Error saving X account: ${xAccountError.message}`);
+      if (error) {
+        console.error("Error saving X account:", error);
+        // Don't throw here - we still want to return the successful authentication
+        console.log("Continuing despite database error");
+      } else {
+        xAccountData = data;
+        console.log("Successfully saved X account data");
+      }
+    } else {
+      console.log("No userId provided, skipping database storage");
     }
-
-    console.log("Successfully saved X account data:", xAccountData);
 
     return new Response(
       JSON.stringify({
