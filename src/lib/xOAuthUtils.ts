@@ -81,6 +81,7 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
     
     console.log('- Expected State:', expectedState);
     console.log('- Code Verifier exists:', !!codeVerifier);
+    console.log('- Code Verifier length:', codeVerifier?.length);
     
     if (!expectedState || !codeVerifier) {
       console.error('OAuth parameters not found in session storage');

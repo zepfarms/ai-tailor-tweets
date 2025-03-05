@@ -39,6 +39,9 @@ serve(async (req) => {
 
   try {
     console.log("twitter-request-token function called (OAuth 2.0)");
+    console.log("Environment variables:");
+    console.log("- TWITTER_CLIENT_ID:", TWITTER_CLIENT_ID ? "Set" : "Not set");
+    console.log("- CALLBACK_URL:", CALLBACK_URL);
     
     if (!TWITTER_CLIENT_ID) {
       console.error("Missing Twitter Client ID");
@@ -63,12 +66,22 @@ serve(async (req) => {
     console.log(`- Code Challenge: ${codeChallenge.substring(0, 10)}...`);
     console.log(`- Using callback URL: ${CALLBACK_URL}`);
     
+    // Ensure callback URL is properly formatted
+    let callbackUrl = CALLBACK_URL;
+    if (!callbackUrl.startsWith("http")) {
+      console.log("Callback URL doesn't start with http, assuming it's a relative path");
+      // If it's a relative path, we'll need to convert it to an absolute URL
+      // This is just a fallback and ideally the CALLBACK_URL should be properly set
+      callbackUrl = `https://lovable.dev/projects/5ab8ef67-83db-439a-adb0-0c1e95912c8f/x-callback`;
+      console.log(`Converted callback URL to: ${callbackUrl}`);
+    }
+    
     // Build the authorization URL for Twitter OAuth 2.0
     const scope = "tweet.read tweet.write users.read offline.access";
     const authUrl = new URL("https://twitter.com/i/oauth2/authorize");
     authUrl.searchParams.append("response_type", "code");
     authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-    authUrl.searchParams.append("redirect_uri", CALLBACK_URL);
+    authUrl.searchParams.append("redirect_uri", callbackUrl);
     authUrl.searchParams.append("scope", scope);
     authUrl.searchParams.append("state", state);
     authUrl.searchParams.append("code_challenge", codeChallenge);

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -10,6 +10,7 @@ const XCallback: React.FC = () => {
   const [details, setDetails] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     const processOAuthCallback = async () => {
@@ -17,11 +18,10 @@ const XCallback: React.FC = () => {
         console.log('X callback page loaded');
         
         // Get the OAuth code and state from the URL
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-        const state = params.get('state');
-        const error = params.get('error');
-        const errorDescription = params.get('error_description');
+        const code = searchParams.get('code');
+        const state = searchParams.get('state');
+        const error = searchParams.get('error');
+        const errorDescription = searchParams.get('error_description');
         
         console.log('OAuth 2.0 params from URL:', { code, state, error, errorDescription });
         
@@ -80,8 +80,8 @@ const XCallback: React.FC = () => {
         }
       } catch (error) {
         console.error('Error in X callback:', error);
-        setStatus('error');
         const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+        setStatus('error');
         setMessage('Authentication failed');
         setDetails(errorMessage);
         
@@ -103,7 +103,7 @@ const XCallback: React.FC = () => {
     };
     
     processOAuthCallback();
-  }, [navigate, toast]);
+  }, [navigate, toast, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
