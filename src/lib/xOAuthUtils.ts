@@ -24,9 +24,20 @@ export const clearOAuthTokens = () => {
 // Start the X OAuth flow
 export const startXOAuthFlow = async (): Promise<string> => {
   try {
-    // Get the session first
+    // For the mock user case - use a mock access token if there's no real session
+    // This is necessary because we're using a mock user flow in the application
     const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
+    console.log('Session data:', sessionData);
+    
+    // Check if we have a real session with access token, or if we're using the mock user
+    let accessToken = sessionData.session?.access_token;
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!accessToken && user) {
+      // We're using a mock user, so use a placeholder token
+      console.log('Using mock authentication for user:', user.name);
+      accessToken = 'mock_token_for_development';
+    }
     
     if (!accessToken) {
       throw new Error('User not authenticated');
@@ -80,16 +91,28 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
       throw new Error('OAuth tokens not found');
     }
 
-    // Get the session first
+    // For the mock user case - use a mock access token if there's no real session
     const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-    const user = sessionData.session?.user;
+    console.log('Session data for completing OAuth:', sessionData);
     
-    if (!accessToken || !user) {
+    // Check if we have a real session with access token, or if we're using the mock user
+    let accessToken = sessionData.session?.access_token;
+    let userId = sessionData.session?.user?.id;
+    
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!accessToken && user) {
+      // We're using a mock user, so use a placeholder token and ID
+      console.log('Using mock authentication for user completion:', user.name);
+      accessToken = 'mock_token_for_development';
+      userId = user.id;
+    }
+    
+    if (!accessToken || !userId) {
       throw new Error('User not authenticated');
     }
 
-    console.log('User ID for X account linking:', user.id);
+    console.log('User ID for X account linking:', userId);
 
     // Call the edge function to get an access token
     console.log('Calling twitter-access-token endpoint with request token and verifier');
@@ -103,7 +126,7 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
         token: requestToken,
         verifier: oauthVerifier,
         tokenSecret: requestTokenSecret,
-        userId: user.id,
+        userId: userId,
       }),
     });
 
