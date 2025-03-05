@@ -86,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             xUsername: `@${event.data.username}`,
           };
           setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
           
           toast({
             title: "X Account Linked",
@@ -140,7 +141,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         navigate('/dashboard');
       } else {
-        throw new Error("Invalid credentials");
+        // Check if this email exists in saved accounts
+        const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
+        if (savedAccounts[email] && savedAccounts[email].password === password) {
+          // Load the user account
+          const userData = savedAccounts[email].user;
+          setUser(userData);
+          localStorage.setItem('user', JSON.stringify(userData));
+          
+          toast({
+            title: "Login successful",
+            description: "Welcome back!",
+          });
+          navigate('/dashboard');
+        } else {
+          throw new Error("Invalid credentials");
+        }
       }
     } catch (error) {
       toast({
@@ -171,8 +187,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       
       console.log('Creating new user:', newUser);
+      
+      // Save user to localStorage
       setUser(newUser);
       localStorage.setItem('user', JSON.stringify(newUser));
+      
+      // Also save to a 'saved_accounts' object to persist for future logins
+      const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
+      savedAccounts[email] = {
+        password,
+        user: newUser
+      };
+      localStorage.setItem('saved_accounts', JSON.stringify(savedAccounts));
       
       toast({
         title: "Account created",

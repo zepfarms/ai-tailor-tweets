@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
+import { completeXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from '@/components/ui/button';
 
@@ -122,18 +122,27 @@ const XCallback: React.FC = () => {
 
   const restartAuth = () => {
     // Remove any existing OAuth params to ensure a clean slate
-    localStorage.removeItem('x_oauth_state');
-    localStorage.removeItem('x_oauth_code_verifier');
-    localStorage.removeItem('x_oauth_timestamp');
-    localStorage.removeItem('x_oauth_backup');
-    sessionStorage.removeItem('x_oauth_state');
-    sessionStorage.removeItem('x_oauth_code_verifier');
-    sessionStorage.removeItem('x_oauth_timestamp');
-    document.cookie = 'x_oauth_data=; max-age=0; path=/';
+    clearOAuthParams();
+    
+    // Make sure we don't lose the user session when redirecting
+    const user = localStorage.getItem('user');
+    if (user) {
+      // Make sure the user stays logged in by preserving the session
+      localStorage.setItem('preserved_user_session', user);
+    }
     
     // Navigate back to dashboard
-    navigate('/dashboard');
+    navigate('/dashboard', { replace: true });
   };
+
+  // On mount, check if we have a preserved session to restore
+  useEffect(() => {
+    const preservedSession = localStorage.getItem('preserved_user_session');
+    if (preservedSession && !localStorage.getItem('user')) {
+      localStorage.setItem('user', preservedSession);
+      localStorage.removeItem('preserved_user_session');
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

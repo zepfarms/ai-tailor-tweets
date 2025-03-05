@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,13 +10,20 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 const SignUp: React.FC = () => {
-  const { signup, isLoading } = useAuth();
+  const { signup, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +46,13 @@ const SignUp: React.FC = () => {
     
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      return;
+    }
+    
+    // Check if email already exists in saved accounts
+    const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
+    if (savedAccounts[email]) {
+      setError('An account with this email already exists');
       return;
     }
     

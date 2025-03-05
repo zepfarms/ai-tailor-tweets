@@ -23,6 +23,12 @@ const Login: React.FC = () => {
     }
   }, [user, navigate]);
 
+  // Check for saved account access
+  useEffect(() => {
+    const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
+    console.log('Available saved accounts:', Object.keys(savedAccounts));
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
