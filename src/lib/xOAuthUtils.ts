@@ -19,7 +19,7 @@ export const getStoredOAuthParams = () => {
   try {
     const state = sessionStorage.getItem('x_oauth_state');
     const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
-    console.log('Retrieved OAuth parameters from sessionStorage');
+    console.log('Retrieved OAuth parameters from sessionStorage:', { state: state?.substring(0, 5) + '...', codeVerifier: codeVerifier ? 'exists' : 'missing' });
     return { state, codeVerifier };
   } catch (error) {
     console.error('Error retrieving OAuth parameters:', error);
@@ -70,7 +70,7 @@ export const startXOAuthFlow = async (): Promise<void> => {
     
     if (error) {
       console.error('Error calling twitter-request-token function:', error);
-      throw new Error('Failed to start X authorization');
+      throw new Error('Failed to start X authorization: ' + (error.message || 'Unknown error'));
     }
     
     if (!data || !data.authorizeUrl || !data.state || !data.codeVerifier) {
@@ -78,10 +78,17 @@ export const startXOAuthFlow = async (): Promise<void> => {
       throw new Error('Invalid response from server');
     }
     
+    console.log('Received OAuth data:', { 
+      authorizeUrl: data.authorizeUrl.substring(0, 30) + '...', 
+      state: data.state.substring(0, 5) + '...', 
+      codeVerifier: data.codeVerifier.substring(0, 5) + '...'
+    });
+    
     // Store OAuth parameters
     storeOAuthParams(data.state, data.codeVerifier);
     
     // Redirect to Twitter authorization page
+    console.log('Redirecting to Twitter authorization URL');
     window.location.href = data.authorizeUrl;
   } catch (error) {
     console.error('Error starting X OAuth flow:', error);
@@ -119,6 +126,7 @@ export const completeXOAuthFlow = async (code: string): Promise<{
     }
     
     // Call Edge Function to get access token
+    console.log('Calling twitter-access-token edge function');
     const { data, error } = await supabase.functions.invoke('twitter-access-token', {
       method: 'POST',
       body: {
@@ -127,6 +135,8 @@ export const completeXOAuthFlow = async (code: string): Promise<{
         userId
       }
     });
+    
+    console.log('Twitter access token response:', data);
     
     if (error) {
       console.error('Error calling twitter-access-token function:', error);

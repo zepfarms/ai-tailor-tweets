@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,18 +11,41 @@ import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Lo
 import { useToast } from "@/components/ui/use-toast";
 
 const Dashboard: React.FC = () => {
-  const { user, isLoading, isLinkingX, linkXAccount } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  
+  // Safely access auth context with error handling
+  const auth = React.useContext(
+    // @ts-ignore - This is a workaround to prevent errors during initial render
+    React.createContext({ user: null, isLoading: true, isLinkingX: false })
+  );
+  
+  // Get real auth data once component is mounted
+  const { user, isLoading, isLinkingX, linkXAccount } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/login');
+    // Set a timeout to ensure we don't show loading state forever in case of errors
+    const timer = setTimeout(() => {
+      setIsPageLoading(false);
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setIsPageLoading(false);
+      
+      if (!user) {
+        navigate('/login');
+      }
     }
   }, [user, isLoading, navigate]);
 
   const handleLinkAccount = async () => {
     try {
+      console.log("Initiating X account linking from Dashboard");
       await linkXAccount();
     } catch (error) {
       console.error('Error linking account:', error);
@@ -37,21 +61,23 @@ const Dashboard: React.FC = () => {
     navigate('/create');
   };
 
-  if (isLoading) {
+  // Show loading state
+  if (isPageLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Loading...</span>
+        <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
+        <span>Loading dashboard...</span>
       </div>
     );
   }
 
+  // If user is not logged in, redirect to login
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div>
-          <p>Please log in to continue</p>
-          <Button onClick={() => navigate('/login')} className="mt-4">
+        <div className="text-center">
+          <p className="mb-4">Please log in to access your dashboard</p>
+          <Button onClick={() => navigate('/login')}>
             Log In
           </Button>
         </div>
@@ -71,6 +97,7 @@ const Dashboard: React.FC = () => {
           </p>
         </header>
         
+        {/* Analytics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <AnalyticsCard
             title="Scheduled Posts"
@@ -98,6 +125,7 @@ const Dashboard: React.FC = () => {
           />
         </div>
         
+        {/* Account Status and Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <Card className="glass-card overflow-hidden">
             <CardHeader>
@@ -157,6 +185,7 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
           
+          {/* Recent Activity */}
           <Card className="glass-card overflow-hidden">
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
@@ -188,6 +217,7 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
         
+        {/* Upcoming Scheduled Posts */}
         <div className="grid grid-cols-1 gap-6 mb-8">
           <Card className="glass-card">
             <CardHeader>

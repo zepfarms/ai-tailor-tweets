@@ -15,13 +15,19 @@ const XCallback: React.FC = () => {
   useEffect(() => {
     const processCallback = async () => {
       try {
-        console.log('X callback page loaded');
+        console.log('X callback page loaded, checking URL parameters');
         
         // Get code from URL
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         const error = params.get('error');
         const errorDescription = params.get('error_description');
+        
+        console.log('Callback parameters:', { 
+          code: code ? (code.substring(0, 10) + '...') : 'null', 
+          error, 
+          errorDescription 
+        });
         
         if (error) {
           console.error(`X authorization error: ${error}, description: ${errorDescription}`);
@@ -34,6 +40,10 @@ const XCallback: React.FC = () => {
             description: errorDescription || error || "Authorization failed",
             variant: "destructive",
           });
+          
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 3000);
           
           return;
         }
@@ -49,6 +59,10 @@ const XCallback: React.FC = () => {
             description: "Missing authorization code",
             variant: "destructive",
           });
+          
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 3000);
           
           return;
         }
@@ -71,7 +85,7 @@ const XCallback: React.FC = () => {
           // Redirect back to dashboard with success parameters
           setTimeout(() => {
             console.log('Redirecting to dashboard with success parameters');
-            window.location.href = '/dashboard?x_auth_success=true&username=' + result.username;
+            navigate('/dashboard?x_auth_success=true&username=' + result.username);
           }, 1500);
         }
       } catch (error) {
@@ -88,6 +102,11 @@ const XCallback: React.FC = () => {
         
         // Clear any lingering OAuth params
         clearOAuthParams();
+        
+        // Redirect back to dashboard after a delay
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 3000);
       }
     };
     
