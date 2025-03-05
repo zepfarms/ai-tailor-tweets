@@ -1,99 +1,37 @@
 
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/context/AuthContext';
 
 const SignUp: React.FC = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { signup, user, isLoading } = useAuth();
+  const { signup, isLoading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [localLoading, setLocalLoading] = useState(false);
-
-  // Check if user is already logged in
-  useEffect(() => {
-    if (user) {
-      console.log('SignUp: User already logged in, redirecting to dashboard');
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLocalLoading(true);
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     
     try {
-      // Basic validations
-      if (password !== confirmPassword) {
-        setError('Passwords do not match');
-        setLocalLoading(false);
-        return;
-      }
-      
-      if (name.trim() === '') {
-        setError('Name is required');
-        setLocalLoading(false);
-        return;
-      }
-      
-      if (email.trim() === '') {
-        setError('Email is required');
-        setLocalLoading(false);
-        return;
-      }
-      
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters');
-        setLocalLoading(false);
-        return;
-      }
-      
-      console.log('SignUp: Starting signup with:', { email, name });
-      
       await signup(email, password, name);
-      
-      // Show success toast
-      toast({
-        title: "Account created",
-        description: "Welcome to PostAI!",
-      });
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
-      
     } catch (err) {
-      console.error('SignUp: Signup error:', err);
       setError(err instanceof Error ? err.message : 'Failed to sign up');
-      toast({
-        title: "Sign up failed",
-        description: err instanceof Error ? err.message : "Something went wrong",
-        variant: "destructive",
-      });
-    } finally {
-      setLocalLoading(false);
     }
   };
-
-  // Show loading state only on initial auth check
-  if (isLoading && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-xl">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col page-transition">
@@ -144,7 +82,6 @@ const SignUp: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={6}
                   />
                 </div>
                 
@@ -164,8 +101,8 @@ const SignUp: React.FC = () => {
                   <div className="text-sm text-destructive">{error}</div>
                 )}
                 
-                <Button type="submit" className="w-full" disabled={localLoading}>
-                  {localLoading ? "Creating account..." : "Create account"}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Creating account..." : "Create account"}
                 </Button>
               </form>
             </CardContent>

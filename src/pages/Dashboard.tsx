@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
@@ -8,92 +9,25 @@ import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
 import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@/lib/types';
-import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
-import { useAuth } from '@/context/AuthContext';
 
 const Dashboard: React.FC = () => {
+  const { user, isLoading, linkXAccount } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, isLoading: authLoading, linkXAccount } = useAuth();
   const [isLinking, setIsLinking] = useState(false);
-  const [localLoading, setLocalLoading] = useState(false);
-  const [loadingError, setLoadingError] = useState<string | null>(null);
 
-  // Redirect if not authenticated
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        console.log('Dashboard: Checking auth...');
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) {
-          console.log('Dashboard: No session found, redirecting to login');
-          navigate('/login');
-        }
-      } catch (error) {
-        console.error('Dashboard: Error checking auth:', error);
-        setLoadingError('Authentication error. Please try logging in again.');
-      }
-    };
-
-    if (!authLoading && !user) {
-      checkAuth();
+    if (!isLoading && !user) {
+      navigate('/login');
     }
-  }, [authLoading, user, navigate]);
-
-  // Handle X auth success message from OAuth popup
-  useEffect(() => {
-    const handleXAuthSuccess = (event: MessageEvent) => {
-      if (
-        event.origin === window.location.origin &&
-        event.data?.type === 'X_AUTH_SUCCESS'
-      ) {
-        console.log('Dashboard: Received X auth success event:', event.data);
-        
-        toast({
-          title: "X Account Linked",
-          description: `Successfully linked to @${event.data.username}`,
-        });
-      }
-    };
-
-    window.addEventListener('message', handleXAuthSuccess);
-    
-    return () => window.removeEventListener('message', handleXAuthSuccess);
-  }, [toast]);
-
-  // Check for X auth success on component mount
-  useEffect(() => {
-    const xAuthSuccess = localStorage.getItem('x_auth_success');
-    const xAuthTimestamp = localStorage.getItem('x_auth_timestamp');
-    
-    if (xAuthSuccess === 'true' && xAuthTimestamp) {
-      const timestamp = parseInt(xAuthTimestamp, 10);
-      const now = Date.now();
-      if (now - timestamp < 30000) {
-        toast({
-          title: "X Account Linked",
-          description: "Your X account has been successfully linked!",
-        });
-        
-        localStorage.removeItem('x_auth_success');
-        localStorage.removeItem('x_auth_timestamp');
-      }
-    }
-  }, [toast]);
+  }, [user, isLoading, navigate]);
 
   const handleLinkAccount = async () => {
     setIsLinking(true);
     try {
       await linkXAccount();
     } catch (error) {
-      console.error('Dashboard: Error linking X account:', error);
-      toast({
-        title: "Failed to link X account",
-        description: error instanceof Error ? error.message : "Something went wrong",
-        variant: "destructive",
-      });
+      console.error('Error linking account:', error);
     } finally {
       setIsLinking(false);
     }
@@ -103,30 +37,12 @@ const Dashboard: React.FC = () => {
     navigate('/create');
   };
 
-  // If auth context is still loading, show loading indicator
-  if (authLoading || localLoading) {
+  if (isLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-xl">Loading dashboard...</div>
+        <div className="animate-pulse-slow">Loading...</div>
       </div>
     );
-  }
-
-  // If there's an error loading the dashboard, show error message
-  if (loadingError) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="text-destructive mb-4">Error: {loadingError}</div>
-        <Button onClick={() => navigate('/login')}>Return to Login</Button>
-      </div>
-    );
-  }
-
-  // If no user from auth context, redirect to login
-  if (!user) {
-    console.log('Dashboard: No user in context, redirecting to login');
-    navigate('/login');
-    return null;
   }
 
   return (
@@ -141,7 +57,6 @@ const Dashboard: React.FC = () => {
           </p>
         </header>
         
-        {/* Analytics cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <AnalyticsCard
             title="Scheduled Posts"
@@ -169,7 +84,6 @@ const Dashboard: React.FC = () => {
           />
         </div>
         
-        {/* Account cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <Card className="glass-card overflow-hidden">
             <CardHeader>
@@ -220,7 +134,6 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
           
-          {/* Recent Activity */}
           <Card className="glass-card overflow-hidden">
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
@@ -252,7 +165,6 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
         
-        {/* Scheduled Posts */}
         <div className="grid grid-cols-1 gap-6 mb-8">
           <Card className="glass-card">
             <CardHeader>

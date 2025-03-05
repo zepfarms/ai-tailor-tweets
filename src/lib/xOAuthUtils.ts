@@ -1,115 +1,136 @@
 
-// This file contains utilities for X (Twitter) OAuth authentication
+// Utilities for X (Twitter) OAuth 2.0 process
+import { supabase } from "@/integrations/supabase/client";
 
-import { supabase } from '@/integrations/supabase/client';
-
-/**
- * Generates a random state parameter for OAuth security
- */
-export const generateOAuthState = (): string => {
-  return Math.random().toString(36).substring(2, 15) + 
-         Math.random().toString(36).substring(2, 15);
+// Generate a random string for the state parameter
+const generateRandomString = (length: number): string => {
+  let result = '';
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
 };
 
-/**
- * Starts the X OAuth flow by calling the Supabase Edge Function
- */
+// Store the OAuth state and code verifier in session storage
+export const storeOAuthParams = (state: string, codeVerifier: string) => {
+  sessionStorage.setItem('x_oauth_state', state);
+  sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
+};
+
+// Retrieve the OAuth state and code verifier from session storage
+export const getStoredOAuthParams = () => {
+  const state = sessionStorage.getItem('x_oauth_state');
+  const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
+  return { state, codeVerifier };
+};
+
+// Clear the OAuth params from session storage
+export const clearOAuthParams = () => {
+  sessionStorage.removeItem('x_oauth_state');
+  sessionStorage.removeItem('x_oauth_code_verifier');
+};
+
+// Start the X OAuth flow using Edge Function
 export const startXOAuthFlow = async (): Promise<string> => {
   try {
-    console.log("Starting X OAuth flow via edge function");
+    console.log('Initiating X account linking');
     
-    // Call the edge function to get authorization URL and state
-    const { data, error } = await supabase.functions.invoke("twitter-request-token", {
-      method: "POST"
+    // Call the Edge Function to generate authorization URL
+    const { data, error } = await supabase.functions.invoke('twitter-request-token', {
+      method: 'POST'
     });
     
     if (error) {
-      console.error("Error calling twitter-request-token function:", error);
-      throw new Error(`Failed to start X authorization: ${error.message}`);
+      console.error('Error calling twitter-request-token function:', error);
+      throw new Error(error.message || 'Failed to start X authorization');
     }
-    
-    console.log("Twitter request token response:", data);
     
     if (!data || !data.authorizeUrl || !data.state || !data.codeVerifier) {
-      console.error("Invalid response from twitter-request-token function:", data);
-      throw new Error("Invalid response from OAuth initialization");
+      console.error('Invalid response from twitter-request-token function:', data);
+      throw new Error('Invalid response from server');
     }
     
-    // Store OAuth parameters in localStorage
-    localStorage.setItem('x_oauth_state', data.state);
-    localStorage.setItem('x_oauth_code_verifier', data.codeVerifier);
+    // Store the OAuth params for the callback
+    storeOAuthParams(data.state, data.codeVerifier);
     
-    console.log("X OAuth flow initialized successfully");
+    console.log('OAuth parameters received from Edge Function:');
+    console.log('- State:', data.state);
+    console.log('- Code Verifier (partial):', data.codeVerifier.substring(0, 10) + '...');
+    console.log('- Authorization URL:', data.authorizeUrl);
     
     return data.authorizeUrl;
   } catch (error) {
-    console.error("Error in startXOAuthFlow:", error);
+    console.error('Error starting X OAuth 2.0 flow:', error);
     throw error;
   }
 };
 
-/**
- * Validates the OAuth state parameter
- */
-export const validateOAuthState = (receivedState: string): boolean => {
-  const storedState = localStorage.getItem('x_oauth_state');
-  return storedState === receivedState;
-};
-
-/**
- * Extracts OAuth code from URL
- */
-export const extractOAuthCode = (url: string): string | null => {
-  const urlObj = new URL(url);
-  return urlObj.searchParams.get('code');
-};
-
-/**
- * Clears OAuth parameters from localStorage
- */
-export const clearOAuthParams = (): void => {
-  localStorage.removeItem('x_oauth_state');
-  localStorage.removeItem('x_oauth_code_verifier');
-};
-
-/**
- * Exchanges the OAuth code for an access token
- */
-export const exchangeCodeForToken = async (
-  code: string, 
-  codeVerifier: string,
-  userId: string
-): Promise<{ success: boolean; username?: string; error?: string }> => {
+// Complete the X OAuth flow
+export const completeXOAuthFlow = async (code: string, state: string): Promise<{
+  success: boolean;
+  username: string;
+  profileImageUrl?: string;
+}> => {
   try {
-    console.log("Exchanging OAuth code for token with codeVerifier length:", codeVerifier.length);
-    console.log("userId:", userId);
+    console.log('Completing X OAuth flow with:');
+    console.log('- Code:', code);
+    console.log('- State:', state);
     
-    const response = await supabase.functions.invoke('twitter-access-token', {
+    const { state: expectedState, codeVerifier } = getStoredOAuthParams();
+    
+    console.log('- Expected State:', expectedState);
+    console.log('- Code Verifier exists:', !!codeVerifier);
+    
+    if (!expectedState || !codeVerifier) {
+      console.error('OAuth parameters not found in session storage');
+      throw new Error('Authentication session expired. Please try again.');
+    }
+    
+    // Get the current user ID if available
+    let userId = null;
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    if (user && user.id) {
+      userId = user.id;
+      console.log('User ID for account linking:', userId);
+    }
+    
+    // Call the edge function to exchange the code for tokens
+    const { data, error } = await supabase.functions.invoke('twitter-access-token', {
+      method: 'POST',
       body: {
         code,
-        state: localStorage.getItem('x_oauth_state'),
+        state,
         codeVerifier,
-        expectedState: localStorage.getItem('x_oauth_state'),
+        expectedState,
         userId
       }
     });
     
-    if (response.error) {
-      console.error("Error from twitter-access-token function:", response.error);
-      throw new Error(response.error.message || 'Error getting access token');
+    if (error) {
+      console.error('Error calling twitter-access-token function:', error);
+      throw new Error(error.message || 'Failed to complete X authorization');
     }
     
-    console.log("Twitter access token response:", response.data);
+    if (!data || !data.success) {
+      console.error('Invalid response from twitter-access-token function:', data);
+      throw new Error(data?.error || 'Failed to complete X authorization');
+    }
+    
+    // Clear the OAuth params
+    clearOAuthParams();
+    
+    console.log('X account successfully linked:', data.username);
     
     return {
       success: true,
-      username: response.data.username
+      username: data.username,
+      profileImageUrl: data.profileImageUrl
     };
   } catch (error) {
-    console.error('Error exchanging code for token:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+    console.error('Error completing X OAuth flow:', error);
+    // Make sure to clear OAuth params even on error
+    clearOAuthParams();
+    throw error;
   }
 };

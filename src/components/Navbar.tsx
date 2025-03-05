@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { X, Menu } from 'lucide-react';
@@ -8,27 +8,9 @@ import { X, Menu } from 'lucide-react';
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
-  };
-
-  const handleLogout = async () => {
-    try {
-      console.log('Navbar: Logging out user');
-      await logout();
-      // Navigate is handled in the logout function in AuthContext
-    } catch (error) {
-      console.error('Navbar: Error logging out:', error);
-    }
-  };
-
-  const handleDashboardClick = (e: React.MouseEvent) => {
-    if (!user) {
-      e.preventDefault();
-      navigate('/login');
-    }
   };
 
   return (
@@ -58,7 +40,7 @@ const Navbar: React.FC = () => {
               <Link to="/dashboard">
                 <Button variant="ghost">Dashboard</Button>
               </Link>
-              <Button onClick={handleLogout} variant="outline">Logout</Button>
+              <Button onClick={logout} variant="outline">Logout</Button>
             </div>
           ) : (
             <div className="flex items-center space-x-4">
@@ -118,8 +100,8 @@ const Navbar: React.FC = () => {
                   <Button variant="ghost" className="w-full justify-start">Dashboard</Button>
                 </Link>
                 <Button 
-                  onClick={async () => {
-                    await handleLogout();
+                  onClick={() => {
+                    logout();
                     setMobileMenuOpen(false);
                   }} 
                   variant="outline" 

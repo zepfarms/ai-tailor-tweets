@@ -39,9 +39,6 @@ serve(async (req) => {
 
   try {
     console.log("twitter-request-token function called (OAuth 2.0)");
-    console.log("Environment variables:");
-    console.log("- TWITTER_CLIENT_ID:", TWITTER_CLIENT_ID ? "Set" : "Not set");
-    console.log("- CALLBACK_URL:", CALLBACK_URL);
     
     if (!TWITTER_CLIENT_ID) {
       console.error("Missing Twitter Client ID");

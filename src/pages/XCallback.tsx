@@ -1,200 +1,154 @@
 
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
-import { validateOAuthState, extractOAuthCode, exchangeCodeForToken, clearOAuthParams } from '@/lib/xOAuthUtils';
-import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
+import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
+import { useToast } from "@/components/ui/use-toast";
 
 const XCallback: React.FC = () => {
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const [xUsername, setXUsername] = useState<string | undefined>();
-  const { toast } = useToast();
+  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
+  const [message, setMessage] = useState('Processing your X authorization...');
+  const [details, setDetails] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const processCallback = async () => {
+    const processOAuthCallback = async () => {
       try {
-        const url = window.location.href;
-        console.log('Processing X callback URL:', url);
-        const urlObj = new URL(url);
+        console.log('X callback page loaded');
         
-        // Extract parameters
-        const receivedState = urlObj.searchParams.get('state');
-        const code = urlObj.searchParams.get('code');
-        const error = urlObj.searchParams.get('error');
-        const errorDescription = urlObj.searchParams.get('error_description');
+        // Get the OAuth code and state from the URL
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const error = params.get('error');
+        const errorDescription = params.get('error_description');
         
-        console.log('X callback parameters:', {
-          state: receivedState ? receivedState.substring(0, 10) + '...' : null,
-          code: code ? code.substring(0, 10) + '...' : null,
-          error,
-          errorDescription
-        });
+        console.log('OAuth 2.0 params from URL:', { code, state, error, errorDescription });
         
         if (error) {
-          console.error('OAuth error:', error, errorDescription);
           setStatus('error');
-          setErrorMessage(errorDescription || 'Authentication failed');
-          clearOAuthParams();
+          setMessage(`Authorization error: ${error}`);
+          setDetails(errorDescription || 'The X authorization was denied or failed.');
           return;
         }
         
-        if (!receivedState || !code) {
-          console.error('Missing OAuth parameters');
+        if (!code || !state) {
           setStatus('error');
-          setErrorMessage('Missing authentication parameters');
-          clearOAuthParams();
+          setMessage('Missing authorization parameters');
+          setDetails('The authorization did not provide the necessary parameters. Please try again.');
           return;
         }
         
-        // Validate state parameter
-        if (!validateOAuthState(receivedState)) {
-          console.error('Invalid OAuth state');
-          setStatus('error');
-          setErrorMessage('Invalid authentication state');
-          clearOAuthParams();
-          return;
-        }
+        // Complete the OAuth flow
+        setMessage('Connecting to X...');
+        const result = await completeXOAuthFlow(code, state);
         
-        const codeVerifier = localStorage.getItem('x_oauth_code_verifier');
-        console.log('Retrieved code verifier length:', codeVerifier?.length);
-        
-        if (!codeVerifier) {
-          console.error('Missing code verifier');
-          setStatus('error');
-          setErrorMessage('Authentication session expired');
-          clearOAuthParams();
-          return;
-        }
-        
-        // Get user info for X account linking
-        const { data: sessionData } = await supabase.auth.getSession();
-        const userId = sessionData.session?.user?.id;
-        
-        if (!userId) {
-          // Try to get from localStorage if session is lost
-          const redirectUser = localStorage.getItem('auth_redirect_user');
-          const parsedUserId = redirectUser ? JSON.parse(redirectUser).id : null;
+        if (result.success) {
+          setStatus('success');
+          setMessage(`Successfully linked X account: @${result.username}`);
           
-          if (!parsedUserId) {
-            console.error('No user ID available');
-            setStatus('error');
-            setErrorMessage('User not authenticated');
-            clearOAuthParams();
-            return;
+          // Update the user in local storage
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const user = JSON.parse(storedUser);
+            user.xLinked = true;
+            user.xUsername = `@${result.username}`;
+            localStorage.setItem('user', JSON.stringify(user));
           }
           
-          console.log('Using user ID from localStorage:', parsedUserId);
-          
-          // Exchange code for token
-          const result = await exchangeCodeForToken(code, codeVerifier, parsedUserId);
-          
-          if (!result.success) {
-            console.error('Token exchange failed:', result.error);
-            setStatus('error');
-            setErrorMessage(result.error || 'Failed to authenticate with X');
-            clearOAuthParams();
-            return;
+          // If this is a popup window, close it
+          if (window.opener) {
+            window.opener.postMessage({ 
+              type: 'X_AUTH_SUCCESS', 
+              username: result.username,
+              profileImageUrl: result.profileImageUrl 
+            }, window.location.origin);
+            
+            // Close after a short delay
+            setTimeout(() => window.close(), 2000);
+          } else {
+            // Otherwise, redirect to dashboard
+            setTimeout(() => navigate('/dashboard'), 2000);
           }
           
-          console.log('Token exchange successful with stored user ID');
-          setXUsername(result.username);
+          toast({
+            title: "X Account Linked",
+            description: `You've successfully linked your X account: @${result.username}`,
+          });
         } else {
-          console.log('Using user ID from active session:', userId);
-          
-          // Exchange code for token
-          const result = await exchangeCodeForToken(code, codeVerifier, userId);
-          
-          if (!result.success) {
-            console.error('Token exchange failed:', result.error);
-            setStatus('error');
-            setErrorMessage(result.error || 'Failed to authenticate with X');
-            clearOAuthParams();
-            return;
-          }
-          
-          console.log('Token exchange successful with session user ID');
-          setXUsername(result.username);
+          throw new Error('Failed to link X account');
         }
-
-        // Send success message to parent window if we're in a popup
-        if (window.opener) {
-          console.log('We are in a popup, posting message to parent');
-          window.opener.postMessage({
-            type: 'X_AUTH_SUCCESS',
-            username: xUsername
-          }, window.location.origin);
-
-          // Close the popup after a brief delay
-          setTimeout(() => window.close(), 2000);
-        } else {
-          // If not in a popup, mark success and handle accordingly
-          console.log('Not in a popup, storing success in localStorage');
-          localStorage.setItem('x_auth_success', 'true');
-          localStorage.setItem('x_auth_timestamp', Date.now().toString());
-          if (xUsername) {
-            localStorage.setItem('x_auth_username', xUsername);
-          }
-        }
-        
-        setStatus('success');
-        clearOAuthParams();
-        
       } catch (error) {
-        console.error('Error processing X callback:', error);
+        console.error('Error in X callback:', error);
         setStatus('error');
-        setErrorMessage(error instanceof Error ? error.message : 'Authentication failed');
-        clearOAuthParams();
+        const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+        setMessage('Authentication failed');
+        setDetails(errorMessage);
+        
+        toast({
+          title: "Error Linking X Account",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        
+        // Redirect to dashboard after delay
+        setTimeout(() => {
+          if (window.opener) {
+            window.close();
+          } else {
+            navigate('/dashboard');
+          }
+        }, 3000);
       }
     };
     
-    processCallback();
-  }, []);
-
-  const handleReturnHome = () => {
-    // Check if we should navigate or close the window
-    if (window.opener) {
-      window.close();
-    } else {
-      navigate('/dashboard');
-    }
-  };
+    processOAuthCallback();
+  }, [navigate, toast]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-muted/50">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>
-            {status === 'loading' && 'Completing X Authorization...'}
-            {status === 'success' && 'X Authorization Successful'}
-            {status === 'error' && 'X Authorization Failed'}
-          </CardTitle>
-          <CardDescription>
-            {status === 'loading' && 'Please wait while we complete the authorization process.'}
-            {status === 'success' && 'Your X account has been successfully linked.'}
-            {status === 'error' && errorMessage}
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          {status === 'loading' && (
-            <div className="flex justify-center py-4">
-              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="max-w-md w-full p-8 rounded-lg shadow-lg bg-card">
+        <div className="text-center">
+          {status === 'processing' && (
+            <div className="w-12 h-12 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          )}
+          
+          {status === 'success' && (
+            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
             </div>
           )}
-        </CardContent>
-        
-        <CardFooter className="justify-center">
-          {(status === 'success' || status === 'error') && (
-            <Button onClick={handleReturnHome}>
-              {window.opener ? 'Close Window' : 'Return to Dashboard'}
-            </Button>
+          
+          {status === 'error' && (
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </div>
           )}
-        </CardFooter>
-      </Card>
+          
+          <h2 className="text-xl font-bold mb-2">X Authorization</h2>
+          <p className="text-muted-foreground">{message}</p>
+          
+          {details && (
+            <p className="mt-2 text-sm text-muted-foreground">{details}</p>
+          )}
+          
+          {(status === 'success' || status === 'error') && !window.opener && (
+            <div className="mt-6">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="text-sm text-blue-500 hover:underline"
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,72 +1,28 @@
 
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from '@/context/AuthContext';
 
 const Login: React.FC = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { login, user, isLoading } = useAuth();
+  const { login, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [localLoading, setLocalLoading] = useState(false);
-
-  // Redirect if user is already logged in
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLocalLoading(true);
     
     try {
-      if (!email.trim()) {
-        setError('Email is required');
-        setLocalLoading(false);
-        return;
-      }
-      
-      if (!password.trim()) {
-        setError('Password is required');
-        setLocalLoading(false);
-        return;
-      }
-      
-      console.log('Login: Attempting login with email:', email);
       await login(email, password);
-      console.log('Login: Login successful');
-      
-      // Show success toast
-      toast({
-        title: "Login successful",
-        description: "Welcome back!",
-      });
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
-      
     } catch (err) {
-      console.error('Login: Login error:', err);
       setError(err instanceof Error ? err.message : 'Failed to login');
-      toast({
-        title: "Login failed",
-        description: err instanceof Error ? err.message : "Failed to login",
-        variant: "destructive",
-      });
-    } finally {
-      setLocalLoading(false);
     }
   };
 
@@ -75,15 +31,6 @@ const Login: React.FC = () => {
     setEmail('demo@example.com');
     setPassword('password');
   };
-
-  // Show loading state only on initial auth check
-  if (isLoading && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-xl">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col page-transition">
@@ -134,12 +81,8 @@ const Login: React.FC = () => {
                   <div className="text-sm text-destructive">{error}</div>
                 )}
                 
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={localLoading}
-                >
-                  {localLoading ? "Logging in..." : "Log in"}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Logging in..." : "Log in"}
                 </Button>
               </form>
               

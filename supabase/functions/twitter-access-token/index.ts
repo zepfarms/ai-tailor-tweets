@@ -41,23 +41,9 @@ serve(async (req) => {
     console.log("- TWITTER_CLIENT_ID exists:", !!TWITTER_CLIENT_ID);
     console.log("- TWITTER_CLIENT_SECRET exists:", !!TWITTER_CLIENT_SECRET);
     console.log("- CALLBACK_URL exists:", !!CALLBACK_URL);
-    console.log("- CALLBACK_URL value:", CALLBACK_URL);
     
-    if (!TWITTER_CLIENT_ID || !TWITTER_CLIENT_SECRET) {
-      throw new Error("Missing required Twitter API credentials");
-    }
-
-    if (!CALLBACK_URL) {
-      throw new Error("Missing callback URL");
-    }
-    
-    // Ensure callback URL is properly formatted
-    let callbackUrl = CALLBACK_URL;
-    if (!callbackUrl.startsWith("http")) {
-      console.log("Callback URL doesn't start with http, assuming it's a relative path");
-      // If it's a relative path, we'll need to convert it to an absolute URL
-      callbackUrl = `https://lovable.dev/projects/5ab8ef67-83db-439a-adb0-0c1e95912c8f/x-callback`;
-      console.log(`Converted callback URL to: ${callbackUrl}`);
+    if (!TWITTER_CLIENT_ID || !TWITTER_CLIENT_SECRET || !CALLBACK_URL) {
+      throw new Error("Missing required environment variables");
     }
 
     // Exchange the authorization code for an access token
@@ -67,11 +53,10 @@ serve(async (req) => {
       code: code,
       grant_type: "authorization_code",
       client_id: TWITTER_CLIENT_ID,
-      redirect_uri: callbackUrl,
+      redirect_uri: CALLBACK_URL,
       code_verifier: codeVerifier
     });
     
-    console.log("Token request parameters:", tokenParams.toString());
     const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
     
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
@@ -83,8 +68,6 @@ serve(async (req) => {
       body: tokenParams.toString()
     });
 
-    console.log("Token response status:", tokenResponse.status);
-    
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error(`Twitter token API error (${tokenResponse.status}):`, errorText);
@@ -117,41 +100,36 @@ serve(async (req) => {
 
     // If we have a userId, store the X account data
     let xAccountData = null;
-    if (userId && SUPABASE_URL && SUPABASE_ANON_KEY) {
+    if (userId) {
       // Initialize Supabase client
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       console.log("Storing X account data for user:", userId);
 
-      try {
-        // Save the X account data to Supabase
-        const { data, error } = await supabase
-          .from("x_accounts")
-          .upsert({
-            user_id: userId,
-            x_user_id: userData.data.id,
-            x_username: userData.data.username,
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token,
-            expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-            profile_image_url: userData.data.profile_image_url || null,
-          })
-          .select()
-          .single();
+      // Save the X account data to Supabase
+      const { data, error } = await supabase
+        .from("x_accounts")
+        .upsert({
+          user_id: userId,
+          x_user_id: userData.data.id,
+          x_username: userData.data.username,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+          profile_image_url: userData.data.profile_image_url || null,
+        })
+        .select()
+        .single();
 
-        if (error) {
-          console.error("Error saving X account:", error);
-          // Don't throw here - we still want to return the successful authentication
-          console.log("Continuing despite database error");
-        } else {
-          xAccountData = data;
-          console.log("Successfully saved X account data");
-        }
-      } catch (dbError) {
-        console.error("Database error:", dbError);
-        // Continue without throwing
+      if (error) {
+        console.error("Error saving X account:", error);
+        // Don't throw here - we still want to return the successful authentication
+        console.log("Continuing despite database error");
+      } else {
+        xAccountData = data;
+        console.log("Successfully saved X account data");
       }
     } else {
-      console.log("No userId or Supabase credentials provided, skipping database storage");
+      console.log("No userId provided, skipping database storage");
     }
 
     return new Response(
