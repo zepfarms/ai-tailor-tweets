@@ -19,17 +19,11 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
 
-  // Check if user is already logged in - with safeguard timeout
+  // Redirect if user is already logged in
   useEffect(() => {
-    // Use a timeout to prevent infinite loading
-    const redirectTimeout = setTimeout(() => {
-      if (user) {
-        console.log('Login: User already logged in, redirecting to dashboard');
-        navigate('/dashboard');
-      }
-    }, 500);
-    
-    return () => clearTimeout(redirectTimeout);
+    if (user) {
+      navigate('/dashboard');
+    }
   }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,13 +32,13 @@ const Login: React.FC = () => {
     setLocalLoading(true);
     
     try {
-      if (email.trim() === '') {
+      if (!email.trim()) {
         setError('Email is required');
         setLocalLoading(false);
         return;
       }
       
-      if (password.trim() === '') {
+      if (!password.trim()) {
         setError('Password is required');
         setLocalLoading(false);
         return;
@@ -52,12 +46,25 @@ const Login: React.FC = () => {
       
       console.log('Login: Attempting login with email:', email);
       await login(email, password);
+      console.log('Login: Login successful');
       
-      // The login function in AuthContext handles navigation to dashboard
+      // Show success toast
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
       
     } catch (err) {
       console.error('Login: Login error:', err);
       setError(err instanceof Error ? err.message : 'Failed to login');
+      toast({
+        title: "Login failed",
+        description: err instanceof Error ? err.message : "Failed to login",
+        variant: "destructive",
+      });
     } finally {
       setLocalLoading(false);
     }
@@ -69,19 +76,8 @@ const Login: React.FC = () => {
     setPassword('password');
   };
 
-  // If global auth is still loading initially, show a loading state
-  // but add a timeout to avoid getting stuck in loading
-  const [showContent, setShowContent] = useState(false);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowContent(true);
-    }, 2000); // Show content after 2 seconds even if still loading
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (isLoading && !showContent) {
+  // Show loading state only on initial auth check
+  if (isLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-xl">Loading...</div>
@@ -138,7 +134,11 @@ const Login: React.FC = () => {
                   <div className="text-sm text-destructive">{error}</div>
                 )}
                 
-                <Button type="submit" className="w-full" disabled={localLoading}>
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={localLoading}
+                >
                   {localLoading ? "Logging in..." : "Log in"}
                 </Button>
               </form>
