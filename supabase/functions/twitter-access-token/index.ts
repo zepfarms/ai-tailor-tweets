@@ -31,24 +31,12 @@ serve(async (req) => {
     }
     
     // Extract request parameters
-    const { code, state, codeVerifier, expectedState, userId } = await req.json();
-    console.log("Received parameters:", { 
-      code: code ? `${code.substring(0, 10)}...` : "missing", 
-      state, 
-      codeVerifierExists: !!codeVerifier,
-      codeVerifierLength: codeVerifier?.length || 0,
-      expectedState,
-      userId 
-    });
-
+    const { code, codeVerifier, userId } = await req.json();
+    
     if (!code) {
       throw new Error("Missing required authorization code parameter");
     }
     
-    // Skip state validation entirely - we're going to proceed regardless
-    // This helps with cross-device flows and browser security restrictions
-    console.log("Proceeding with OAuth flow regardless of state parameter");
-
     // Log all environment variables we need
     console.log("Environment variables check:");
     console.log("- TWITTER_CLIENT_ID exists:", !!TWITTER_CLIENT_ID);
@@ -97,8 +85,7 @@ serve(async (req) => {
     }
 
     const tokenData = await tokenResponse.json();
-    console.log("Twitter token response received successfully");
-    console.log("Access token expires in:", tokenData.expires_in, "seconds");
+    console.log("Twitter token response received");
     
     // Get user data from Twitter
     console.log("Fetching user data from Twitter");
@@ -107,8 +94,6 @@ serve(async (req) => {
         "Authorization": `Bearer ${tokenData.access_token}`
       }
     });
-
-    console.log("User data response status:", userResponse.status);
 
     if (!userResponse.ok) {
       const errorText = await userResponse.text();
@@ -124,7 +109,6 @@ serve(async (req) => {
     }
 
     // If we have a userId, store the X account data
-    let xAccountData = null;
     if (userId) {
       // Initialize Supabase client
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -149,18 +133,13 @@ serve(async (req) => {
         if (error) {
           console.error("Error saving X account:", error);
           // Don't throw here - we still want to return the successful authentication
-          console.log("Continuing despite database error");
         } else {
-          xAccountData = data;
           console.log("Successfully saved X account data");
         }
       } catch (dbError) {
         console.error("Database operation error:", dbError);
-        console.log("Continuing despite database error");
         // Still return success for the authorization part
       }
-    } else {
-      console.log("No userId provided, skipping database storage");
     }
 
     return new Response(
@@ -172,12 +151,13 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200
       }
     );
   } catch (error) {
     console.error("Error in twitter-access-token function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || "An unknown error occurred" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,10 +1,9 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { startXOAuthFlow, clearOAuthParams, getStoredRedirectPage } from '@/lib/xOAuthUtils';
+import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -43,6 +42,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
+    const checkXAccount = async () => {
+      if (user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from('x_accounts')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (data && !error) {
+            setUser(prevUser => {
+              if (!prevUser) return prevUser;
+              return {
+                ...prevUser,
+                xLinked: true,
+                xUsername: `@${data.x_username}`,
+              };
+            });
+          }
+        } catch (error) {
+          console.error('Error checking X account:', error);
+        }
+      }
+    };
+    
+    checkXAccount();
+  }, [user?.id]);
+
+  useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event);
       
@@ -68,11 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    // Check the URL for OAuth callback parameters from X
     const checkForXCallback = () => {
       const params = new URLSearchParams(window.location.search);
-      // If we have the x_auth_success flag, it means the user was redirected back
-      // from the XCallback page after successful auth
       if (params.get('x_auth_success') === 'true') {
         const username = params.get('username');
         if (username && user) {
@@ -83,28 +108,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           setUser(updatedUser);
           
-          // Get the stored redirect page and navigate back
-          const redirectTo = getStoredRedirectPage();
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
           
-          // Clean up URL parameters
-          if (window.history && window.history.replaceState) {
-            const cleanUrl = window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
-          }
-          
-          // Show success message and navigate
           toast({
             title: "X Account Linked",
             description: `Successfully linked to @${username}`,
           });
-          
-          navigate(redirectTo);
         }
       }
     };
     
     checkForXCallback();
-  }, [user, toast, navigate]);
+  }, [user, toast]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -202,7 +218,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Initiating X account linking');
       
-      // Clear any existing OAuth parameters
       clearOAuthParams();
       
       toast({
@@ -210,7 +225,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "Redirecting to X for authorization...",
       });
       
-      // This will now redirect the user to Twitter directly
       await startXOAuthFlow();
       
     } catch (error) {
