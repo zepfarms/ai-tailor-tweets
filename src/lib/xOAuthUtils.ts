@@ -155,10 +155,29 @@ export const clearOAuthParams = () => {
   }
 };
 
-// Start the X OAuth flow using Edge Function
-export const startXOAuthFlow = async (): Promise<string> => {
+// Store current page for redirect back after auth
+export const storeCurrentPage = () => {
+  const currentPath = window.location.pathname;
+  if (currentPath !== '/x-callback') {
+    sessionStorage.setItem('x_auth_redirect', currentPath);
+    console.log('Stored current page for redirect:', currentPath);
+  }
+};
+
+// Get stored redirect page
+export const getStoredRedirectPage = (): string => {
+  const redirect = sessionStorage.getItem('x_auth_redirect') || '/dashboard';
+  sessionStorage.removeItem('x_auth_redirect'); // Clear after getting
+  return redirect;
+};
+
+// Start the X OAuth flow using Edge Function - now redirecting directly
+export const startXOAuthFlow = async (): Promise<void> => {
   try {
     console.log('Initiating X account linking');
+    
+    // Store the current page to return to after auth
+    storeCurrentPage();
     
     // Clear any existing OAuth parameters first to prevent conflicts
     clearOAuthParams();
@@ -185,8 +204,12 @@ export const startXOAuthFlow = async (): Promise<string> => {
     console.log('OAuth flow started successfully:');
     console.log('- State:', data.state);
     console.log('- Code Verifier (partial):', data.codeVerifier.substring(0, 10) + '...');
+    console.log('- Authorization URL:', data.authorizeUrl);
     
-    return data.authorizeUrl;
+    // Redirect the user directly to the Twitter auth page
+    window.location.href = data.authorizeUrl;
+    
+    // No return value needed since we're redirecting
   } catch (error) {
     console.error('Error starting X OAuth 2.0 flow:', error);
     throw error;

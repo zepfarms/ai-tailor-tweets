@@ -1,15 +1,17 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
+import { startXOAuthFlow, clearOAuthParams, getStoredRedirectPage } from '@/lib/xOAuthUtils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLinkingX, setIsLinkingX] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -66,29 +68,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    const handleXAuthSuccess = (event: MessageEvent) => {
-      if (event.data?.type === 'X_AUTH_SUCCESS') {
-        console.log('Received X auth success event:', event.data);
-        
-        if (user) {
+    // Check the URL for OAuth callback parameters from X
+    const checkForXCallback = () => {
+      const params = new URLSearchParams(window.location.search);
+      // If we have the x_auth_success flag, it means the user was redirected back
+      // from the XCallback page after successful auth
+      if (params.get('x_auth_success') === 'true') {
+        const username = params.get('username');
+        if (username && user) {
           const updatedUser = {
             ...user,
             xLinked: true,
-            xUsername: `@${event.data.username}`,
+            xUsername: `@${username}`,
           };
           setUser(updatedUser);
           
+          // Get the stored redirect page and navigate back
+          const redirectTo = getStoredRedirectPage();
+          
+          // Clean up URL parameters
+          if (window.history && window.history.replaceState) {
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          }
+          
+          // Show success message and navigate
           toast({
             title: "X Account Linked",
-            description: `Successfully linked to @${event.data.username}`,
+            description: `Successfully linked to @${username}`,
           });
+          
+          navigate(redirectTo);
         }
       }
     };
-
-    window.addEventListener('message', handleXAuthSuccess);
-    return () => window.removeEventListener('message', handleXAuthSuccess);
-  }, [user, toast]);
+    
+    checkForXCallback();
+  }, [user, toast, navigate]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -179,57 +195,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const linkXAccount = async () => {
+    if (isLinkingX) return; // Prevent multiple simultaneous attempts
+    
+    setIsLinkingX(true);
+    
     try {
       console.log('Initiating X account linking');
       
       // Clear any existing OAuth parameters
       clearOAuthParams();
       
-      const authUrl = await startXOAuthFlow();
-      
-      if (!authUrl) {
-        throw new Error("Failed to get authorization URL from Twitter");
-      }
-      
-      if (user) {
-        localStorage.setItem('auth_redirect_user', JSON.stringify(user));
-      }
-      
-      console.log('Opening X authorization URL');
-      
-      const width = 600;
-      const height = 800;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-      
-      const popup = window.open(
-        authUrl, 
-        'xAuthWindow', 
-        `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-      );
-      
-      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        throw new Error("Popup blocked. Please allow popups for this website.");
-      }
-      
-      const checkPopupClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkPopupClosed);
-          setTimeout(() => {
-            if (user && !user.xLinked) {
-              toast({
-                title: "X Authorization Canceled",
-                description: "The authorization window was closed before completion.",
-              });
-            }
-          }, 1000);
-        }
-      }, 1000);
-      
       toast({
         title: "X Authorization Started",
-        description: "Please complete the authorization in the popup window",
+        description: "Redirecting to X for authorization...",
       });
+      
+      // This will now redirect the user to Twitter directly
+      await startXOAuthFlow();
       
     } catch (error) {
       console.error('Error initiating X account linking:', error);
@@ -238,11 +220,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
+      setIsLinkingX(false);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, linkXAccount }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isLoading, 
+      isLinkingX,
+      login, 
+      signup, 
+      logout, 
+      linkXAccount 
+    }}>
       {children}
     </AuthContext.Provider>
   );

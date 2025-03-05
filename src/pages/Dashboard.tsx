@@ -7,14 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
-import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check } from 'lucide-react';
+import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 
 const Dashboard: React.FC = () => {
-  const { user, isLoading, linkXAccount } = useAuth();
+  const { user, isLoading, isLinkingX, linkXAccount } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isLinking, setIsLinking] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -23,13 +22,10 @@ const Dashboard: React.FC = () => {
   }, [user, isLoading, navigate]);
 
   const handleLinkAccount = async () => {
-    setIsLinking(true);
     try {
       await linkXAccount();
     } catch (error) {
       console.error('Error linking account:', error);
-    } finally {
-      setIsLinking(false);
     }
   };
 
@@ -122,12 +118,21 @@ const Dashboard: React.FC = () => {
                   <Button 
                     onClick={handleLinkAccount} 
                     className="group button-glow"
-                    disabled={isLinking}
+                    disabled={isLinkingX}
                   >
-                    {isLinking ? "Linking..." : "Link X Account"}
-                    <svg className="ml-2 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                    </svg>
+                    {isLinkingX ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Redirecting...
+                      </>
+                    ) : (
+                      <>
+                        Link X Account
+                        <svg className="ml-2 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        </svg>
+                      </>
+                    )}
                   </Button>
                 </div>
               )}

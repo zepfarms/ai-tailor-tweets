@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { completeXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
+import { useNavigate } from 'react-router-dom';
+import { completeXOAuthFlow, clearOAuthParams, getStoredRedirectPage } from '@/lib/xOAuthUtils';
 import { useToast } from "@/components/ui/use-toast";
-import { X, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 
 const XCallback: React.FC = () => {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
@@ -11,7 +11,6 @@ const XCallback: React.FC = () => {
   const [details, setDetails] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const navigate = useNavigate();
-  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,6 +44,12 @@ const XCallback: React.FC = () => {
             description: errorDescription || "The authorization was denied or failed.",
             variant: "destructive",
           });
+          
+          // Redirect back to dashboard after showing error
+          setTimeout(() => {
+            navigate(getStoredRedirectPage());
+          }, 3000);
+          
           return;
         }
         
@@ -59,12 +64,13 @@ const XCallback: React.FC = () => {
             description: "The authorization did not provide the necessary code parameter.",
             variant: "destructive",
           });
+          
+          // Redirect back to dashboard after showing error
+          setTimeout(() => {
+            navigate(getStoredRedirectPage());
+          }, 3000);
+          
           return;
-        }
-        
-        // State may be missing in some scenarios, but we'll try to proceed anyway
-        if (!state) {
-          console.warn('Missing state parameter, but proceeding anyway');
         }
         
         // Show more detailed status
@@ -78,26 +84,26 @@ const XCallback: React.FC = () => {
             setStatus('success');
             setMessage(`Successfully linked X account: @${result.username}`);
             
-            // If this is a popup window, communicate success to parent
-            if (window.opener) {
-              console.log('This is a popup window, sending message to parent');
-              window.opener.postMessage({ 
-                type: 'X_AUTH_SUCCESS', 
-                username: result.username,
-                profileImageUrl: result.profileImageUrl 
-              }, '*'); // Using * instead of origin for more compatibility
-              
-              // Close after a short delay
-              setTimeout(() => window.close(), 1500);
-            } else {
-              // Otherwise, redirect to dashboard
-              console.log('This is not a popup, redirecting to dashboard');
-              toast({
-                title: "X Account Linked",
-                description: `You've successfully linked your X account: @${result.username}`,
-              });
-              setTimeout(() => navigate('/dashboard'), 1500);
+            // Always redirect back to the application with auth success parameters
+            const redirectTo = getStoredRedirectPage();
+            const redirectUrl = new URL(redirectTo, window.location.origin);
+            
+            // Add auth success parameters to the URL
+            redirectUrl.searchParams.append('x_auth_success', 'true');
+            redirectUrl.searchParams.append('username', result.username);
+            if (result.profileImageUrl) {
+              redirectUrl.searchParams.append('profile_image', result.profileImageUrl);
             }
+            
+            toast({
+              title: "X Account Linked",
+              description: `You've successfully linked your X account: @${result.username}`,
+            });
+            
+            // Redirect after a short delay to allow the toast to be seen
+            setTimeout(() => {
+              window.location.href = redirectUrl.toString();
+            }, 1500);
           } else {
             throw new Error('Failed to link X account');
           }
@@ -119,19 +125,15 @@ const XCallback: React.FC = () => {
           variant: "destructive",
         });
         
-        // Close or redirect after a delay
+        // Redirect to dashboard after error
         setTimeout(() => {
-          if (window.opener) {
-            window.close();
-          } else {
-            navigate('/dashboard');
-          }
+          navigate(getStoredRedirectPage());
         }, 3000);
       }
     };
     
     processOAuthCallback();
-  }, [navigate, toast, location]);
+  }, [navigate, toast]);
 
   const handleTryAgain = () => {
     // Clear any existing state
@@ -142,11 +144,7 @@ const XCallback: React.FC = () => {
   };
 
   const handleClose = () => {
-    if (window.opener) {
-      window.close();
-    } else {
-      navigate('/dashboard');
-    }
+    navigate(getStoredRedirectPage());
   };
 
   return (
@@ -188,7 +186,7 @@ const XCallback: React.FC = () => {
                 onClick={handleClose}
                 className="px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
               >
-                Close Window
+                Return to Dashboard
               </button>
               
               <button
@@ -204,17 +202,6 @@ const XCallback: React.FC = () => {
                   <p className="mt-1">The authorization session has expired or couldn't be found. This can happen due to browser security features or if you waited too long. Please try again.</p>
                 </div>
               )}
-            </div>
-          )}
-          
-          {(status === 'success' || status === 'error') && !window.opener && (
-            <div className="mt-6">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="text-sm text-blue-500 hover:underline"
-              >
-                Return to Dashboard
-              </button>
             </div>
           )}
         </div>

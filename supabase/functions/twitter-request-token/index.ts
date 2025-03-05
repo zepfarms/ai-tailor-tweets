@@ -76,6 +76,17 @@ serve(async (req) => {
         }
       }
     }
+
+    // If we still don't have an origin, use the callback URL's origin as a fallback
+    if (!origin) {
+      try {
+        const callbackUrl = new URL(CALLBACK_URL);
+        origin = `${callbackUrl.protocol}//${callbackUrl.host}`;
+        console.log("Using callback URL origin as fallback:", origin);
+      } catch (e) {
+        console.log("Failed to parse callback URL:", e);
+      }
+    }
     
     console.log("Final request origin:", origin);
     
