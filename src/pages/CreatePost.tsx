@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -10,7 +9,7 @@ import PostGenerator from '@/components/PostGenerator';
 import PostScheduler from '@/components/PostScheduler';
 import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Video } from 'lucide-react';
 
 type Stage = "analyze" | "topics" | "create" | "schedule";
 
@@ -74,6 +73,10 @@ const CreatePost: React.FC = () => {
     }
   };
 
+  const goToVideoStudio = () => {
+    navigate('/video-studio');
+  };
+
   if (isLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -120,7 +123,20 @@ const CreatePost: React.FC = () => {
           )}
           
           {stage === "topics" && (
-            <TopicSelection onSelectTopics={handleTopicSelection} />
+            <>
+              <TopicSelection onSelectTopics={handleTopicSelection} />
+              <div className="mt-8 text-center">
+                <p className="text-muted-foreground mb-4">Want to create rich media content instead?</p>
+                <Button 
+                  variant="outline"
+                  onClick={goToVideoStudio}
+                  className="flex items-center gap-2"
+                >
+                  <Video className="h-4 w-4" />
+                  Go to Video Studio
+                </Button>
+              </div>
+            </>
           )}
           
           {stage === "create" && (

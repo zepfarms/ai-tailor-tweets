@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
 import CreatePost from "./pages/CreatePost";
+import VideoStudio from "./pages/VideoStudio";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/signup" element={<SignUp />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/create" element={<CreatePost />} />
+            <Route path="/video-studio" element={<VideoStudio />} />
             {/* Redirect X callback to dashboard to avoid blank screens */}
             <Route path="/x-callback" element={<Navigate to="/dashboard" />} />
             <Route path="*" element={<NotFound />} />
