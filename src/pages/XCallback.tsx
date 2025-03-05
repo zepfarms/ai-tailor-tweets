@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
@@ -59,6 +60,15 @@ const XCallback: React.FC = () => {
           user.xLinked = true;
           user.xUsername = `@${result.username}`;
           localStorage.setItem('user', JSON.stringify(user));
+        } else {
+          // Try to get from the auth_redirect_user
+          const redirectUser = localStorage.getItem('auth_redirect_user');
+          if (redirectUser) {
+            const user = JSON.parse(redirectUser);
+            user.xLinked = true;
+            user.xUsername = `@${result.username}`;
+            localStorage.setItem('user', JSON.stringify(user));
+          }
         }
         
         // If this is a popup window, close it
@@ -105,6 +115,14 @@ const XCallback: React.FC = () => {
   }, [navigate, toast, searchParams]);
 
   const restartAuth = () => {
+    // Remove any existing OAuth params to ensure a clean slate
+    localStorage.removeItem('x_oauth_state');
+    localStorage.removeItem('x_oauth_code_verifier');
+    localStorage.removeItem('x_oauth_timestamp');
+    localStorage.removeItem('x_oauth_backup');
+    document.cookie = 'x_oauth_data=; max-age=0; path=/';
+    
+    // Navigate back to dashboard
     navigate('/dashboard');
   };
 
@@ -151,6 +169,9 @@ const XCallback: React.FC = () => {
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
                 If you're seeing a session expired message, please try authorizing again from the dashboard.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                This error can happen if your browser cleared the session data or if too much time passed since starting the authorization.
               </p>
             </div>
           )}

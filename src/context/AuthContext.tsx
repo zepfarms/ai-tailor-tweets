@@ -25,9 +25,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loggedInUser = localStorage.getItem('user');
     
     if (loggedInUser) {
-      setUser(JSON.parse(loggedInUser));
+      try {
+        setUser(JSON.parse(loggedInUser));
+      } catch (e) {
+        console.error("Error parsing user from localStorage:", e);
+        // If there's an error parsing, clear the invalid data
+        localStorage.removeItem('user');
+      }
     }
     setIsLoading(false);
+    
+    // Also check for redirected user data
+    const redirectUser = localStorage.getItem('auth_redirect_user');
+    if (redirectUser && !loggedInUser) {
+      try {
+        setUser(JSON.parse(redirectUser));
+        localStorage.setItem('user', redirectUser);
+        localStorage.removeItem('auth_redirect_user');
+      } catch (e) {
+        console.error("Error parsing redirected user data:", e);
+        localStorage.removeItem('auth_redirect_user');
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -51,6 +70,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             title: "X Account Linked",
             description: `Successfully linked to @${event.data.username}`,
           });
+        } else {
+          console.log('Received X auth success but no active user found');
+          // Try to get from the auth_redirect_user
+          const redirectUser = localStorage.getItem('auth_redirect_user');
+          if (redirectUser) {
+            try {
+              const parsedUser = JSON.parse(redirectUser);
+              const updatedUser = {
+                ...parsedUser,
+                xLinked: true,
+                xUsername: `@${event.data.username}`,
+              };
+              setUser(updatedUser);
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+              localStorage.removeItem('auth_redirect_user');
+              
+              toast({
+                title: "X Account Linked",
+                description: `Successfully linked to @${event.data.username}`,
+              });
+            } catch (e) {
+              console.error("Error processing redirected user for X auth:", e);
+            }
+          }
         }
       }
     };
@@ -121,6 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     localStorage.removeItem('user');
+    localStorage.removeItem('auth_redirect_user');
     setUser(null);
     // Also clear any OAuth params to ensure clean state
     clearOAuthParams();
@@ -138,11 +182,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear any existing OAuth params first to ensure clean state
       clearOAuthParams();
       
-      const authUrl = await startXOAuthFlow();
-      
+      // Store the current user for retrieval after the OAuth flow
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
+        console.log('Stored current user for retrieval after OAuth flow');
       }
+      
+      // Start the OAuth flow
+      const authUrl = await startXOAuthFlow();
       
       console.log('Opening X authorization URL:', authUrl);
       const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
@@ -159,16 +206,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           title: "X Authorization Started",
           description: "Please complete the authorization in the popup window",
         });
+        
+        // Focus the popup to ensure user attention
+        popup.focus();
       }
       
     } catch (error) {
       console.error('Error initiating X account linking:', error);
+      
+      // Clear any partial OAuth data
+      clearOAuthParams();
+      
       toast({
         title: "Failed to link X account",
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
-      throw error;
     }
   };
 
