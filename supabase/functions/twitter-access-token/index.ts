@@ -37,6 +37,10 @@ serve(async (req) => {
       throw new Error("Missing required authorization code parameter");
     }
     
+    if (!codeVerifier) {
+      throw new Error("Missing required code verifier parameter");
+    }
+    
     // Log all environment variables we need
     console.log("Environment variables check:");
     console.log("- TWITTER_CLIENT_ID exists:", !!TWITTER_CLIENT_ID);
@@ -56,13 +60,13 @@ serve(async (req) => {
       grant_type: "authorization_code",
       client_id: TWITTER_CLIENT_ID,
       redirect_uri: CALLBACK_URL,
-      code_verifier: codeVerifier || "" // Allow empty string as fallback
+      code_verifier: codeVerifier
     });
     
     console.log("Token request parameters:", {
-      code: code ? `${code.substring(0, 10)}...` : null,
+      code_length: code.length,
       redirect_uri: CALLBACK_URL,
-      code_verifier_length: codeVerifier?.length || 0
+      code_verifier_length: codeVerifier.length
     });
 
     const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
@@ -115,6 +119,18 @@ serve(async (req) => {
       console.log("Storing X account data for user:", userId);
 
       try {
+        // Create x_accounts table if it doesn't exist
+        // Note: This approach is not ideal for production, but helps during development
+        try {
+          const { error: tableError } = await supabase.rpc('create_x_accounts_if_not_exists');
+          if (tableError) {
+            console.log("Error creating table or table already exists:", tableError);
+          }
+        } catch (tableCreateError) {
+          console.error("Error with table operation:", tableCreateError);
+          // Continue anyway, as table might already exist
+        }
+
         // Save the X account data to Supabase
         const { data, error } = await supabase
           .from("x_accounts")
@@ -157,7 +173,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in twitter-access-token function:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "An unknown error occurred" }),
+      JSON.stringify({ 
+        error: error.message || "An unknown error occurred",
+        success: false 
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .from('x_accounts')
             .select('*')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
             
           if (data && !error) {
             setUser(prevUser => {

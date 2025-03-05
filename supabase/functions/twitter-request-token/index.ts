@@ -57,7 +57,7 @@ serve(async (req) => {
     
     console.log("OAuth parameters generated:");
     console.log(`- State: ${state}`);
-    console.log(`- Code Verifier: ${codeVerifier.substring(0, 10)}...`);
+    console.log(`- Code Verifier length: ${codeVerifier.length}`);
     console.log(`- Code Challenge: ${codeChallenge.substring(0, 10)}...`);
     console.log(`- Using callback URL: ${CALLBACK_URL}`);
     

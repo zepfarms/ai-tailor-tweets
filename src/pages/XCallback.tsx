@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { completeXOAuthFlow, getStoredRedirectPage } from '@/lib/xOAuthUtils';
+import { completeXOAuthFlow, getStoredRedirectPage, clearOAuthParams } from '@/lib/xOAuthUtils';
 import { useToast } from "@/components/ui/use-toast";
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
@@ -24,21 +24,40 @@ const XCallback: React.FC = () => {
         const errorDescription = params.get('error_description');
         
         if (error) {
+          console.error(`X authorization error: ${error}, description: ${errorDescription}`);
           setStatus('error');
           setMessage(`X authorization failed: ${error}`);
-          setErrorDetails(errorDescription || undefined);
+          setErrorDetails(errorDescription || "No error description provided");
+          
+          toast({
+            title: "Error Linking X Account",
+            description: errorDescription || error || "Authorization failed",
+            variant: "destructive",
+          });
+          
           return;
         }
         
         if (!code) {
+          console.error('Missing authorization code in callback');
           setStatus('error');
           setMessage('Missing authorization code');
           setErrorDetails('The authorization did not provide the necessary code');
+          
+          toast({
+            title: "Error Linking X Account",
+            description: "Missing authorization code",
+            variant: "destructive",
+          });
+          
           return;
         }
         
         // Complete the OAuth flow
+        console.log('Calling completeXOAuthFlow with code');
         const result = await completeXOAuthFlow(code);
+        
+        console.log('OAuth flow result:', result);
         
         if (result.success) {
           setStatus('success');
@@ -49,10 +68,10 @@ const XCallback: React.FC = () => {
             description: `Successfully linked to @${result.username}`,
           });
           
-          // Redirect back to app with success parameters
+          // Redirect back to dashboard with success parameters
           setTimeout(() => {
-            const redirectPath = getStoredRedirectPage();
-            window.location.href = `${window.location.origin}${redirectPath}?x_auth_success=true&username=${result.username}`;
+            console.log('Redirecting to dashboard with success parameters');
+            window.location.href = '/dashboard?x_auth_success=true&username=' + result.username;
           }, 1500);
         }
       } catch (error) {
@@ -66,6 +85,9 @@ const XCallback: React.FC = () => {
           description: error instanceof Error ? error.message : "Something went wrong",
           variant: "destructive",
         });
+        
+        // Clear any lingering OAuth params
+        clearOAuthParams();
       }
     };
     
@@ -73,7 +95,7 @@ const XCallback: React.FC = () => {
   }, [toast, navigate]);
 
   const handleClose = () => {
-    navigate(getStoredRedirectPage());
+    navigate('/dashboard');
   };
 
   return (
@@ -102,7 +124,9 @@ const XCallback: React.FC = () => {
           <p className="text-muted-foreground mb-4">{message}</p>
           
           {errorDetails && (
-            <p className="mt-2 text-sm text-muted-foreground">{errorDetails}</p>
+            <p className="mt-2 text-sm text-muted-foreground bg-red-50 p-3 rounded">
+              Error details: {errorDetails}
+            </p>
           )}
           
           {status === 'error' && (

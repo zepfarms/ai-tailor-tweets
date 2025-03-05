@@ -41,17 +41,15 @@ export const clearOAuthParams = () => {
 
 // Store current page for redirect
 export const storeCurrentPage = () => {
-  const currentPath = window.location.pathname;
-  if (currentPath !== '/x-callback') {
-    sessionStorage.setItem('x_auth_redirect', currentPath);
-    console.log('Stored current page for redirect:', currentPath);
-  }
+  // Always use dashboard as the redirect page to avoid blank screens
+  sessionStorage.setItem('x_auth_redirect', '/dashboard');
+  console.log('Stored redirect page: /dashboard');
 };
 
 // Get stored redirect page
 export const getStoredRedirectPage = (): string => {
-  const redirect = sessionStorage.getItem('x_auth_redirect') || '/dashboard';
-  return redirect;
+  // Default to dashboard if no redirect is stored
+  return '/dashboard';
 };
 
 // Start X OAuth flow
@@ -132,7 +130,7 @@ export const completeXOAuthFlow = async (code: string): Promise<{
     
     if (error) {
       console.error('Error calling twitter-access-token function:', error);
-      throw new Error('Failed to complete X authorization');
+      throw new Error('Failed to complete X authorization: ' + (error.message || 'Unknown error'));
     }
     
     if (!data || !data.success) {
