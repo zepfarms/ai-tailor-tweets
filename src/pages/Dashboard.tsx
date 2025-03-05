@@ -14,14 +14,9 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [linkButtonClicked, setLinkButtonClicked] = useState(false);
   
-  // Safely access auth context with error handling
-  const auth = React.useContext(
-    // @ts-ignore - This is a workaround to prevent errors during initial render
-    React.createContext({ user: null, isLoading: true, isLinkingX: false })
-  );
-  
-  // Get real auth data once component is mounted
+  // Get auth context
   const { user, isLoading, isLinkingX, linkXAccount } = useAuth();
 
   useEffect(() => {
@@ -43,12 +38,37 @@ const Dashboard: React.FC = () => {
     }
   }, [user, isLoading, navigate]);
 
+  // Check for X auth success parameter in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('x_auth_success') === 'true') {
+      const username = params.get('username');
+      if (username) {
+        toast({
+          title: "X Account Linked",
+          description: `Successfully linked to @${username}`,
+        });
+        
+        // Clean URL
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    }
+  }, [toast]);
+
   const handleLinkAccount = async () => {
     try {
+      setLinkButtonClicked(true);
       console.log("Initiating X account linking from Dashboard");
       await linkXAccount();
+      
+      // Set a timeout to reset the button state in case the redirect doesn't happen
+      setTimeout(() => {
+        setLinkButtonClicked(false);
+      }, 5000);
     } catch (error) {
       console.error('Error linking account:', error);
+      setLinkButtonClicked(false);
       toast({
         title: "Failed to link X account",
         description: "Please try again later",
@@ -164,9 +184,9 @@ const Dashboard: React.FC = () => {
                   <Button 
                     onClick={handleLinkAccount} 
                     className="group button-glow"
-                    disabled={isLinkingX}
+                    disabled={isLinkingX || linkButtonClicked}
                   >
-                    {isLinkingX ? (
+                    {isLinkingX || linkButtonClicked ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Redirecting...

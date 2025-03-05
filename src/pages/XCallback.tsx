@@ -110,9 +110,19 @@ const XCallback: React.FC = () => {
       }
     };
     
+    // Immediately start processing to avoid blank screens
     processCallback();
+    
+    // Set a safety timeout to ensure we redirect back to dashboard even if something fails
+    const safetyTimeout = setTimeout(() => {
+      console.log('Safety timeout triggered - redirecting to dashboard');
+      navigate('/dashboard');
+    }, 10000);
+    
+    return () => clearTimeout(safetyTimeout);
   }, [toast, navigate]);
 
+  // Handle manual return to dashboard
   const handleClose = () => {
     navigate('/dashboard');
   };
@@ -148,16 +158,14 @@ const XCallback: React.FC = () => {
             </p>
           )}
           
-          {status === 'error' && (
-            <div className="mt-4">
-              <button 
-                onClick={handleClose}
-                className="px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
-              >
-                Return to Dashboard
-              </button>
-            </div>
-          )}
+          <div className="mt-4">
+            <button 
+              onClick={handleClose}
+              className="px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
+            >
+              Return to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     </div>

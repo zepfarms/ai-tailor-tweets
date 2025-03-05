@@ -5,9 +5,17 @@ import { supabase } from "@/integrations/supabase/client";
 // Store OAuth state and code verifier in sessionStorage
 export const storeOAuthParams = (state: string, codeVerifier: string) => {
   try {
+    // Clear any existing values first
+    sessionStorage.removeItem('x_oauth_state');
+    sessionStorage.removeItem('x_oauth_code_verifier');
+    
+    // Then set new values
     sessionStorage.setItem('x_oauth_state', state);
     sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
-    console.log('Stored OAuth parameters in sessionStorage');
+    console.log('Stored OAuth parameters in sessionStorage:', {
+      state: state.substring(0, 5) + '...',
+      codeVerifier: codeVerifier.substring(0, 5) + '...'
+    });
   } catch (error) {
     console.error('Error storing OAuth parameters:', error);
     throw new Error('Failed to store OAuth parameters');
@@ -19,10 +27,12 @@ export const getStoredOAuthParams = () => {
   try {
     const state = sessionStorage.getItem('x_oauth_state');
     const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
+    
     console.log('Retrieved OAuth parameters from sessionStorage:', { 
-      state: state ? 'exists' : 'missing', 
-      codeVerifier: codeVerifier ? 'exists' : 'missing' 
+      state: state ? `${state.substring(0, 5)}...` : 'missing', 
+      codeVerifier: codeVerifier ? `${codeVerifier.substring(0, 5)}...` : 'missing' 
     });
+    
     return { state, codeVerifier };
   } catch (error) {
     console.error('Error retrieving OAuth parameters:', error);
@@ -44,15 +54,13 @@ export const clearOAuthParams = () => {
 
 // Store current page for redirect
 export const storeCurrentPage = () => {
-  // Always store dashboard as the redirect page
   sessionStorage.setItem('x_auth_redirect', '/dashboard');
   console.log('Stored redirect page: /dashboard');
 };
 
 // Get stored redirect page
 export const getStoredRedirectPage = (): string => {
-  // Default to dashboard if no redirect is stored
-  return sessionStorage.getItem('x_auth_redirect') || '/dashboard';
+  return '/dashboard'; // Always return dashboard to avoid blank screens
 };
 
 // Start X OAuth flow
@@ -91,6 +99,7 @@ export const startXOAuthFlow = async (): Promise<void> => {
     storeOAuthParams(data.state, data.codeVerifier);
     
     // Redirect to Twitter authorization page
+    console.log('Redirecting to Twitter authorization URL:', data.authorizeUrl.substring(0, 30) + '...');
     window.location.href = data.authorizeUrl;
   } catch (error) {
     console.error('Error starting X OAuth flow:', error);
