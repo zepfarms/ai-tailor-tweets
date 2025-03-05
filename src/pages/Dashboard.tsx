@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,102 +11,62 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/lib/types';
 import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
+import { useAuth } from '@/context/AuthContext';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading: authLoading, linkXAccount } = useAuth();
   const [isLinking, setIsLinking] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
+  // Redirect if not authenticated
   useEffect(() => {
-    let isMounted = true;
-    
-    const checkSession = async () => {
+    const checkAuth = async () => {
       try {
-        console.log('Dashboard: Checking session...');
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Dashboard: Error fetching session:', sessionError);
-          if (isMounted) {
-            setLoadingError(sessionError.message);
-            setIsLoading(false);
-          }
-          return;
-        }
-        
-        if (!sessionData.session) {
-          console.log('Dashboard: No active session found, redirecting to login');
-          if (isMounted) {
-            setIsLoading(false);
-            navigate('/login');
-          }
-          return;
-        }
-        
-        // Get user data from Supabase
-        const userData = sessionData.session.user;
-        
-        if (!userData) {
-          console.log('Dashboard: No user data found in session, redirecting to login');
-          if (isMounted) {
-            setIsLoading(false);
-            navigate('/login');
-          }
-          return;
-        }
-
-        console.log('Dashboard: User data from session:', userData);
-
-        try {
-          // Check for X account linking
-          const { data: xAccount, error: xError } = await supabase
-            .from('x_accounts')
-            .select('*')
-            .eq('user_id', userData.id)
-            .maybeSingle();
-            
-          if (xError) {
-            console.error('Dashboard: Error fetching X account:', xError);
-          }
-          
-          const currentUser: User = {
-            id: userData.id,
-            email: userData.email || '',
-            name: userData.user_metadata?.name || '',
-            xLinked: !!xAccount,
-            xUsername: xAccount ? `@${xAccount.x_username}` : undefined
-          };
-          
-          console.log('Dashboard: Setting user from session:', currentUser);
-          if (isMounted) {
-            setUser(currentUser);
-            setIsLoading(false);
-          }
-        } catch (error) {
-          console.error('Dashboard: Error checking X account:', error);
-          if (isMounted) {
-            setLoadingError('Error checking linked accounts');
-            setIsLoading(false);
-          }
+        console.log('Dashboard: Checking auth...');
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          console.log('Dashboard: No session found, redirecting to login');
+          navigate('/login');
         }
       } catch (error) {
-        console.error('Dashboard: Error initializing dashboard:', error);
-        if (isMounted) {
-          setLoadingError('Failed to load dashboard data');
-          setIsLoading(false);
-        }
+        console.error('Dashboard: Error checking auth:', error);
+        setLoadingError('Authentication error. Please try logging in again.');
       }
     };
+
+    if (!authLoading && !user) {
+      checkAuth();
+    }
+  }, [authLoading, user, navigate]);
+
+  // Handle X auth success message from OAuth popup
+  useEffect(() => {
+    const handleXAuthSuccess = (event: MessageEvent) => {
+      if (
+        event.origin === window.location.origin &&
+        event.data?.type === 'X_AUTH_SUCCESS'
+      ) {
+        console.log('Dashboard: Received X auth success event:', event.data);
+        
+        toast({
+          title: "X Account Linked",
+          description: `Successfully linked to @${event.data.username}`,
+        });
+      }
+    };
+
+    window.addEventListener('message', handleXAuthSuccess);
     
-    checkSession();
-    
-    // Check for X auth success every time the dashboard is loaded
+    return () => window.removeEventListener('message', handleXAuthSuccess);
+  }, [toast]);
+
+  // Check for X auth success on component mount
+  useEffect(() => {
     const xAuthSuccess = localStorage.getItem('x_auth_success');
     const xAuthTimestamp = localStorage.getItem('x_auth_timestamp');
-    const xAuthUsername = localStorage.getItem('x_auth_username');
     
     if (xAuthSuccess === 'true' && xAuthTimestamp) {
       const timestamp = parseInt(xAuthTimestamp, 10);
@@ -116,123 +77,16 @@ const Dashboard: React.FC = () => {
           description: "Your X account has been successfully linked!",
         });
         
-        // If we have a user, update it with X linking
-        if (user) {
-          const updatedUser = {
-            ...user,
-            xLinked: true,
-            xUsername: xAuthUsername ? `@${xAuthUsername}` : '@user',
-          };
-          setUser(updatedUser);
-        }
-        
         localStorage.removeItem('x_auth_success');
         localStorage.removeItem('x_auth_timestamp');
-        localStorage.removeItem('x_auth_username');
       }
     }
-    
-    // Handle X auth success message from OAuth popup
-    const handleXAuthSuccess = (event: MessageEvent) => {
-      if (
-        event.origin === window.location.origin &&
-        event.data?.type === 'X_AUTH_SUCCESS'
-      ) {
-        console.log('Dashboard: Received X auth success event:', event.data);
-        
-        if (user && event.data.username) {
-          const updatedUser = {
-            ...user,
-            xLinked: true,
-            xUsername: `@${event.data.username}`,
-          };
-          setUser(updatedUser);
-          
-          toast({
-            title: "X Account Linked",
-            description: `Successfully linked to @${event.data.username}`,
-          });
-        }
-      }
-    };
-
-    window.addEventListener('message', handleXAuthSuccess);
-    
-    return () => {
-      isMounted = false;
-      window.removeEventListener('message', handleXAuthSuccess);
-    };
-  }, [navigate, toast, user]);
+  }, [toast]);
 
   const handleLinkAccount = async () => {
     setIsLinking(true);
     try {
-      console.log('Dashboard: Starting X account linking process');
-      
-      // Store current user info for after OAuth flow
-      if (user) {
-        localStorage.setItem('auth_redirect_user', JSON.stringify(user));
-      } else {
-        console.error('Dashboard: Cannot link X account - no active user');
-        toast({
-          title: "Error",
-          description: "You must be logged in to link an X account",
-          variant: "destructive",
-        });
-        setIsLinking(false);
-        return;
-      }
-      
-      // Clear any previous OAuth parameters
-      clearOAuthParams();
-      
-      // Get the current user's session to ensure we're authenticated
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        console.error('Dashboard: No active session found for X linking');
-        toast({
-          title: "Authentication Error",
-          description: "Please login again before linking your X account",
-          variant: "destructive",
-        });
-        setIsLinking(false);
-        return;
-      }
-      
-      try {
-        // Use the startXOAuthFlow from xOAuthUtils
-        const authUrl = await startXOAuthFlow();
-        console.log('Dashboard: Generated X authorization URL:', authUrl);
-        
-        if (!authUrl) {
-          throw new Error('Failed to get X authorization URL');
-        }
-        
-        // Open popup with error handling
-        const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
-        
-        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-          toast({
-            title: "Popup Blocked",
-            description: "Please allow popups for this site and try again",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "X Authorization Started",
-            description: "Please complete the authorization in the popup window",
-          });
-          
-          popup.focus();
-        }
-      } catch (error) {
-        console.error('Dashboard: Error starting X OAuth flow:', error);
-        toast({
-          title: "Failed to start X authorization",
-          description: error instanceof Error ? error.message : "Something went wrong",
-          variant: "destructive",
-        });
-      }
+      await linkXAccount();
     } catch (error) {
       console.error('Dashboard: Error linking X account:', error);
       toast({
@@ -249,7 +103,8 @@ const Dashboard: React.FC = () => {
     navigate('/create');
   };
 
-  if (isLoading) {
+  // If auth context is still loading, show loading indicator
+  if (authLoading || localLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-xl">Loading dashboard...</div>
@@ -257,6 +112,7 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  // If there's an error loading the dashboard, show error message
   if (loadingError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -266,8 +122,9 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  // If no user from auth context, redirect to login
   if (!user) {
-    console.log('Dashboard: No user found, redirecting to login');
+    console.log('Dashboard: No user in context, redirecting to login');
     navigate('/login');
     return null;
   }
@@ -284,6 +141,7 @@ const Dashboard: React.FC = () => {
           </p>
         </header>
         
+        {/* Analytics cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <AnalyticsCard
             title="Scheduled Posts"
@@ -311,6 +169,7 @@ const Dashboard: React.FC = () => {
           />
         </div>
         
+        {/* Account cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <Card className="glass-card overflow-hidden">
             <CardHeader>
@@ -361,6 +220,7 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
           
+          {/* Recent Activity */}
           <Card className="glass-card overflow-hidden">
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
@@ -392,6 +252,7 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
         
+        {/* Scheduled Posts */}
         <div className="grid grid-cols-1 gap-6 mb-8">
           <Card className="glass-card">
             <CardHeader>

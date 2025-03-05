@@ -7,104 +7,52 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { toast } from "@/hooks/use-toast";
-import { supabase } from '@/integrations/supabase/client';
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from '@/context/AuthContext';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { login, user, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
 
   // Check if user is already logged in
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error checking session:', error);
-          return;
-        }
-        
-        if (data.session) {
-          console.log('User already logged in, redirecting to dashboard');
-          navigate('/dashboard');
-        }
-      } catch (err) {
-        console.error('Error in session check:', err);
-      }
-    };
-    
-    checkSession();
-    
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('Auth state changed in Login:', event, session?.user?.id);
-        
-        if (session?.user) {
-          navigate('/dashboard');
-        }
-      }
-    );
-    
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [navigate]);
-
-  // Check for saved account access
-  useEffect(() => {
-    const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '{}');
-    console.log('Available saved accounts:', Object.keys(savedAccounts));
-  }, []);
+    if (user && !isLoading) {
+      console.log('Login: User already logged in, redirecting to dashboard');
+      navigate('/dashboard');
+    }
+  }, [user, isLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setLocalLoading(true);
     
     try {
       if (email.trim() === '') {
         setError('Email is required');
-        setIsLoading(false);
+        setLocalLoading(false);
         return;
       }
       
       if (password.trim() === '') {
         setError('Password is required');
-        setIsLoading(false);
+        setLocalLoading(false);
         return;
       }
       
-      // Use Supabase authentication directly
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      console.log('Login: Attempting login with email:', email);
+      await login(email, password);
       
-      if (error) throw error;
-      
-      if (data.user) {
-        console.log('Login successful, redirecting to dashboard');
-        toast({
-          title: "Login successful",
-          description: "Welcome back!",
-        });
-        navigate('/dashboard');
-      }
     } catch (err) {
-      console.error('Login error:', err);
+      console.error('Login: Login error:', err);
       setError(err instanceof Error ? err.message : 'Failed to login');
-      toast({
-        title: "Login failed",
-        description: err instanceof Error ? err.message : "Invalid credentials",
-        variant: "destructive",
-      });
     } finally {
-      setIsLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -113,6 +61,14 @@ const Login: React.FC = () => {
     setEmail('demo@example.com');
     setPassword('password');
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col page-transition">
@@ -163,8 +119,8 @@ const Login: React.FC = () => {
                   <div className="text-sm text-destructive">{error}</div>
                 )}
                 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Logging in..." : "Log in"}
+                <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
+                  {localLoading ? "Logging in..." : "Log in"}
                 </Button>
               </form>
               

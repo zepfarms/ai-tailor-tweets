@@ -21,10 +21,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         
         // Check for existing Supabase session
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Auth context: Session error:', sessionError);
+          setIsLoading(false);
+          return;
+        }
         
         if (session) {
-          const { data: userData } = await supabase.auth.getUser();
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) {
+            console.error('Auth context: User data error:', userError);
+            setIsLoading(false);
+            return;
+          }
           
           if (userData.user) {
             const currentUser: User = {
@@ -35,28 +47,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
             
             // Check if user has linked X account
-            const { data: xAccount } = await supabase
+            const { data: xAccount, error: xError } = await supabase
               .from('x_accounts')
               .select('*')
               .eq('user_id', userData.user.id)
               .maybeSingle();
+              
+            if (xError) {
+              console.error('Auth context: Error fetching X account:', xError);
+            }
               
             if (xAccount) {
               currentUser.xLinked = true;
               currentUser.xUsername = `@${xAccount.x_username}`;
             }
             
-            console.log('Setting user from Supabase session:', currentUser);
+            console.log('Auth context: Setting user from Supabase session:', currentUser);
             setUser(currentUser);
             localStorage.setItem('user', JSON.stringify(currentUser));
           }
         } else {
-          console.log('No active Supabase session found');
+          console.log('Auth context: No active Supabase session found');
           setUser(null);
           localStorage.removeItem('user');
         }
       } catch (error) {
-        console.error('Error initializing auth session:', error);
+        console.error('Auth context: Error initializing session:', error);
       } finally {
         setIsLoading(false);
       }
@@ -67,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
+        console.log('Auth context: Auth state changed:', event, session?.user?.id);
         
         if (event === 'SIGNED_IN' && session) {
           const userData = session.user;
@@ -79,11 +95,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           
           // Check if user has linked X account
-          const { data: xAccount } = await supabase
+          const { data: xAccount, error: xError } = await supabase
             .from('x_accounts')
             .select('*')
             .eq('user_id', userData.id)
             .maybeSingle();
+            
+          if (xError) {
+            console.error('Auth context: Error fetching X account in auth state change:', xError);
+          }
             
           if (xAccount) {
             currentUser.xLinked = true;
@@ -92,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           setUser(currentUser);
           localStorage.setItem('user', JSON.stringify(currentUser));
-        } else if (event === 'SIGNED_OUT') {
+        } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
           setUser(null);
           localStorage.removeItem('user');
         }
@@ -112,17 +132,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           description: "Your X account has been successfully linked!",
         });
         
-        if (user) {
-          // We'll update the user with the X link status
-          const updatedUser = {
-            ...user,
-            xLinked: true,
-            xUsername: user.xUsername || '@user',
-          };
-          setUser(updatedUser);
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-        }
-        
         localStorage.removeItem('x_auth_success');
         localStorage.removeItem('x_auth_timestamp');
       }
@@ -132,7 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [toast]);
 
   // Handle X auth success message from OAuth popup
   useEffect(() => {
@@ -141,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         event.origin === window.location.origin &&
         event.data?.type === 'X_AUTH_SUCCESS'
       ) {
-        console.log('Received X auth success event:', event.data);
+        console.log('Auth context: Received X auth success event:', event.data);
         
         if (user) {
           const updatedUser = {
@@ -157,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             description: `Successfully linked to @${event.data.username}`,
           });
         } else {
-          console.log('Received X auth success but no active user found');
+          console.log('Auth context: Received X auth success but no active user found');
           toast({
             title: "Authentication Error",
             description: "Please log in before linking your X account",
@@ -175,23 +184,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
+      console.log('Auth context: Attempting login for:', email);
       // Use Supabase authentication
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Auth context: Login error:", error);
+        throw error;
+      }
       
       if (data.user) {
+        console.log('Auth context: Login successful for:', data.user.email);
         toast({
           title: "Login successful",
           description: "Welcome back!",
         });
-        navigate('/dashboard');
+        
+        // Navigate after a brief delay to allow the auth state to update
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 500);
       }
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Auth context: Login error:", error);
       toast({
         title: "Login failed",
         description: error instanceof Error ? error.message : "Invalid credentials",
@@ -207,6 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
+      console.log('Auth context: Attempting signup for:', email);
       // Use Supabase authentication
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -218,17 +237,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Auth context: Signup error:", error);
+        throw error;
+      }
       
       if (data.user) {
+        console.log('Auth context: Signup successful for:', data.user.email);
         toast({
           title: "Account created",
           description: "Welcome to PostAI!",
         });
-        navigate('/dashboard');
+        
+        // Navigate after a brief delay to allow the auth state to update
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 500);
       }
     } catch (error) {
-      console.error("Signup error:", error);
+      console.error("Auth context: Signup error:", error);
       toast({
         title: "Sign up failed",
         description: error instanceof Error ? error.message : "Something went wrong",
@@ -242,31 +269,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      console.log('Auth context: Logging out user');
       await supabase.auth.signOut();
       localStorage.removeItem('user');
       localStorage.removeItem('auth_redirect_user');
       clearOAuthParams();
-      navigate('/');
+      
       toast({
         title: "Logged out",
         description: "You've been successfully logged out",
       });
+      
+      navigate('/');
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("Auth context: Logout error:", error);
+      toast({
+        title: "Logout failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
     }
   };
 
   const linkXAccount = async () => {
     try {
-      console.log('Initiating X account linking');
+      console.log('Auth context: Initiating X account linking');
       
       clearOAuthParams();
       
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
-        console.log('Stored current user for retrieval after OAuth flow:', user);
+        console.log('Auth context: Stored current user for retrieval after OAuth flow:', user);
       } else {
-        console.error('Cannot link X account - no active user');
+        console.error('Auth context: Cannot link X account - no active user');
         toast({
           title: "Error",
           description: "You must be logged in to link an X account",
@@ -278,7 +313,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Call startXOAuthFlow and catch potential errors
       try {
         const authUrl = await startXOAuthFlow();
-        console.log('Opening X authorization URL:', authUrl);
+        console.log('Auth context: Opening X authorization URL:', authUrl);
         
         // Open popup with error handling
         const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
@@ -298,21 +333,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           popup.focus();
         }
       } catch (error) {
-        console.error('Error getting X authorization URL:', error);
+        console.error('Auth context: Error getting X authorization URL:', error);
         toast({
           title: "Failed to start X authorization",
           description: error instanceof Error ? error.message : "Something went wrong",
           variant: "destructive",
         });
+        throw error;
       }
     } catch (error) {
-      console.error('Error initiating X account linking:', error);
+      console.error('Auth context: Error initiating X account linking:', error);
       
       toast({
         title: "Failed to link X account",
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
+      throw error;
     }
   };
 
