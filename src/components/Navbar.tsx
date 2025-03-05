@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Menu } from 'lucide-react';
+import { X, Menu, Twitter } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -37,6 +37,12 @@ const Navbar: React.FC = () => {
           
           {user ? (
             <div className="flex items-center space-x-4">
+              {user.xLinked && user.xUsername && (
+                <div className="flex items-center gap-1 text-sm text-foreground/70">
+                  <Twitter size={14} className="text-blue-400" />
+                  <span>{user.xUsername}</span>
+                </div>
+              )}
               <Link to="/dashboard">
                 <Button variant="ghost">Dashboard</Button>
               </Link>
@@ -92,6 +98,12 @@ const Navbar: React.FC = () => {
             
             {user ? (
               <>
+                {user.xLinked && user.xUsername && (
+                  <div className="flex items-center gap-1 text-sm text-foreground/70 py-2">
+                    <Twitter size={14} className="text-blue-400" />
+                    <span>{user.xUsername}</span>
+                  </div>
+                )}
                 <Link 
                   to="/dashboard" 
                   className="block" 

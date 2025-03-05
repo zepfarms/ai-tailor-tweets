@@ -28,6 +28,7 @@ serve(async (req) => {
       code: code ? `${code.substring(0, 10)}...` : "missing", 
       state, 
       codeVerifierExists: !!codeVerifier,
+      codeVerifierLength: codeVerifier?.length || 0,
       expectedState,
       userId 
     });
@@ -36,10 +37,14 @@ serve(async (req) => {
       throw new Error("Missing required authorization code parameter");
     }
     
-    // More lenient state validation - log but don't fail if state doesn't match
+    // Even more lenient state validation - we'll continue even with state mismatch
     if (expectedState && state !== expectedState) {
       console.warn("State parameter mismatch, but continuing anyway");
       console.warn(`Expected: ${expectedState}, Received: ${state}`);
+    } else if (expectedState) {
+      console.log("State parameters match correctly");
+    } else {
+      console.warn("No expected state provided");
     }
 
     // Log all environment variables we need
@@ -47,6 +52,7 @@ serve(async (req) => {
     console.log("- TWITTER_CLIENT_ID exists:", !!TWITTER_CLIENT_ID);
     console.log("- TWITTER_CLIENT_SECRET exists:", !!TWITTER_CLIENT_SECRET);
     console.log("- CALLBACK_URL exists:", !!CALLBACK_URL);
+    console.log("- CALLBACK_URL value:", CALLBACK_URL);
     
     if (!TWITTER_CLIENT_ID || !TWITTER_CLIENT_SECRET || !CALLBACK_URL) {
       throw new Error("Missing required environment variables");

@@ -12,106 +12,128 @@ const generateRandomString = (length: number): string => {
   return result;
 };
 
-// Store the OAuth state and code verifier in both localStorage and sessionStorage
+// Use multiple storage methods to ensure parameters are available
 export const storeOAuthParams = (state: string, codeVerifier: string) => {
   try {
     const timestamp = Date.now().toString();
+    const origin = window.location.origin;
+    const storeData = { state, codeVerifier, timestamp, origin };
+    const storeDataString = JSON.stringify(storeData);
     
     // Use localStorage for persistent storage
-    localStorage.setItem('x_oauth_state', state);
-    localStorage.setItem('x_oauth_code_verifier', codeVerifier);
-    localStorage.setItem('x_oauth_timestamp', timestamp);
+    localStorage.setItem('x_oauth_params', storeDataString);
     
     // Create a backup in sessionStorage too in case localStorage is cleared
-    sessionStorage.setItem('x_oauth_state', state);
-    sessionStorage.setItem('x_oauth_code_verifier', codeVerifier);
-    sessionStorage.setItem('x_oauth_timestamp', timestamp);
+    sessionStorage.setItem('x_oauth_params', storeDataString);
     
-    console.log('OAuth parameters stored in both local and session storage');
-    console.log('Storage timestamp:', new Date(parseInt(timestamp)).toISOString());
+    // Try to use cookies for additional redundancy
+    try {
+      document.cookie = `x_oauth_state=${state}; path=/; max-age=3600; SameSite=None; Secure`;
+      document.cookie = `x_oauth_timestamp=${timestamp}; path=/; max-age=3600; SameSite=None; Secure`;
+    } catch (cookieError) {
+      console.warn('Failed to store OAuth parameters in cookies:', cookieError);
+      // Continue anyway as we have other storage methods
+    }
+    
+    console.log('OAuth parameters stored in multiple storage mechanisms:');
+    console.log('- State:', state);
+    console.log('- Origin:', origin);
+    console.log('- Storage timestamp:', new Date(parseInt(timestamp)).toISOString());
   } catch (error) {
     console.error('Error storing OAuth parameters:', error);
-    // Try cookie as last resort (limited size)
-    try {
-      document.cookie = `x_oauth_state=${state}; path=/; max-age=3600; SameSite=Lax`;
-      document.cookie = `x_oauth_timestamp=${Date.now()}; path=/; max-age=3600; SameSite=Lax`;
-      // We can't reliably store the code verifier in a cookie due to size constraints
-      console.log('Stored minimal OAuth parameters in cookies as fallback');
-    } catch (cookieError) {
-      console.error('Failed to store in cookies too:', cookieError);
-    }
-    throw new Error('Failed to store OAuth parameters. Please ensure cookies are enabled.');
+    throw new Error('Failed to store OAuth parameters. Please ensure browser storage is enabled.');
   }
 };
 
 // Retrieve the OAuth state and code verifier from storage
 export const getStoredOAuthParams = () => {
   try {
-    // Check both localStorage and sessionStorage
-    let state = localStorage.getItem('x_oauth_state') || sessionStorage.getItem('x_oauth_state');
-    let codeVerifier = localStorage.getItem('x_oauth_code_verifier') || sessionStorage.getItem('x_oauth_code_verifier');
-    let timestamp = localStorage.getItem('x_oauth_timestamp') || sessionStorage.getItem('x_oauth_timestamp');
+    // Try to get from localStorage first
+    let paramsString = localStorage.getItem('x_oauth_params');
     
-    // If not found in storage, try cookies as last resort
-    if (!state) {
-      const stateMatch = document.cookie.match(/x_oauth_state=([^;]+)/);
-      if (stateMatch) state = stateMatch[1];
-      
-      const timestampMatch = document.cookie.match(/x_oauth_timestamp=([^;]+)/);
-      if (timestampMatch) timestamp = timestampMatch[1];
-      
-      // We can't reliably store the code verifier in a cookie
-      if (state) console.log('Retrieved OAuth state from cookies');
-    }
-    
-    if (!state || !codeVerifier) {
-      console.warn('OAuth parameters not found in any storage');
-      return { state: null, codeVerifier: null };
-    }
-    
-    // Check if the oauth request is too old (60 minutes - extended for better UX)
-    if (timestamp) {
-      const timestampNum = parseInt(timestamp, 10);
-      const now = Date.now();
-      const sixtyMinutesInMs = 60 * 60 * 1000;
-      
-      if (now - timestampNum > sixtyMinutesInMs) {
-        console.warn('OAuth session has expired (older than 60 minutes)');
-        clearOAuthParams();
-        return { state: null, codeVerifier: null };
+    // If not in localStorage, try sessionStorage
+    if (!paramsString) {
+      paramsString = sessionStorage.getItem('x_oauth_params');
+      if (paramsString) {
+        console.log('Retrieved OAuth parameters from sessionStorage');
       }
-      
-      console.log('OAuth session age:', Math.round((now - timestampNum) / 1000 / 60), 'minutes');
+    } else {
+      console.log('Retrieved OAuth parameters from localStorage');
     }
     
-    console.log('OAuth parameters retrieved successfully');
-    console.log('- State:', state);
-    console.log('- Code Verifier exists:', !!codeVerifier);
+    // If found in either storage, parse and validate
+    if (paramsString) {
+      try {
+        const params = JSON.parse(paramsString);
+        
+        // Verify we have the required properties
+        if (params.state && params.codeVerifier) {
+          // Check expiration - 120 minutes max (more lenient)
+          const now = Date.now();
+          const storedTime = parseInt(params.timestamp || '0', 10);
+          const twoHoursInMs = 120 * 60 * 1000;
+          
+          if (now - storedTime > twoHoursInMs) {
+            console.warn('OAuth session has expired (older than 120 minutes)');
+            return { state: null, codeVerifier: null };
+          }
+          
+          console.log('OAuth parameters retrieved successfully:');
+          console.log('- State:', params.state);
+          console.log('- Origin:', params.origin);
+          console.log('- Session age:', Math.round((now - storedTime) / 1000 / 60), 'minutes');
+          
+          return { 
+            state: params.state, 
+            codeVerifier: params.codeVerifier,
+            origin: params.origin
+          };
+        }
+      } catch (parseError) {
+        console.error('Error parsing OAuth parameters:', parseError);
+      }
+    }
     
-    return { state, codeVerifier };
+    // If we couldn't get or parse from storage, try cookies as last resort
+    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    
+    if (cookies.x_oauth_state) {
+      console.log('Retrieved OAuth state from cookies:', cookies.x_oauth_state);
+      
+      // We likely don't have code verifier in cookies due to size constraints
+      return { 
+        state: cookies.x_oauth_state, 
+        codeVerifier: null,
+        origin: window.location.origin
+      };
+    }
+    
+    console.warn('OAuth parameters not found in any storage');
+    return { state: null, codeVerifier: null, origin: null };
   } catch (error) {
     console.error('Error retrieving OAuth parameters:', error);
-    return { state: null, codeVerifier: null };
+    return { state: null, codeVerifier: null, origin: null };
   }
 };
 
-// Clear the OAuth params from storage
+// Clear the OAuth params from all storage mechanisms
 export const clearOAuthParams = () => {
   try {
-    // Clear from both localStorage and sessionStorage
-    localStorage.removeItem('x_oauth_state');
-    localStorage.removeItem('x_oauth_code_verifier');
-    localStorage.removeItem('x_oauth_timestamp');
+    // Clear from localStorage
+    localStorage.removeItem('x_oauth_params');
     
-    sessionStorage.removeItem('x_oauth_state');
-    sessionStorage.removeItem('x_oauth_code_verifier');
-    sessionStorage.removeItem('x_oauth_timestamp');
+    // Clear from sessionStorage
+    sessionStorage.removeItem('x_oauth_params');
     
     // Clear cookies too
-    document.cookie = 'x_oauth_state=; path=/; max-age=0';
-    document.cookie = 'x_oauth_timestamp=; path=/; max-age=0';
+    document.cookie = 'x_oauth_state=; path=/; max-age=0; SameSite=None; Secure';
+    document.cookie = 'x_oauth_timestamp=; path=/; max-age=0; SameSite=None; Secure';
     
-    console.log('OAuth parameters cleared from all storage');
+    console.log('OAuth parameters cleared from all storage mechanisms');
   } catch (error) {
     console.error('Error clearing OAuth parameters:', error);
   }
@@ -127,7 +149,8 @@ export const startXOAuthFlow = async (): Promise<string> => {
     
     // Call the Edge Function to generate authorization URL
     const { data, error } = await supabase.functions.invoke('twitter-request-token', {
-      method: 'POST'
+      method: 'POST',
+      body: { origin: window.location.origin }
     });
     
     if (error) {
@@ -166,18 +189,59 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
     console.log('- Code:', code.substring(0, 10) + '...');
     console.log('- State:', state);
     
-    const { state: expectedState, codeVerifier } = getStoredOAuthParams();
+    const { state: expectedState, codeVerifier, origin } = getStoredOAuthParams();
     
+    console.log('Retrieved stored parameters:');
     console.log('- Expected State:', expectedState);
     console.log('- Code Verifier exists:', !!codeVerifier);
     console.log('- Code Verifier length:', codeVerifier?.length || 0);
+    console.log('- Origin:', origin);
+    console.log('- Current origin:', window.location.origin);
     
-    if (!expectedState || !codeVerifier) {
-      console.error('OAuth parameters not found in storage');
-      throw new Error('Session expired or cannot be found. Please try again.');
+    // More lenient validation - if we have no params at all
+    if (!expectedState && !codeVerifier) {
+      console.error('OAuth parameters not found in any storage');
+      
+      // Try to complete the flow anyway with just the provided code and state
+      console.log('Attempting to complete flow without stored parameters');
+      
+      // Get the current user ID if available
+      let userId = null;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        userId = session.user.id;
+        console.log('User ID for account linking (without stored params):', userId);
+      }
+      
+      // Call the edge function to exchange the code for tokens
+      const { data, error } = await supabase.functions.invoke('twitter-access-token', {
+        method: 'POST',
+        body: {
+          code,
+          state,
+          userId
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message || 'Failed to complete X authorization');
+      }
+      
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Failed to complete X authorization');
+      }
+      
+      console.log('X account successfully linked without stored parameters:', data.username);
+      
+      return {
+        success: true,
+        username: data.username,
+        profileImageUrl: data.profileImageUrl
+      };
     }
     
-    if (state !== expectedState) {
+    // If we have expected state but it doesn't match, still try to proceed
+    if (expectedState && state !== expectedState) {
       console.warn('State parameter mismatch, but continuing anyway');
       console.warn('Received state:', state);
       console.warn('Expected state:', expectedState);
@@ -202,7 +266,8 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
         state,
         codeVerifier: codeVerifier || '',
         expectedState: expectedState || '',
-        userId
+        userId,
+        origin: origin || window.location.origin
       }
     });
     

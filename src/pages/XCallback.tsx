@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { completeXOAuthFlow } from '@/lib/xOAuthUtils';
+import { completeXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 import { useToast } from "@/components/ui/use-toast";
 import { X, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 
@@ -61,8 +61,8 @@ const XCallback: React.FC = () => {
           return;
         }
         
-        // Complete the OAuth flow with more lenient error handling
-        setMessage('Connecting to X...');
+        // Show more detailed status
+        setMessage('Connecting to X and verifying authorization...');
         
         try {
           console.log('Attempting to complete OAuth flow with code and state');
@@ -82,7 +82,7 @@ const XCallback: React.FC = () => {
               }, '*'); // Using * instead of origin for more compatibility
               
               // Close after a short delay
-              setTimeout(() => window.close(), 2000);
+              setTimeout(() => window.close(), 1500);
             } else {
               // Otherwise, redirect to dashboard
               console.log('This is not a popup, redirecting to dashboard');
@@ -90,7 +90,7 @@ const XCallback: React.FC = () => {
                 title: "X Account Linked",
                 description: `You've successfully linked your X account: @${result.username}`,
               });
-              setTimeout(() => navigate('/dashboard'), 2000);
+              setTimeout(() => navigate('/dashboard'), 1500);
             }
           } else {
             throw new Error('Failed to link X account');
@@ -113,14 +113,14 @@ const XCallback: React.FC = () => {
           variant: "destructive",
         });
         
-        // Redirect to dashboard after longer delay
+        // Close or redirect after a delay
         setTimeout(() => {
           if (window.opener) {
             window.close();
           } else {
             navigate('/dashboard');
           }
-        }, 5000);
+        }, 3000);
       }
     };
     
@@ -129,12 +129,7 @@ const XCallback: React.FC = () => {
 
   const handleTryAgain = () => {
     // Clear any existing state
-    localStorage.removeItem('x_oauth_state');
-    localStorage.removeItem('x_oauth_code_verifier');
-    localStorage.removeItem('x_oauth_timestamp');
-    sessionStorage.removeItem('x_oauth_state');
-    sessionStorage.removeItem('x_oauth_code_verifier');
-    sessionStorage.removeItem('x_oauth_timestamp');
+    clearOAuthParams();
     
     // Redirect to dashboard to try again
     navigate('/dashboard');

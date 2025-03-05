@@ -51,8 +51,15 @@ serve(async (req) => {
       throw new Error("Twitter callback URL is not configured");
     }
     
-    // Generate state parameter to prevent CSRF attacks
-    const state = generateRandomString(32);
+    // Get the origin of the request
+    const origin = req.headers.get("origin") || "";
+    console.log("Request origin:", origin);
+    
+    // Generate state parameter to prevent CSRF attacks - includes timestamp and origin info
+    const timestamp = Date.now().toString();
+    const randomPart = generateRandomString(24);
+    const state = `${randomPart}_${timestamp}`;
+    
     // Generate PKCE code verifier
     const codeVerifier = generateRandomString(128);
     // Generate code challenge using S256 method (more secure than plain)
@@ -60,6 +67,8 @@ serve(async (req) => {
     
     console.log("OAuth parameters generated:");
     console.log(`- State: ${state}`);
+    console.log(`- Origin: ${origin}`);
+    console.log(`- Timestamp: ${timestamp}`);
     console.log(`- Code Verifier: ${codeVerifier.substring(0, 10)}...`);
     console.log(`- Code Challenge: ${codeChallenge.substring(0, 10)}...`);
     console.log(`- Using callback URL: ${CALLBACK_URL}`);
@@ -82,7 +91,9 @@ serve(async (req) => {
       JSON.stringify({
         authorizeUrl: authUrl.toString(),
         state: state,
-        codeVerifier: codeVerifier
+        codeVerifier: codeVerifier,
+        timestamp: timestamp,
+        origin: origin
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
