@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -196,7 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
       }
       
-      console.log('Opening X authorization URL:', authUrl);
+      console.log('Opening X authorization URL');
       
       const width = 600;
       const height = 800;

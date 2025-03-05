@@ -51,9 +51,33 @@ serve(async (req) => {
       throw new Error("Twitter callback URL is not configured");
     }
     
+    // Extract request body
+    const requestData = await req.json().catch(() => ({}));
+    
     // Get the origin of the request
-    const origin = req.headers.get("origin") || "";
-    console.log("Request origin:", origin);
+    let origin = requestData.origin || "";
+    if (!origin) {
+      origin = req.headers.get("origin") || "";
+      console.log("Using origin from headers:", origin);
+    } else {
+      console.log("Using origin from request body:", origin);
+    }
+    
+    // If origin is still empty, use a fallback (can happen with direct API calls)
+    if (!origin) {
+      const referer = req.headers.get("referer");
+      if (referer) {
+        try {
+          const refererUrl = new URL(referer);
+          origin = `${refererUrl.protocol}//${refererUrl.host}`;
+          console.log("Using origin from referer:", origin);
+        } catch (e) {
+          console.log("Failed to parse referer URL:", e);
+        }
+      }
+    }
+    
+    console.log("Final request origin:", origin);
     
     // Generate state parameter to prevent CSRF attacks - includes timestamp and origin info
     const timestamp = Date.now().toString();

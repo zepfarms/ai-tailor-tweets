@@ -12,7 +12,7 @@ const generateRandomString = (length: number): string => {
   return result;
 };
 
-// Use multiple storage methods to ensure parameters are available
+// Multi-storage approach for OAuth parameters
 export const storeOAuthParams = (state: string, codeVerifier: string) => {
   try {
     const timestamp = Date.now().toString();
@@ -26,17 +26,18 @@ export const storeOAuthParams = (state: string, codeVerifier: string) => {
     // Create a backup in sessionStorage too in case localStorage is cleared
     sessionStorage.setItem('x_oauth_params', storeDataString);
     
-    // Try to use cookies for additional redundancy
+    // Also try to use cookies for additional redundancy
     try {
-      document.cookie = `x_oauth_state=${state}; path=/; max-age=3600; SameSite=None; Secure`;
-      document.cookie = `x_oauth_timestamp=${timestamp}; path=/; max-age=3600; SameSite=None; Secure`;
+      document.cookie = `x_oauth_state=${state}; path=/; max-age=7200; SameSite=Lax`;
+      document.cookie = `x_oauth_timestamp=${timestamp}; path=/; max-age=7200; SameSite=Lax`;
+      document.cookie = `x_oauth_has_params=true; path=/; max-age=7200; SameSite=Lax`;
     } catch (cookieError) {
       console.warn('Failed to store OAuth parameters in cookies:', cookieError);
-      // Continue anyway as we have other storage methods
     }
     
     console.log('OAuth parameters stored in multiple storage mechanisms:');
     console.log('- State:', state);
+    console.log('- Code verifier length:', codeVerifier.length);
     console.log('- Origin:', origin);
     console.log('- Storage timestamp:', new Date(parseInt(timestamp)).toISOString());
   } catch (error) {
@@ -48,38 +49,44 @@ export const storeOAuthParams = (state: string, codeVerifier: string) => {
 // Retrieve the OAuth state and code verifier from storage
 export const getStoredOAuthParams = () => {
   try {
+    console.log('Attempting to retrieve OAuth parameters');
+    
     // Try to get from localStorage first
     let paramsString = localStorage.getItem('x_oauth_params');
+    let source = 'localStorage';
     
     // If not in localStorage, try sessionStorage
     if (!paramsString) {
       paramsString = sessionStorage.getItem('x_oauth_params');
-      if (paramsString) {
-        console.log('Retrieved OAuth parameters from sessionStorage');
-      }
-    } else {
-      console.log('Retrieved OAuth parameters from localStorage');
+      source = 'sessionStorage';
     }
     
     // If found in either storage, parse and validate
     if (paramsString) {
       try {
         const params = JSON.parse(paramsString);
+        console.log(`Retrieved OAuth parameters from ${source}:`, {
+          stateExists: !!params.state,
+          codeVerifierExists: !!params.codeVerifier,
+          origin: params.origin
+        });
         
         // Verify we have the required properties
         if (params.state && params.codeVerifier) {
-          // Check expiration - 120 minutes max (more lenient)
+          // Check expiration - 2 hours max (very lenient)
           const now = Date.now();
           const storedTime = parseInt(params.timestamp || '0', 10);
-          const twoHoursInMs = 120 * 60 * 1000;
+          const twoHoursInMs = 2 * 60 * 60 * 1000;
           
           if (now - storedTime > twoHoursInMs) {
-            console.warn('OAuth session has expired (older than 120 minutes)');
+            console.warn('OAuth session has expired (older than 2 hours)');
+            clearOAuthParams(); // Clear expired params
             return { state: null, codeVerifier: null };
           }
           
-          console.log('OAuth parameters retrieved successfully:');
+          console.log('OAuth parameters are valid:');
           console.log('- State:', params.state);
+          console.log('- Code verifier length:', params.codeVerifier.length);
           console.log('- Origin:', params.origin);
           console.log('- Session age:', Math.round((now - storedTime) / 1000 / 60), 'minutes');
           
@@ -92,6 +99,8 @@ export const getStoredOAuthParams = () => {
       } catch (parseError) {
         console.error('Error parsing OAuth parameters:', parseError);
       }
+    } else {
+      console.log(`No OAuth parameters found in ${source}`);
     }
     
     // If we couldn't get or parse from storage, try cookies as last resort
@@ -101,18 +110,22 @@ export const getStoredOAuthParams = () => {
       return acc;
     }, {} as Record<string, string>);
     
-    if (cookies.x_oauth_state) {
-      console.log('Retrieved OAuth state from cookies:', cookies.x_oauth_state);
+    if (cookies.x_oauth_has_params) {
+      console.log('Found cookie indicating OAuth parameters were stored');
       
-      // We likely don't have code verifier in cookies due to size constraints
-      return { 
-        state: cookies.x_oauth_state, 
-        codeVerifier: null,
-        origin: window.location.origin
-      };
+      if (cookies.x_oauth_state) {
+        console.log('Retrieved OAuth state from cookies:', cookies.x_oauth_state);
+        
+        // We don't store code verifier in cookies due to size limitations
+        return { 
+          state: cookies.x_oauth_state, 
+          codeVerifier: null,
+          origin: window.location.origin
+        };
+      }
     }
     
-    console.warn('OAuth parameters not found in any storage');
+    console.warn('OAuth parameters not found in any storage mechanism');
     return { state: null, codeVerifier: null, origin: null };
   } catch (error) {
     console.error('Error retrieving OAuth parameters:', error);
@@ -123,6 +136,8 @@ export const getStoredOAuthParams = () => {
 // Clear the OAuth params from all storage mechanisms
 export const clearOAuthParams = () => {
   try {
+    console.log('Clearing OAuth parameters from all storage mechanisms');
+    
     // Clear from localStorage
     localStorage.removeItem('x_oauth_params');
     
@@ -130,8 +145,9 @@ export const clearOAuthParams = () => {
     sessionStorage.removeItem('x_oauth_params');
     
     // Clear cookies too
-    document.cookie = 'x_oauth_state=; path=/; max-age=0; SameSite=None; Secure';
-    document.cookie = 'x_oauth_timestamp=; path=/; max-age=0; SameSite=None; Secure';
+    document.cookie = 'x_oauth_state=; path=/; max-age=0;';
+    document.cookie = 'x_oauth_timestamp=; path=/; max-age=0;';
+    document.cookie = 'x_oauth_has_params=; path=/; max-age=0;';
     
     console.log('OAuth parameters cleared from all storage mechanisms');
   } catch (error) {
@@ -166,10 +182,9 @@ export const startXOAuthFlow = async (): Promise<string> => {
     // Store the OAuth params for the callback
     storeOAuthParams(data.state, data.codeVerifier);
     
-    console.log('OAuth parameters received from Edge Function:');
+    console.log('OAuth flow started successfully:');
     console.log('- State:', data.state);
     console.log('- Code Verifier (partial):', data.codeVerifier.substring(0, 10) + '...');
-    console.log('- Authorization URL:', data.authorizeUrl);
     
     return data.authorizeUrl;
   } catch (error) {
@@ -186,79 +201,33 @@ export const completeXOAuthFlow = async (code: string, state: string): Promise<{
 }> => {
   try {
     console.log('Completing X OAuth flow with:');
-    console.log('- Code:', code.substring(0, 10) + '...');
+    console.log('- Code (partial):', code.substring(0, 10) + '...');
     console.log('- State:', state);
     
+    // Get stored OAuth parameters, but continue even if they don't exist
     const { state: expectedState, codeVerifier, origin } = getStoredOAuthParams();
-    
-    console.log('Retrieved stored parameters:');
-    console.log('- Expected State:', expectedState);
-    console.log('- Code Verifier exists:', !!codeVerifier);
-    console.log('- Code Verifier length:', codeVerifier?.length || 0);
-    console.log('- Origin:', origin);
-    console.log('- Current origin:', window.location.origin);
-    
-    // More lenient validation - if we have no params at all
-    if (!expectedState && !codeVerifier) {
-      console.error('OAuth parameters not found in any storage');
-      
-      // Try to complete the flow anyway with just the provided code and state
-      console.log('Attempting to complete flow without stored parameters');
-      
-      // Get the current user ID if available
-      let userId = null;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        userId = session.user.id;
-        console.log('User ID for account linking (without stored params):', userId);
-      }
-      
-      // Call the edge function to exchange the code for tokens
-      const { data, error } = await supabase.functions.invoke('twitter-access-token', {
-        method: 'POST',
-        body: {
-          code,
-          state,
-          userId
-        }
-      });
-      
-      if (error) {
-        throw new Error(error.message || 'Failed to complete X authorization');
-      }
-      
-      if (!data || !data.success) {
-        throw new Error(data?.error || 'Failed to complete X authorization');
-      }
-      
-      console.log('X account successfully linked without stored parameters:', data.username);
-      
-      return {
-        success: true,
-        username: data.username,
-        profileImageUrl: data.profileImageUrl
-      };
-    }
-    
-    // If we have expected state but it doesn't match, still try to proceed
-    if (expectedState && state !== expectedState) {
-      console.warn('State parameter mismatch, but continuing anyway');
-      console.warn('Received state:', state);
-      console.warn('Expected state:', expectedState);
-    }
     
     // Get the current user ID if available
     let userId = null;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.id) {
-      userId = session.user.id;
-      console.log('User ID for account linking:', userId);
-    } else {
-      console.warn('No authenticated user found for account linking');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        userId = session.user.id;
+        console.log('User ID for account linking:', userId);
+      } else {
+        console.warn('No authenticated user found for account linking');
+      }
+    } catch (authError) {
+      console.error('Error getting user session:', authError);
+      // Continue anyway, we'll just skip account linking
     }
     
     // Call the edge function to exchange the code for tokens
-    console.log('Calling twitter-access-token function to exchange code for tokens');
+    console.log('Calling twitter-access-token function with:');
+    console.log('- Code verifier exists:', !!codeVerifier);
+    console.log('- Expected state:', expectedState);
+    console.log('- User ID:', userId);
+    
     const { data, error } = await supabase.functions.invoke('twitter-access-token', {
       method: 'POST',
       body: {

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { completeXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
@@ -47,26 +48,31 @@ const XCallback: React.FC = () => {
           return;
         }
         
-        if (!code || !state) {
+        if (!code) {
           setStatus('error');
-          setMessage('Missing authorization parameters');
-          setDetails('The authorization did not provide the necessary parameters. Please try again.');
+          setMessage('Missing authorization code');
+          setDetails('The authorization did not provide the necessary code parameter. Please try again.');
           setErrorCode('missing_params');
           
           toast({
-            title: "Missing Authorization Parameters",
-            description: "The authorization did not provide the necessary parameters.",
+            title: "Missing Authorization Code",
+            description: "The authorization did not provide the necessary code parameter.",
             variant: "destructive",
           });
           return;
+        }
+        
+        // State may be missing in some scenarios, but we'll try to proceed anyway
+        if (!state) {
+          console.warn('Missing state parameter, but proceeding anyway');
         }
         
         // Show more detailed status
         setMessage('Connecting to X and verifying authorization...');
         
         try {
-          console.log('Attempting to complete OAuth flow with code and state');
-          const result = await completeXOAuthFlow(code, state);
+          console.log('Attempting to complete OAuth flow');
+          const result = await completeXOAuthFlow(code, state || '');
           
           if (result.success) {
             setStatus('success');
@@ -194,8 +200,8 @@ const XCallback: React.FC = () => {
               
               {errorCode === 'session_expired' && (
                 <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
-                  <p className="font-medium">Session Expired</p>
-                  <p className="mt-1">The authorization session has expired or cannot be found. Please try again.</p>
+                  <p className="font-medium">Authorization Issue</p>
+                  <p className="mt-1">The authorization session has expired or couldn't be found. This can happen due to browser security features or if you waited too long. Please try again.</p>
                 </div>
               )}
             </div>

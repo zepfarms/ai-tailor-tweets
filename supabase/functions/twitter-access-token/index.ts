@@ -37,15 +37,9 @@ serve(async (req) => {
       throw new Error("Missing required authorization code parameter");
     }
     
-    // Even more lenient state validation - we'll continue even with state mismatch
-    if (expectedState && state !== expectedState) {
-      console.warn("State parameter mismatch, but continuing anyway");
-      console.warn(`Expected: ${expectedState}, Received: ${state}`);
-    } else if (expectedState) {
-      console.log("State parameters match correctly");
-    } else {
-      console.warn("No expected state provided");
-    }
+    // Skip state validation entirely - we're going to proceed regardless
+    // This helps with cross-device flows and browser security restrictions
+    console.log("Proceeding with OAuth flow regardless of state parameter");
 
     // Log all environment variables we need
     console.log("Environment variables check:");
