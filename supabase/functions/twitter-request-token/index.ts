@@ -7,7 +7,7 @@ import { encode as encodeBase64 } from "https://deno.land/std@0.82.0/encoding/ba
 
 const TWITTER_CONSUMER_KEY = Deno.env.get("TWITTER_CONSUMER_KEY") || "";
 const TWITTER_CONSUMER_SECRET = Deno.env.get("TWITTER_CONSUMER_SECRET") || "";
-const CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "";
+const CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://your-app-url.com/x-callback";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -69,6 +69,16 @@ serve(async (req) => {
 
   try {
     console.log("twitter-request-token function called");
+    
+    if (!TWITTER_CONSUMER_KEY || !TWITTER_CONSUMER_SECRET) {
+      console.error("Missing Twitter API credentials");
+      throw new Error("Twitter API credentials are not configured");
+    }
+
+    if (!CALLBACK_URL) {
+      console.error("Missing callback URL");
+      throw new Error("Twitter callback URL is not configured");
+    }
     
     const method = "POST";
     const url = "https://api.twitter.com/oauth/request_token";

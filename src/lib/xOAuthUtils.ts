@@ -46,11 +46,15 @@ export const startXOAuthFlow = async (): Promise<string> => {
     console.log('Starting X OAuth flow with access token:', accessToken.substring(0, 10) + '...');
     
     // Call the edge function to get a request token
-    // Fix: Use the correct URL format for the edge function with project ID
+    // Get the Supabase URL from environment variables or use the project ID directly
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rsbzrlvezpcejzyvkmpx.supabase.co';
     console.log('Using Supabase URL:', supabaseUrl);
     
-    const response = await fetch(`${supabaseUrl}/functions/v1/twitter-request-token`, {
+    // Make sure we're using the correct URL format for the function
+    const functionUrl = `${supabaseUrl}/functions/v1/twitter-request-token`;
+    console.log('Calling edge function at URL:', functionUrl);
+    
+    const response = await fetch(functionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
