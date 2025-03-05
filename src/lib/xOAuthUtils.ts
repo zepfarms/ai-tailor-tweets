@@ -12,29 +12,6 @@ export const generateOAuthState = (): string => {
 };
 
 /**
- * Generates a code verifier for PKCE OAuth flow
- */
-export const generateCodeVerifier = (): string => {
-  const array = new Uint8Array(32);
-  window.crypto.getRandomValues(array);
-  return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
-};
-
-/**
- * Creates a code challenge from the code verifier
- */
-export const createCodeChallenge = async (codeVerifier: string): Promise<string> => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(codeVerifier);
-  const digest = await window.crypto.subtle.digest('SHA-256', data);
-  
-  return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-};
-
-/**
  * Starts the X OAuth flow by calling the Supabase Edge Function
  */
 export const startXOAuthFlow = async (): Promise<string> => {

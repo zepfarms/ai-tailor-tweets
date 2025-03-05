@@ -9,6 +9,7 @@ import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check } f
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/lib/types';
+import { startXOAuthFlow, clearOAuthParams } from '@/lib/xOAuthUtils';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -131,44 +132,38 @@ const Dashboard: React.FC = () => {
   const handleLinkAccount = async () => {
     setIsLinking(true);
     try {
-      // Direct URL for X OAuth process to avoid using the broken context method
-      const TWITTER_AUTH_URL = `${window.location.origin}/x-callback`;
-      console.log('Starting X OAuth flow with redirect to:', TWITTER_AUTH_URL);
-      
       // Store current user info for after OAuth flow
       if (user) {
         localStorage.setItem('auth_redirect_user', JSON.stringify(user));
       }
       
-      // Call the Supabase Edge Function to get request token
-      const { data, error } = await supabase.functions.invoke('twitter-request-token', {
-        body: { redirect_uri: TWITTER_AUTH_URL },
-      });
+      // Clear any previous OAuth parameters
+      clearOAuthParams();
       
-      if (error) throw error;
+      // Use the startXOAuthFlow from xOAuthUtils
+      const authUrl = await startXOAuthFlow();
+      console.log('Generated X authorization URL:', authUrl);
       
-      if (data && data.auth_url) {
-        console.log('Opening X authorization URL:', data.auth_url);
-        
-        // Open popup with error handling
-        const popup = window.open(data.auth_url, 'xAuthWindow', 'width=600,height=800');
-        
-        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-          toast({
-            title: "Popup Blocked",
-            description: "Please allow popups for this site and try again",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "X Authorization Started",
-            description: "Please complete the authorization in the popup window",
-          });
-          
-          popup.focus();
-        }
-      } else {
+      if (!authUrl) {
         throw new Error('Failed to get X authorization URL');
+      }
+      
+      // Open popup with error handling
+      const popup = window.open(authUrl, 'xAuthWindow', 'width=600,height=800');
+      
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        toast({
+          title: "Popup Blocked",
+          description: "Please allow popups for this site and try again",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "X Authorization Started",
+          description: "Please complete the authorization in the popup window",
+        });
+        
+        popup.focus();
       }
     } catch (error) {
       console.error('Error linking X account:', error);
