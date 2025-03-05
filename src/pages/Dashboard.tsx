@@ -26,6 +26,11 @@ const Dashboard: React.FC = () => {
       await linkXAccount();
     } catch (error) {
       console.error('Error linking account:', error);
+      toast({
+        title: "Failed to link X account",
+        description: "Please try again later",
+        variant: "destructive",
+      });
     }
   };
 

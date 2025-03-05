@@ -23,6 +23,14 @@ serve(async (req) => {
   try {
     console.log("twitter-access-token function called (OAuth 2.0)");
     
+    // Check if request is JSON
+    const contentType = req.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      console.error("Invalid content type:", contentType);
+      throw new Error("Request must be JSON");
+    }
+    
+    // Extract request parameters
     const { code, state, codeVerifier, expectedState, userId } = await req.json();
     console.log("Received parameters:", { 
       code: code ? `${code.substring(0, 10)}...` : "missing", 
