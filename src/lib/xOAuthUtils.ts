@@ -19,7 +19,10 @@ export const getStoredOAuthParams = () => {
   try {
     const state = sessionStorage.getItem('x_oauth_state');
     const codeVerifier = sessionStorage.getItem('x_oauth_code_verifier');
-    console.log('Retrieved OAuth parameters from sessionStorage:', { state: state?.substring(0, 5) + '...', codeVerifier: codeVerifier ? 'exists' : 'missing' });
+    console.log('Retrieved OAuth parameters from sessionStorage:', { 
+      state: state ? 'exists' : 'missing', 
+      codeVerifier: codeVerifier ? 'exists' : 'missing' 
+    });
     return { state, codeVerifier };
   } catch (error) {
     console.error('Error retrieving OAuth parameters:', error);
@@ -41,7 +44,7 @@ export const clearOAuthParams = () => {
 
 // Store current page for redirect
 export const storeCurrentPage = () => {
-  // Always use dashboard as the redirect page to avoid blank screens
+  // Always store dashboard as the redirect page
   sessionStorage.setItem('x_auth_redirect', '/dashboard');
   console.log('Stored redirect page: /dashboard');
 };
@@ -49,7 +52,7 @@ export const storeCurrentPage = () => {
 // Get stored redirect page
 export const getStoredRedirectPage = (): string => {
   // Default to dashboard if no redirect is stored
-  return '/dashboard';
+  return sessionStorage.getItem('x_auth_redirect') || '/dashboard';
 };
 
 // Start X OAuth flow
@@ -88,7 +91,6 @@ export const startXOAuthFlow = async (): Promise<void> => {
     storeOAuthParams(data.state, data.codeVerifier);
     
     // Redirect to Twitter authorization page
-    console.log('Redirecting to Twitter authorization URL');
     window.location.href = data.authorizeUrl;
   } catch (error) {
     console.error('Error starting X OAuth flow:', error);
