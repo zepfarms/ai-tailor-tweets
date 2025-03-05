@@ -46,7 +46,7 @@ export const startXOAuthFlow = async (): Promise<string> => {
     console.log('Starting X OAuth flow with access token:', accessToken.substring(0, 10) + '...');
     
     // Call the edge function to get a request token
-    // Fix: Use the correct URL format for the edge function
+    // Fix: Use the correct URL format for the edge function with project ID
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rsbzrlvezpcejzyvkmpx.supabase.co';
     console.log('Using Supabase URL:', supabaseUrl);
     
@@ -61,11 +61,19 @@ export const startXOAuthFlow = async (): Promise<string> => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Error response from twitter-request-token:', errorText);
-      throw new Error(`Failed to get request token: ${response.status}`);
+      throw new Error(`Failed to get request token: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Received OAuth request token response:', data);
+    
+    if (!data.requestToken || !data.authorizeUrl) {
+      console.error('Invalid response data:', data);
+      throw new Error('Invalid response from request token endpoint');
+    }
+    
     console.log('Received OAuth request token:', data.requestToken);
+    console.log('Authorize URL:', data.authorizeUrl);
     
     // Store the tokens
     storeOAuthTokens(data.requestToken, data.requestTokenSecret);
@@ -141,10 +149,17 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Error response from twitter-access-token:', errorText);
-      throw new Error(`Failed to get access token: ${response.status}`);
+      throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('X OAuth completion response:', data);
+    
+    if (!data.success || !data.username) {
+      console.error('Invalid response data from access token endpoint:', data);
+      throw new Error('Invalid response from access token endpoint');
+    }
+    
     console.log('X OAuth successfully completed for username:', data.username);
     
     // Clear the tokens

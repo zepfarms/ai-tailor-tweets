@@ -2,7 +2,7 @@
 // Twitter OAuth1.0a Request Token Edge Function
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { hmacSha1 } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
+import { createHmac } from "https://deno.land/std@0.110.0/node/crypto.ts";
 import { encode as encodeBase64 } from "https://deno.land/std@0.82.0/encoding/base64.ts";
 
 const TWITTER_CONSUMER_KEY = Deno.env.get("TWITTER_CONSUMER_KEY") || "";
@@ -55,9 +55,10 @@ function createSignature(
   // Create the signing key
   const signingKey = `${percentEncode(consumerSecret)}&${percentEncode(tokenSecret)}`;
 
-  // Create the signature
-  const signature = hmacSha1(signingKey, signatureBaseString);
-  return encodeBase64(signature);
+  // Create the signature using HMAC-SHA1
+  const hmac = createHmac("sha1", signingKey);
+  hmac.update(signatureBaseString);
+  return encodeBase64(hmac.digest());
 }
 
 serve(async (req) => {
@@ -67,6 +68,8 @@ serve(async (req) => {
   }
 
   try {
+    console.log("twitter-request-token function called");
+    
     const method = "POST";
     const url = "https://api.twitter.com/oauth/request_token";
     const timestamp = generateTimestamp();
@@ -81,6 +84,9 @@ serve(async (req) => {
       oauth_version: "1.0",
       oauth_callback: CALLBACK_URL,
     };
+
+    console.log("OAuth parameters:", parameters);
+    console.log("Using callback URL:", CALLBACK_URL);
 
     // Generate the signature
     const signature = createSignature(
@@ -98,6 +104,8 @@ serve(async (req) => {
       .map(key => `${percentEncode(key)}="${percentEncode(parameters[key])}"`)
       .join(", ");
 
+    console.log("Authorization header:", authHeader);
+
     // Send the request to Twitter
     const response = await fetch(url, {
       method,
@@ -109,10 +117,13 @@ serve(async (req) => {
 
     if (!response.ok) {
       const error = await response.text();
+      console.error(`Twitter API error (${response.status}):`, error);
       throw new Error(`Twitter API error: ${error}`);
     }
 
     const data = await response.text();
+    console.log("Twitter response:", data);
+    
     const parsedData: Record<string, string> = {};
     
     data.split("&").forEach((pair) => {

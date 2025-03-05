@@ -2,7 +2,7 @@
 // Twitter OAuth1.0a Access Token Edge Function
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { hmacSha1 } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
+import { createHmac } from "https://deno.land/std@0.110.0/node/crypto.ts";
 import { encode as encodeBase64 } from "https://deno.land/std@0.82.0/encoding/base64.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.31.0";
 
@@ -57,9 +57,10 @@ function createSignature(
   // Create the signing key
   const signingKey = `${percentEncode(consumerSecret)}&${percentEncode(tokenSecret)}`;
 
-  // Create the signature
-  const signature = hmacSha1(signingKey, signatureBaseString);
-  return encodeBase64(signature);
+  // Create the signature using HMAC-SHA1
+  const hmac = createHmac("sha1", signingKey);
+  hmac.update(signatureBaseString);
+  return encodeBase64(hmac.digest());
 }
 
 serve(async (req) => {
@@ -69,7 +70,10 @@ serve(async (req) => {
   }
 
   try {
+    console.log("twitter-access-token function called");
+    
     const { token, verifier, tokenSecret, userId } = await req.json();
+    console.log("Received parameters:", { token, verifier, userId });
 
     if (!token || !verifier || !tokenSecret || !userId) {
       throw new Error("Missing required parameters");
@@ -108,6 +112,8 @@ serve(async (req) => {
       .map(key => `${percentEncode(key)}="${percentEncode(parameters[key])}"`)
       .join(", ");
 
+    console.log("Authorization header for access token:", authHeader);
+
     // Send the request to Twitter
     const response = await fetch(url, {
       method,
@@ -119,10 +125,13 @@ serve(async (req) => {
 
     if (!response.ok) {
       const error = await response.text();
+      console.error(`Twitter API error (${response.status}):`, error);
       throw new Error(`Twitter API error: ${error}`);
     }
 
     const data = await response.text();
+    console.log("Twitter access token response:", data);
+    
     const parsedData: Record<string, string> = {};
     
     data.split("&").forEach((pair) => {
@@ -139,6 +148,7 @@ serve(async (req) => {
 
     // Initialize Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("Storing X account data for user:", userId);
 
     // Save the X account data to Supabase
     const { data: xAccountData, error: xAccountError } = await supabase
@@ -155,8 +165,11 @@ serve(async (req) => {
       .single();
 
     if (xAccountError) {
+      console.error("Error saving X account:", xAccountError);
       throw new Error(`Error saving X account: ${xAccountError.message}`);
     }
+
+    console.log("Successfully saved X account data:", xAccountData);
 
     return new Response(
       JSON.stringify({
@@ -216,6 +229,8 @@ async function fetchTwitterUserData(accessToken: string, accessTokenSecret: stri
     .map(key => `${percentEncode(key)}="${percentEncode(parameters[key])}"`)
     .join(", ");
 
+  console.log("Authorization header for user data:", authHeader);
+
   // Send the request to Twitter
   const response = await fetch(url, {
     method,
@@ -226,8 +241,11 @@ async function fetchTwitterUserData(accessToken: string, accessTokenSecret: stri
 
   if (!response.ok) {
     const error = await response.text();
+    console.error(`Twitter API error for user data (${response.status}):`, error);
     throw new Error(`Twitter API error while fetching user data: ${error}`);
   }
 
-  return await response.json();
+  const userData = await response.json();
+  console.log("Twitter user data:", userData);
+  return userData;
 }
