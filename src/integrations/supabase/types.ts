@@ -9,7 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      x_accounts: {
+        Row: {
+          access_token: string
+          access_token_secret: string
+          created_at: string | null
+          id: string
+          profile_image_url: string | null
+          user_id: string
+          x_user_id: string
+          x_username: string
+        }
+        Insert: {
+          access_token: string
+          access_token_secret: string
+          created_at?: string | null
+          id?: string
+          profile_image_url?: string | null
+          user_id: string
+          x_user_id: string
+          x_username: string
+        }
+        Update: {
+          access_token?: string
+          access_token_secret?: string
+          created_at?: string | null
+          id?: string
+          profile_image_url?: string | null
+          user_id?: string
+          x_user_id?: string
+          x_username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

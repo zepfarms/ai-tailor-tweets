@@ -7,6 +7,17 @@ export interface User {
   xUsername?: string;
 }
 
+export interface XAccount {
+  id: string;
+  userId: string;
+  xUserId: string;
+  xUsername: string;
+  profileImageUrl?: string;
+  accessToken: string;
+  accessTokenSecret: string;
+  createdAt: Date;
+}
+
 export interface Post {
   id: string;
   content: string;

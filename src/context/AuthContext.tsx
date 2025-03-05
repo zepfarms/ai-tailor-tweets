@@ -3,6 +3,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import { startXOAuthFlow } from '@/lib/xOAuthUtils';
 
 // Create the auth context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -107,18 +109,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const linkXAccount = async () => {
     try {
-      // Mock X account linking
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Start the X OAuth flow
+      const authUrl = await startXOAuthFlow();
       
+      // Store current user state before redirecting
       if (user) {
-        const updatedUser = { ...user, xLinked: true, xUsername: "@user" };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        setUser(updatedUser);
-        toast({
-          title: "X account linked",
-          description: "Your X account has been successfully linked",
-        });
+        localStorage.setItem('auth_redirect_user', JSON.stringify(user));
       }
+      
+      // Open the X authorization page in a new window
+      window.open(authUrl, 'xAuthWindow', 'width=600,height=600');
+      
+      toast({
+        title: "X Authorization Started",
+        description: "Please complete the authorization in the popup window",
+      });
+      
+      // The rest of the flow will be handled by the callback page
+      
     } catch (error) {
       toast({
         title: "Failed to link X account",
