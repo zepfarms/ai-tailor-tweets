@@ -16,30 +16,36 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
 
   // Check if user is already logged in
   useEffect(() => {
-    const checkUser = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        setUser(data.session.user);
-        navigate('/dashboard');
+    const checkSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error checking session:', error);
+          return;
+        }
+        
+        if (data.session) {
+          console.log('User already logged in, redirecting to dashboard');
+          navigate('/dashboard');
+        }
+      } catch (err) {
+        console.error('Error in session check:', err);
       }
     };
     
-    checkUser();
+    checkSession();
     
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
+        console.log('Auth state changed in Login:', event, session?.user?.id);
         
         if (session?.user) {
-          setUser(session.user);
           navigate('/dashboard');
-        } else {
-          setUser(null);
         }
       }
     );
@@ -73,7 +79,7 @@ const Login: React.FC = () => {
         return;
       }
       
-      // Use Supabase authentication
+      // Use Supabase authentication directly
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -82,6 +88,7 @@ const Login: React.FC = () => {
       if (error) throw error;
       
       if (data.user) {
+        console.log('Login successful, redirecting to dashboard');
         toast({
           title: "Login successful",
           description: "Welcome back!",

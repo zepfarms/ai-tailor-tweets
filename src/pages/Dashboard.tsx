@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
@@ -8,32 +7,174 @@ import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
 import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import { User } from '@/lib/types';
 
 const Dashboard: React.FC = () => {
-  const { user, isLoading, linkXAccount } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLinking, setIsLinking] = useState(false);
 
+  // Initialize user data
   useEffect(() => {
-    if (!isLoading && !user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to access the dashboard",
-      });
-      navigate('/login');
-    }
-  }, [user, isLoading, navigate, toast]);
+    const checkSession = async () => {
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Error fetching session:', sessionError);
+          setIsLoading(false);
+          navigate('/login');
+          return;
+        }
+        
+        if (!sessionData.session) {
+          console.log('No active session found');
+          setIsLoading(false);
+          navigate('/login');
+          return;
+        }
+        
+        // Get user data from Supabase
+        const userData = sessionData.session.user;
+        
+        if (!userData) {
+          console.log('No user data found in session');
+          setIsLoading(false);
+          navigate('/login');
+          return;
+        }
+
+        // Check for X account linking
+        const { data: xAccount, error: xError } = await supabase
+          .from('x_accounts')
+          .select('*')
+          .eq('user_id', userData.id)
+          .maybeSingle();
+          
+        if (xError) {
+          console.error('Error fetching X account:', xError);
+        }
+        
+        const currentUser: User = {
+          id: userData.id,
+          email: userData.email || '',
+          name: userData.user_metadata.name || '',
+          xLinked: !!xAccount,
+          xUsername: xAccount ? `@${xAccount.x_username}` : undefined
+        };
+        
+        console.log('Setting user from session:', currentUser);
+        setUser(currentUser);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error initializing dashboard:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard data. Please try again.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        navigate('/login');
+      }
+    };
+    
+    checkSession();
+    
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed in Dashboard:', event, session?.user?.id);
+        
+        if (event === 'SIGNED_OUT' || !session) {
+          setUser(null);
+          navigate('/login');
+          return;
+        }
+        
+        if (session?.user) {
+          const userData = session.user;
+          
+          // Check for X account linking
+          const { data: xAccount, error: xError } = await supabase
+            .from('x_accounts')
+            .select('*')
+            .eq('user_id', userData.id)
+            .maybeSingle();
+            
+          if (xError) {
+            console.error('Error fetching X account on auth change:', xError);
+          }
+          
+          const currentUser: User = {
+            id: userData.id,
+            email: userData.email || '',
+            name: userData.user_metadata.name || '',
+            xLinked: !!xAccount,
+            xUsername: xAccount ? `@${xAccount.x_username}` : undefined
+          };
+          
+          console.log('Setting user from auth change:', currentUser);
+          setUser(currentUser);
+          setIsLoading(false);
+        }
+      }
+    );
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate, toast]);
 
   const handleLinkAccount = async () => {
     setIsLinking(true);
     try {
-      await linkXAccount();
+      // Direct URL for X OAuth process to avoid using the broken context method
+      const TWITTER_AUTH_URL = `${window.location.origin}/x-callback`;
+      console.log('Starting X OAuth flow with redirect to:', TWITTER_AUTH_URL);
+      
+      // Store current user info for after OAuth flow
+      if (user) {
+        localStorage.setItem('auth_redirect_user', JSON.stringify(user));
+      }
+      
+      // Call the Supabase Edge Function to get request token
+      const { data, error } = await supabase.functions.invoke('twitter-request-token', {
+        body: { redirect_uri: TWITTER_AUTH_URL },
+      });
+      
+      if (error) throw error;
+      
+      if (data && data.auth_url) {
+        console.log('Opening X authorization URL:', data.auth_url);
+        
+        // Open popup with error handling
+        const popup = window.open(data.auth_url, 'xAuthWindow', 'width=600,height=800');
+        
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+          toast({
+            title: "Popup Blocked",
+            description: "Please allow popups for this site and try again",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "X Authorization Started",
+            description: "Please complete the authorization in the popup window",
+          });
+          
+          popup.focus();
+        }
+      } else {
+        throw new Error('Failed to get X authorization URL');
+      }
     } catch (error) {
-      console.error('Error linking account:', error);
+      console.error('Error linking X account:', error);
       toast({
-        title: "Error",
-        description: "Failed to start X account linking process",
+        title: "Failed to link X account",
+        description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
     } finally {
@@ -54,6 +195,7 @@ const Dashboard: React.FC = () => {
   }
 
   if (!user) {
+    navigate('/login');
     return null;
   }
 
