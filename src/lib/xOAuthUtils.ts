@@ -46,7 +46,11 @@ export const startXOAuthFlow = async (): Promise<string> => {
     console.log('Starting X OAuth flow with access token:', accessToken.substring(0, 10) + '...');
     
     // Call the edge function to get a request token
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/twitter-request-token`, {
+    // Fix: Use the correct URL format for the edge function
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rsbzrlvezpcejzyvkmpx.supabase.co';
+    console.log('Using Supabase URL:', supabaseUrl);
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twitter-request-token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -115,8 +119,12 @@ export const completeXOAuthFlow = async (oauthVerifier: string): Promise<{
     console.log('User ID for X account linking:', userId);
 
     // Call the edge function to get an access token
+    // Fix: Use the correct URL format for the edge function
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rsbzrlvezpcejzyvkmpx.supabase.co';
+    console.log('Using Supabase URL for completing OAuth:', supabaseUrl);
+    
     console.log('Calling twitter-access-token endpoint with request token and verifier');
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/twitter-access-token`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/twitter-access-token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
