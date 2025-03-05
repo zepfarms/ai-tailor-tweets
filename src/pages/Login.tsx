@@ -19,13 +19,18 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
 
-  // Check if user is already logged in
+  // Check if user is already logged in - with safeguard timeout
   useEffect(() => {
-    if (user && !isLoading) {
-      console.log('Login: User already logged in, redirecting to dashboard');
-      navigate('/dashboard');
-    }
-  }, [user, isLoading, navigate]);
+    // Use a timeout to prevent infinite loading
+    const redirectTimeout = setTimeout(() => {
+      if (user) {
+        console.log('Login: User already logged in, redirecting to dashboard');
+        navigate('/dashboard');
+      }
+    }, 500);
+    
+    return () => clearTimeout(redirectTimeout);
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +53,8 @@ const Login: React.FC = () => {
       console.log('Login: Attempting login with email:', email);
       await login(email, password);
       
+      // The login function in AuthContext handles navigation to dashboard
+      
     } catch (err) {
       console.error('Login: Login error:', err);
       setError(err instanceof Error ? err.message : 'Failed to login');
@@ -62,7 +69,19 @@ const Login: React.FC = () => {
     setPassword('password');
   };
 
-  if (isLoading) {
+  // If global auth is still loading initially, show a loading state
+  // but add a timeout to avoid getting stuck in loading
+  const [showContent, setShowContent] = useState(false);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowContent(true);
+    }, 2000); // Show content after 2 seconds even if still loading
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading && !showContent) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-xl">Loading...</div>
@@ -119,7 +138,7 @@ const Login: React.FC = () => {
                   <div className="text-sm text-destructive">{error}</div>
                 )}
                 
-                <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
+                <Button type="submit" className="w-full" disabled={localLoading}>
                   {localLoading ? "Logging in..." : "Log in"}
                 </Button>
               </form>
