@@ -14,9 +14,14 @@ const Navbar: React.FC = () => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  const handleLogout = () => {
-    logout();
-    // Don't need to navigate as logout function will already do this
+  const handleLogout = async () => {
+    try {
+      console.log('Navbar: Logging out user');
+      await logout();
+      // Navigate is handled in the logout function in AuthContext
+    } catch (error) {
+      console.error('Navbar: Error logging out:', error);
+    }
   };
 
   const handleDashboardClick = (e: React.MouseEvent) => {
@@ -113,8 +118,8 @@ const Navbar: React.FC = () => {
                   <Button variant="ghost" className="w-full justify-start">Dashboard</Button>
                 </Link>
                 <Button 
-                  onClick={() => {
-                    handleLogout();
+                  onClick={async () => {
+                    await handleLogout();
                     setMobileMenuOpen(false);
                   }} 
                   variant="outline" 
