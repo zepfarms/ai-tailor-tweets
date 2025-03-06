@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -45,10 +46,10 @@ export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isLinkingX: boolean;
-  isVerifying?: boolean;
+  isVerifying: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<any>;
   logout: () => Promise<void>;
   linkXAccount: () => Promise<void>;
-  verifyOtp?: (email: string, token: string) => Promise<boolean>;
+  verifyOtp: (email: string, token: string) => Promise<boolean>;
 }

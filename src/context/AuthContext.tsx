@@ -158,27 +158,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
+      // Generate a 6-digit verification code
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Sign up the user with Supabase but don't redirect to a fixed URL
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             name,
+            verificationCode,
           },
-          emailRedirectTo: 'https://www.postedpal.com/verify-email',
         },
       });
       
       if (error) throw error;
       
       if (data.user) {
-        toast({
-          title: "Verification email sent",
-          description: "Please check your email to verify your account",
+        // Send verification email with our edge function
+        const emailResponse = await supabase.functions.invoke('send-verification-email', {
+          body: { email, name, verificationCode },
         });
         
-        setIsVerifying(true);
-        return { success: true, user: data.user };
+        if (!emailResponse.error) {
+          toast({
+            title: "Verification email sent",
+            description: "Please check your email for a verification code",
+          });
+          
+          setIsVerifying(true);
+          return { success: true, user: data.user };
+        } else {
+          throw new Error("Failed to send verification email");
+        }
       }
     } catch (error) {
       console.error('Signup error:', error);
@@ -197,6 +210,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
+      // First check if the OTP matches what we saved in user metadata
+      const { data: userData, error: userError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+        }
+      });
+      
+      if (userError) throw userError;
+      
+      // Get user by email to compare verification code
+      const { data: authUser } = await supabase.auth.getUser();
+      
+      if (!authUser || !authUser.user) {
+        throw new Error("User not found");
+      }
+      
+      const storedCode = authUser.user.user_metadata?.verificationCode;
+      
+      if (storedCode !== token) {
+        throw new Error("Invalid verification code");
+      }
+      
+      // If verification code matches, use verifyOTP to verify
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
