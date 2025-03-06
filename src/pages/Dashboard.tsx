@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -18,11 +17,9 @@ const Dashboard: React.FC = () => {
   const [linkingError, setLinkingError] = useState<string | null>(null);
   const [linkButtonClicked, setLinkButtonClicked] = useState(false);
   
-  // Get auth context
   const { user, isLoading, isLinkingX, linkXAccount } = useAuth();
 
   useEffect(() => {
-    // Set a timeout to ensure we don't show loading state forever in case of errors
     const timer = setTimeout(() => {
       setIsPageLoading(false);
     }, 2000);
@@ -40,7 +37,6 @@ const Dashboard: React.FC = () => {
     }
   }, [user, isLoading, navigate]);
 
-  // Verify if X account is linked when component mounts
   useEffect(() => {
     const verifyXAccount = async () => {
       if (user?.id) {
@@ -63,7 +59,6 @@ const Dashboard: React.FC = () => {
     verifyXAccount();
   }, [user?.id]);
 
-  // Check for X auth success parameter in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('x_auth_success') === 'true') {
@@ -74,7 +69,6 @@ const Dashboard: React.FC = () => {
           description: `Successfully linked to @${username}`,
         });
         
-        // Clean URL
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
       }
@@ -89,14 +83,20 @@ const Dashboard: React.FC = () => {
       setLinkingError(null);
       
       console.log("Initiating X account linking from Dashboard");
-      await linkXAccount();
       
-      // Set a timeout to reset the button state in case the redirect doesn't happen
-      setTimeout(() => {
-        setLinkButtonClicked(false);
-      }, 5000);
+      try {
+        await linkXAccount();
+        
+        // Set a timeout to reset the button state in case the redirect doesn't happen
+        setTimeout(() => {
+          setLinkButtonClicked(false);
+        }, 5000);
+      } catch (error) {
+        console.error('Error linking account:', error);
+        throw error; // Re-throw to be caught by the outer catch
+      }
     } catch (error) {
-      console.error('Error linking account:', error);
+      console.error('Link account error caught:', error);
       setLinkButtonClicked(false);
       setLinkingError(error instanceof Error ? error.message : 'Failed to link account');
       
@@ -112,7 +112,6 @@ const Dashboard: React.FC = () => {
     navigate('/create');
   };
 
-  // Show loading state
   if (isPageLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -122,7 +121,6 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // If user is not logged in, redirect to login
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -148,7 +146,6 @@ const Dashboard: React.FC = () => {
           </p>
         </header>
         
-        {/* Analytics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <AnalyticsCard
             title="Scheduled Posts"
@@ -176,7 +173,6 @@ const Dashboard: React.FC = () => {
           />
         </div>
         
-        {/* Account Status and Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <Card className="glass-card overflow-hidden">
             <CardHeader>
@@ -241,7 +237,6 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
           
-          {/* Recent Activity */}
           <Card className="glass-card overflow-hidden">
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
@@ -273,7 +268,6 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
         
-        {/* Upcoming Scheduled Posts */}
         <div className="grid grid-cols-1 gap-6 mb-8">
           <Card className="glass-card">
             <CardHeader>

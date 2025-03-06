@@ -27,6 +27,8 @@ const XCallback: React.FC = () => {
           throw new Error('No state parameter received');
         }
         
+        console.log('Exchanging code for access token...');
+        
         // Exchange the code for access token
         const response = await fetch(
           `${window.location.origin}/.netlify/functions/twitter-access-token`,
@@ -42,17 +44,25 @@ const XCallback: React.FC = () => {
           }
         );
         
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error response from server:', errorText);
+          throw new Error(`Failed to exchange code: ${response.status} ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        console.log('Access token response received:', data);
         
         if (data.error) {
           throw new Error(data.error);
         }
         
         if (data.success && data.username) {
+          console.log('Successfully linked X account for:', data.username);
           // Redirect to dashboard with success parameter
           navigate(`/dashboard?x_auth_success=true&username=${data.username}`);
         } else {
-          throw new Error('Failed to link X account');
+          throw new Error('Failed to link X account: No success confirmation received');
         }
       } catch (err) {
         console.error('Error in X callback:', err);

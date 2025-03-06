@@ -442,33 +442,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLinkingX(true);
     
     try {
-      const response = await fetch(
-        `${window.location.origin}/.netlify/functions/twitter-request-token`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.id,
-          }),
-        }
-      );
+      console.log('Initiating X account linking process...');
+      console.log('User ID:', user.id);
       
-      const data = await response.json();
+      const requestUrl = `${window.location.origin}/.netlify/functions/twitter-request-token`;
+      console.log('Request URL:', requestUrl);
+      
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response from server:', errorText);
+        throw new Error(`Request failed with status ${response.status}: ${response.statusText}`);
+      }
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError);
+        throw new Error('Invalid response from server: Could not parse JSON');
+      }
       
       if (data.error) {
         throw new Error(data.error);
       }
       
       if (data.authUrl) {
-        localStorage.setItem('x_code_verifier', data.codeVerifier);
+        console.log('Auth URL received, redirecting to:', data.authUrl);
+        // Store state and code verifier in localStorage for the callback
         localStorage.setItem('x_state', data.state);
         localStorage.setItem('x_user_id', user.id);
+        
+        // Redirect to Twitter auth URL
         window.location.href = data.authUrl;
         return Promise.resolve();
       } else {
-        throw new Error('No auth URL returned');
+        throw new Error('No auth URL returned from server');
       }
     } catch (error) {
       console.error('Error initiating X auth:', error);
