@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCw, Calendar, Send, Check, Share, TrendingUp } from 'lucide-react';
+import { RefreshCw, Calendar, Share, TrendingUp } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
@@ -25,7 +24,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const [suggestedPosts, setSuggestedPosts] = useState<string[]>([]);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
   const { toast } = useToast();
-  const { user, postToX } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     // Generate post suggestions when topics are selected
@@ -284,6 +283,9 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       title: "X Post Window Opened",
       description: "Complete your post in the X window",
     });
+    
+    // Call the onPost function to handle any UI updates or redirects
+    onPost(content);
   };
 
   const selectSuggestedPost = (post: string) => {
@@ -390,53 +392,18 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
               {isSaving ? "Scheduling..." : "Schedule"}
             </Button>
             
-            {user?.xLinked ? (
-              <Button 
-                onClick={postDirectlyToX}
-                disabled={isPosting || !content.trim()}
-                className="flex items-center gap-2"
-                style={{ 
-                  backgroundColor: "#1DA1F2", 
-                  color: "white",
-                  border: "none"
-                }}
-              >
-                {isPosting ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Share className="w-4 h-4" />
-                )}
-                {isPosting ? "Posting..." : "Post to X"}
-              </Button>
-            ) : (
-              <Button 
-                onClick={openXWebIntent}
-                disabled={!content.trim()}
-                className="flex items-center gap-2"
-                style={{ 
-                  backgroundColor: "#1DA1F2", 
-                  color: "white",
-                  border: "none"
-                }}
-              >
-                <Share className="w-4 h-4" />
-                Post via Web
-              </Button>
-            )}
-            
             <Button 
-              onClick={handlePost} 
-              disabled={isPosting || !content.trim()}
+              onClick={openXWebIntent}
+              disabled={!content.trim()}
               className="flex items-center gap-2 button-glow"
+              style={{ 
+                backgroundColor: "#1DA1F2", 
+                color: "white",
+                border: "none"
+              }}
             >
-              {isPosting ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : isPosting ? (
-                <Check className="w-4 h-4" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              {isPosting ? "Posting..." : "Post Now"}
+              <Share className="w-4 h-4" />
+              Post via Web
             </Button>
           </div>
         </div>

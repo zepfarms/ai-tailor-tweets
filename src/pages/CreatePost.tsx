@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -52,7 +51,7 @@ const CreatePost: React.FC = () => {
   };
 
   const handlePostNow = (content: string) => {
-    // Simulate posting
+    // Simulate posting and return to dashboard
     toast({
       title: "Post Published",
       description: "Your post has been published to X",
