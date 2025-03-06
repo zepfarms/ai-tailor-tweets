@@ -312,10 +312,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
-    if (!user?.xLinked) {
+    if (!user?.xLinked || !postToX) {
       toast({
-        title: "Error",
-        description: "Please link your X account first",
+        title: "X Integration Disabled",
+        description: "The X integration feature is currently unavailable.",
         variant: "destructive",
       });
       return;
@@ -389,8 +389,8 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   };
 
   const getPostButtonDisabledReason = (): string | null => {
-    if (!user?.xLinked) {
-      return "You need to link your X account in settings first";
+    if (!user?.xLinked || !postToX) {
+      return "X integration is currently unavailable";
     }
     if (!content.trim() && mediaFiles.length === 0) {
       return "Please add content or media before posting";

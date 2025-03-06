@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -22,7 +21,6 @@ const Dashboard: React.FC = () => {
   
   const { user, isLoading } = useAuth();
 
-  // Fetch posts data from Supabase
   const { data: postsData, isLoading: isPostsLoading } = useQuery({
     queryKey: ['posts', user?.id],
     queryFn: async () => {
@@ -67,25 +65,18 @@ const Dashboard: React.FC = () => {
     enabled: !!user?.id,
   });
 
-  // Calculate metrics
   const scheduledPostsCount = postsData?.scheduledPosts?.length || 0;
   const publishedPostsCount = postsData?.publishedPosts?.length || 0;
   
-  // Calculate engagement (mock calculation based on published posts)
   const calculateEngagement = () => {
     if (!postsData?.publishedPosts || postsData.publishedPosts.length === 0) return 0;
-    // In a real app, this would query engagement metrics from X API or another source
-    // For now, we'll use a simple algorithm based on post count
     return postsData.publishedPosts.length * (Math.floor(Math.random() * 20) + 10);
   };
   
   const totalEngagement = calculateEngagement();
   
-  // Calculate average response time (mock calculation)
   const calculateResponseTime = () => {
     if (!postsData?.publishedPosts || postsData.publishedPosts.length === 0) return "0h";
-    // In a real app, this would be calculated from actual response times
-    // For now, we'll return a realistic value
     return ((Math.random() * 3) + 1).toFixed(1) + "h";
   };
   
@@ -139,7 +130,6 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // Calculate trends (mock data - in real app this would compare to previous period)
   const getScheduledPostsTrend = () => {
     return { value: 8, isPositive: true };
   };
@@ -257,13 +247,13 @@ const Dashboard: React.FC = () => {
                       <LinkIcon className="h-8 w-8 text-blue-500" />
                     </div>
                     <h3 className="text-lg font-medium text-center">
-                      {user.xLinked 
+                      {user.xLinked && user.xUsername
                         ? `X Account: ${user.xUsername}`
                         : "X Analytics Available"
                       }
                     </h3>
                     <p className="text-center text-muted-foreground mb-2">
-                      {user.xLinked 
+                      {user.xLinked
                         ? "Your X account is connected"
                         : "Access X analytics by entering any username"
                       }

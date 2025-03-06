@@ -3,6 +3,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  xLinked?: boolean;
+  xUsername?: string;
 }
 
 export interface Post {
@@ -45,8 +47,11 @@ export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isVerifying: boolean;
+  isLinkingX?: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<any>;
   logout: () => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<boolean>;
+  linkXAccount?: (redirectUri?: string) => Promise<void>;
+  postToX?: (data: PostToXData) => Promise<any>;
 }

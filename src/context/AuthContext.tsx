@@ -435,68 +435,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const linkXAccount = async (redirectUri?: string) => {
-    setIsLinkingX(true);
-    try {
-      const redirectUrl = redirectUri || 'https://www.postedpal.com/x-callback';
-      
-      console.log('Initiating X account linking process...');
-      console.log('User ID:', user?.id);
-      
-      const { data, error } = await supabase.functions.invoke('twitter-request-token', {
-        body: { 
-          userId: user?.id,
-          redirectUri: redirectUrl 
-        },
-      });
-
-      if (error) {
-        console.error('Error getting Twitter request token:', error);
-        throw new Error(error.message);
-      }
-
-      console.log('Response data:', data);
-      
-      if (data && data.authUrl) {
-        console.log('Auth URL received, redirecting to:', data.authUrl);
-        window.location.href = data.authUrl;
-      } else {
-        throw new Error('Failed to receive authentication URL from Twitter');
-      }
-    } catch (error) {
-      console.error('Error in linkXAccount:', error);
-      throw error;
-    } finally {
-      setIsLinkingX(false);
-    }
+    toast({
+      title: "X Integration Disabled",
+      description: "The X integration feature is currently unavailable.",
+      variant: "destructive",
+    });
+    return Promise.reject(new Error("X integration disabled"));
   };
 
   const postToX = async (data: PostToXData) => {
-    if (!user) {
-      return Promise.reject(new Error('No user logged in'));
-    }
-    
-    if (!user.xLinked) {
-      return Promise.reject(new Error('X account not linked'));
-    }
-    
-    try {
-      const { data: responseData, error } = await supabase.functions.invoke('twitter-post', {
-        body: { userId: user.id, content: data.content, media: data.media }
-      });
-      
-      if (error) {
-        throw new Error(error.message || 'Failed to post to X');
-      }
-      
-      if (responseData.error) {
-        throw new Error(responseData.error);
-      }
-      
-      return responseData;
-    } catch (error) {
-      console.error('Error posting to X:', error);
-      return Promise.reject(error);
-    }
+    toast({
+      title: "X Integration Disabled",
+      description: "The X integration feature is currently unavailable.",
+      variant: "destructive",
+    });
+    return Promise.reject(new Error("X integration disabled"));
   };
 
   return (
