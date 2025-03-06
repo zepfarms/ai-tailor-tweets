@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
-const TWITTER_CALLBACK_URL = "https://www.postedpal.com/x-callback";
+const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://www.postedpal.com/x-callback";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -21,7 +21,25 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Twitter access token function called");
+    
     const { code, codeVerifier, state, userId } = await req.json();
+    
+    console.log("Code provided:", !!code);
+    console.log("Code verifier length:", codeVerifier?.length);
+    console.log("State:", state);
+    console.log("User ID:", userId);
+    
+    // Extract userId from state if it's in the format "uuid_userId"
+    let extractedUserId = userId;
+    if (state && state.includes("_")) {
+      extractedUserId = state.split("_")[1];
+      console.log("Extracted user ID from state:", extractedUserId);
+    }
+    
+    if (!extractedUserId) {
+      throw new Error("User ID is required");
+    }
 
     const oauth = new OAuth({
       clientId: TWITTER_CLIENT_ID,
@@ -35,7 +53,9 @@ serve(async (req) => {
     });
 
     const tokens = await oauth.code.getToken(code, codeVerifier);
-    console.log("Token response:", tokens);
+    console.log("Token response:", !!tokens);
+    console.log("Access token length:", tokens.accessToken?.length);
+    console.log("Refresh token:", !!tokens.refreshToken);
 
     // Get Twitter user info
     const userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
@@ -52,7 +72,7 @@ serve(async (req) => {
 
       // Store the Twitter account information in the database
       const { error } = await supabase.from("x_accounts").upsert({
-        user_id: userId,
+        user_id: extractedUserId,
         x_user_id: userData.data.id,
         x_username: userData.data.username,
         profile_image_url: userData.data.profile_image_url,

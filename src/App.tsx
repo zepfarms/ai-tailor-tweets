@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import CreatePost from "./pages/CreatePost";
 import VideoStudio from "./pages/VideoStudio";
 import NotFound from "./pages/NotFound";
+import XCallback from "./pages/XCallback";
 
 const queryClient = new QueryClient();
 
@@ -30,8 +31,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/create" element={<CreatePost />} />
             <Route path="/video-studio" element={<VideoStudio />} />
-            {/* Redirect X callback to dashboard to avoid blank screens */}
-            <Route path="/x-callback" element={<Navigate to="/dashboard" />} />
+            <Route path="/x-callback" element={<XCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

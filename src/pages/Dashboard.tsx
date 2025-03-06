@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
 import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from '@/integrations/supabase/client';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +39,29 @@ const Dashboard: React.FC = () => {
       }
     }
   }, [user, isLoading, navigate]);
+
+  // Verify if X account is linked when component mounts
+  useEffect(() => {
+    const verifyXAccount = async () => {
+      if (user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from('x_accounts')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          if (data && !error) {
+            console.log("X account verification:", data);
+          }
+        } catch (err) {
+          console.error("Error verifying X account:", err);
+        }
+      }
+    };
+    
+    verifyXAccount();
+  }, [user?.id]);
 
   // Check for X auth success parameter in URL
   useEffect(() => {

@@ -33,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: authUser.id,
             email: authUser.email || '',
             name: authUser.user_metadata.name || 'User',
-            xLinked: true,
+            xLinked: false, // Initialize as false, will check in the next useEffect
           };
           
           setUser(appUser);
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: authUser.id,
           email: authUser.email || '',
           name: authUser.user_metadata.name || 'User',
-          xLinked: true,
+          xLinked: false, // Initialize as false, will check in separate effect
         };
         
         setUser(appUser);
@@ -174,6 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
       
+      // Use a different approach to check for existing users
       const { data: existingUserData, error: existingUserError } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -184,11 +185,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let isResend = false;
       let existingUser = null;
       
-      // Use auth.admin is not available in client-side code, so we'll use a different approach
-      const { data: { users } } = await supabase.auth.admin.listUsers();
-      
-      const matchingUser = users?.find(u => u.email === email);
-      if (matchingUser) {
+      // Try to find any existing users through the session
+      const { data: sessionData } = await supabase.auth.getSession();
+      const matchingUser = sessionData?.session?.user;
+      if (matchingUser && matchingUser.email === email) {
         existingUser = matchingUser;
         isResend = true;
       }
@@ -438,24 +438,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const linkXAccount = async () => {
-    if (user) {
-      const updatedUser = {
-        ...user,
-        xLinked: true,
-        xUsername: user.xUsername || '@user',
-      };
-      
-      setUser(updatedUser);
-      
-      toast({
-        title: "X Integration Ready",
-        description: "You can now post to X using the 'Post to X' button",
-      });
-      
-      return Promise.resolve();
+    if (!user) {
+      return Promise.reject(new Error('No user logged in'));
     }
     
-    return Promise.reject(new Error('No user logged in'));
+    setIsLinkingX(true);
+    
+    try {
+      // Call the Twitter request token function to get auth URL
+      const response = await fetch(
+        `${window.location.origin}/.netlify/functions/twitter-request-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.id,
+          }),
+        }
+      );
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.authUrl) {
+        // Store code verifier and state in local storage
+        localStorage.setItem('x_code_verifier', data.codeVerifier);
+        localStorage.setItem('x_state', data.state);
+        localStorage.setItem('x_user_id', user.id);
+        
+        // Redirect to Twitter auth URL
+        window.location.href = data.authUrl;
+        return Promise.resolve();
+      } else {
+        throw new Error('No auth URL returned');
+      }
+    } catch (error) {
+      console.error('Error initiating X auth:', error);
+      setIsLinkingX(false);
+      return Promise.reject(error);
+    }
   };
 
   // We'll remove this function as it's causing errors and not included in the AuthContextType
