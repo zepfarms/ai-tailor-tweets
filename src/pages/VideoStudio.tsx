@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -12,7 +13,7 @@ import { TextEditor } from '@/components/VideoStudio/TextEditor';
 import { EffectsPanel } from '@/components/VideoStudio/EffectsPanel';
 import { MusicPanel } from '@/components/VideoStudio/MusicPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Share } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
 
 export interface TextElement {
   id: string;
@@ -26,14 +27,13 @@ export interface TextElement {
 }
 
 const VideoStudio: React.FC = () => {
-  const { user, isLoading, postToX } = useAuth();
+  const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [postText, setPostText] = useState<string>("");
   
   const [selectedMedia, setSelectedMedia] = useState<File[]>([]);
   const [textElements, setTextElements] = useState<TextElement[]>([]);
-  const [isPosting, setIsPosting] = useState(false);
   
   useEffect(() => {
     if (!isLoading && !user) {
@@ -47,62 +47,6 @@ const VideoStudio: React.FC = () => {
       title: "Video Exported",
       description: "Your video has been saved to your library",
     });
-  };
-
-  const handlePostToX = async () => {
-    if (selectedMedia.length === 0) {
-      toast({
-        title: "No media selected",
-        description: "Please add at least one image or video before posting",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!user?.xLinked) {
-      toast({
-        title: "X account not linked",
-        description: "Please link your X account in settings first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsPosting(true);
-
-    try {
-      const media = await Promise.all(
-        selectedMedia.map(async (file) => {
-          const arrayBuffer = await file.arrayBuffer();
-          return {
-            data: arrayBuffer,
-            type: file.type,
-            size: file.size
-          };
-        })
-      );
-      
-      const postData = {
-        content: postText,
-        media
-      };
-      
-      await postToX(postData);
-      
-      toast({
-        title: "Posted to X",
-        description: "Your media has been shared on X successfully",
-      });
-    } catch (error) {
-      console.error("Error posting to X:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to post to X",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPosting(false);
-    }
   };
 
   if (isLoading || !user) {
@@ -138,26 +82,6 @@ const VideoStudio: React.FC = () => {
             >
               <Save className="h-4 w-4" />
               Save
-            </Button>
-            
-            <Button 
-              style={{ 
-                backgroundColor: "#1DA1F2", 
-                color: "white",
-                border: "none"
-              }}
-              onClick={handlePostToX}
-              disabled={isPosting || selectedMedia.length === 0 || !user?.xLinked}
-              className="flex items-center gap-2"
-            >
-              {isPosting ? (
-                <span className="animate-pulse">Posting...</span>
-              ) : (
-                <>
-                  <Share className="h-4 w-4" />
-                  Post to X
-                </>
-              )}
             </Button>
           </div>
         </div>
@@ -232,19 +156,6 @@ const VideoStudio: React.FC = () => {
                       onClick={handleExport}
                     >
                       Export Video
-                    </Button>
-                    <Button 
-                      variant="outline"
-                      className="w-full"
-                      onClick={handlePostToX}
-                      disabled={isPosting || selectedMedia.length === 0 || !user?.xLinked}
-                      style={{ 
-                        backgroundColor: "#1DA1F2", 
-                        color: "white",
-                        border: "none"
-                      }}
-                    >
-                      {isPosting ? "Posting..." : "Share to X"}
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
