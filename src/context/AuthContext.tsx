@@ -446,7 +446,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('User ID:', user.id);
       
       const { data, error } = await supabase.functions.invoke('twitter-request-token', {
-        body: { userId: user.id }
+        body: { 
+          userId: user.id,
+          redirectUri: window.location.origin + '/x-callback'
+        }
       });
 
       if (error) {

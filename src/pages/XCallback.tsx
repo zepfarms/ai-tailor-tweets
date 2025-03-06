@@ -29,9 +29,9 @@ const XCallback: React.FC = () => {
         
         console.log('Exchanging code for access token...');
         
-        // Call Supabase Edge Function instead of Netlify function
+        // Call Supabase Edge Function
         const { data, error: functionError } = await supabase.functions.invoke('twitter-access-token', {
-          body: { code, state }
+          body: { code, state, redirectUri: window.location.origin + '/x-callback' }
         });
         
         if (functionError) {
