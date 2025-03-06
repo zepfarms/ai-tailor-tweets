@@ -116,11 +116,22 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         ],
       };
       
+      const customTopicTemplates = [
+        `Just read an insightful article about #TOPIC# trends. The innovation happening in this space is remarkable! What aspects of #TOPIC# interest you the most? #Trending#TOPIC# ${currentDate}`,
+        `The #TOPIC# community continues to grow and evolve. Today's developments show promising directions for the future. Are you following the latest #TOPIC# news? #Discover#TOPIC# ${currentDate}`,
+        `Fascinating discussion today about the impact of #TOPIC# on our daily lives. The potential applications are endless! What's your take on how #TOPIC# will shape our future? #TOPIC#Insights ${currentDate}`
+      ];
+      
       let generated: string[] = [];
       
       selectedTopics.forEach(topic => {
         if (mockTrendingTopics[topic]) {
           generated = [...generated, ...mockTrendingTopics[topic]];
+        } else {
+          const customPosts = customTopicTemplates.map(template => 
+            template.replace(/#TOPIC#/g, topic)
+          );
+          generated = [...generated, ...customPosts];
         }
       });
       
@@ -164,10 +175,30 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         "Travel": "The most memorable travel experiences often come from the unplanned moments and spontaneous detours. It's in getting lost that we truly find what we're seeking. #TravelWisdom #Wanderlust",
         "Gaming": "This new game's world-building and narrative depth are on another level. 10 hours in and I'm completely immersed. Developers really raised the bar with this one. #GamingCommunity #GameReview",
         "Music": "That feeling when you discover an artist whose music seems to perfectly capture your current mood and mindset. Musical serendipity is real. #MusicDiscovery #SoundtrackToLife",
-        "Art": "Art challenges us to see the world differently, to question our assumptions and expand our perspectives. Today's gallery visit was exactly the inspiration I needed. #ArtAppreciation #CreativeSpirit"
+        "Art": "Art challenges us to see the world differently, to question our assumptions and expand our perspectives. Today's gallery visit was exactly the inspiration I needed. #ArtAppreciation #CreativeSpirit",
+        "Crypto": "Just analyzed the latest trends in cryptocurrency markets. The volatility continues to present both challenges and opportunities for investors. What's your strategy in this evolving landscape? #Crypto #BlockchainTech #DigitalAssets",
+        "Cryptocurrency": "The intersection of DeFi and traditional finance is creating fascinating new possibilities. Today's announcements could reshape how we think about financial systems. #Cryptocurrency #DeFi #FinancialFreedom",
+        "Finance": "Market analysis today reveals interesting patterns for long-term investors. Remember that patience and strategy often outperform reactive trading. What's your investment philosophy? #FinanceTips #InvestorMindset",
+        "AI": "The ethical implications of advanced AI systems deserve more discussion. As capabilities expand, so must our frameworks for responsible implementation. What guardrails do you think are most important? #AIEthics #TechResponsibility",
+        "Fitness": "Consistency over intensity - that's the key lesson from today's workout session. Small daily improvements compound into remarkable results over time. What's your fitness philosophy? #FitnessJourney #HealthyHabits",
+        "Writing": "The blank page can be intimidating, but showing up daily to write is half the battle. Today's writing session reminded me that perfection is the enemy of progress. Fellow writers, what keeps you motivated? #WritingCommunity #CreativeProcess",
       };
       
-      setContent(mockContents[topic] || "Just had an inspiring conversation about the future of digital content. So many possibilities ahead! What innovations are you most excited about? #DigitalFuture");
+      const customPostTemplates = [
+        `Just dove deep into the world of ${topic} today. The innovations and discussions happening in this space are truly eye-opening. Anyone else passionate about ${topic}? Let's connect and share insights! #${topic.replace(/\s+/g, '')} #Trends`,
+        `Fascinating developments in ${topic} this week that might reshape how we think about this field. The possibilities are endless when you consider the long-term implications. What aspects of ${topic} excite you the most? #${topic.replace(/\s+/g, '')}`,
+        `The ${topic} community is growing in remarkable ways. Just discovered some groundbreaking work that's happening behind the scenes. This could be a game-changer for everyone involved in ${topic}! #${topic.replace(/\s+/g, '')} #Innovation`
+      ];
+      
+      let generatedContent;
+      if (mockContents[topic]) {
+        generatedContent = mockContents[topic];
+      } else {
+        const randomTemplate = customPostTemplates[Math.floor(Math.random() * customPostTemplates.length)];
+        generatedContent = randomTemplate;
+      }
+      
+      setContent(generatedContent);
       
       toast({
         title: "Post generated",
