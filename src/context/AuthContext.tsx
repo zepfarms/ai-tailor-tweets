@@ -459,6 +459,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return Promise.reject(new Error('No user logged in'));
   };
 
+  const sendVerificationCode = async (email: string, type: "signup" | "reset" = "signup") => {
+    try {
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id, email')
+        .eq('email', email)
+        .single();
+
+      if (type === "signup" && existingUser) {
+        throw new Error("User already registered");
+      }
+
+      if (type === "reset" && !existingUser) {
+        throw new Error("No account found with this email");
+      }
+
+      await supabase
+        .from('verification_codes')
+        .delete()
+        .eq('email', email);
+
+      const { error: insertError } = await supabase
+        .from('verification_codes')
+        .insert([
+          {
+            email,
+            code: verificationCode,
+            expires_at: expiresAt.toISOString(),
+            type
+          }
+        ]);
+
+      if (insertError) throw insertError;
+
+      let name = "User";
+      if (existingUser) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', existingUser.id)
+          .single();
+        
+        if (userData) {
+          name = userData.first_name || "User";
+        }
+      }
+
+      const { error } = await supabase.functions.invoke('send-verification-email', {
+        body: { email, name, verificationCode }
+      });
+
+      if (error) throw error;
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error sending verification code:", error.message);
+      return { success: false, error: error.message };
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -469,7 +532,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signup, 
       logout, 
       linkXAccount,
-      verifyOtp
+      verifyOtp,
+      sendVerificationCode
     }}>
       {children}
     </AuthContext.Provider>

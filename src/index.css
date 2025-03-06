@@ -55,11 +55,11 @@
   }
   
   .text-gradient {
-    @apply bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent;
   }
   
   .hero-gradient {
-    @apply bg-gradient-to-r from-blue-500/5 via-blue-500/10 to-blue-500/5;
+    @apply bg-gradient-to-r from-blue-500/5 via-purple-500/10 to-blue-500/5;
   }
 
   .page-transition {
@@ -71,7 +71,7 @@
   }
   
   .button-glow::after {
-    @apply content-[''] absolute inset-0 z-[-1] opacity-0 transition-opacity duration-300 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full blur-xl;
+    @apply content-[''] absolute inset-0 z-[-1] opacity-0 transition-opacity duration-300 bg-gradient-to-r from-blue-400 to-purple-600 rounded-full blur-xl;
   }
   
   .button-glow:hover::after {

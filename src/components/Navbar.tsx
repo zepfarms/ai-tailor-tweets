@@ -20,7 +20,7 @@ const Navbar: React.FC = () => {
           to="/" 
           className="flex items-center space-x-2"
         >
-          <span className="font-bold text-2xl text-gradient">PostAI</span>
+          <span className="font-bold text-2xl bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">Posted Pal</span>
         </Link>
 
         {/* Desktop Navigation */}

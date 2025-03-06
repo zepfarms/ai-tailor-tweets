@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           <div className="space-y-4">
             <Link to="/" className="flex items-center space-x-2">
-              <span className="font-bold text-2xl text-gradient">PostAI</span>
+              <span className="font-bold text-2xl bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">Posted Pal</span>
             </Link>
             <p className="text-muted-foreground">
               AI-powered content creation and scheduling for your X account.
@@ -48,7 +48,7 @@ const Footer: React.FC = () => {
         
         <div className="border-t border-border pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-muted-foreground text-sm mb-4 md:mb-0">
-            © {new Date().getFullYear()} PostAI. All rights reserved.
+            © {new Date().getFullYear()} Posted Pal. All rights reserved.
           </p>
           
           <div className="flex space-x-6">
