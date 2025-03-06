@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Link } from 'react-router-dom';
 
 interface PostGeneratorProps {
   selectedTopics: Topic[];
@@ -590,7 +591,11 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         {!user?.xLinked && (
           <p className="mt-2 text-amber-500 flex items-center justify-center gap-1">
             <AlertCircle className="w-4 h-4" />
-            Your X account is not linked. Visit Settings to link your account.
+            Your X account is not linked. 
+            <Link to="/settings" className="text-blue-500 hover:text-blue-700 underline ml-1">
+              Go to Settings
+            </Link> 
+            to link your account.
           </p>
         )}
       </div>

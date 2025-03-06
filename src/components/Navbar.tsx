@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Menu, Twitter } from 'lucide-react';
+import { X, Menu, Twitter, Settings } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -50,6 +50,12 @@ const Navbar: React.FC = () => {
               )}
               <Link to="/dashboard">
                 <Button variant="ghost">Dashboard</Button>
+              </Link>
+              <Link to="/settings">
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <Settings size={16} />
+                  Settings
+                </Button>
               </Link>
               <Button onClick={logout} variant="outline">Logout</Button>
             </div>
@@ -115,6 +121,16 @@ const Navbar: React.FC = () => {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Button variant="ghost" className="w-full justify-start">Dashboard</Button>
+                </Link>
+                <Link 
+                  to="/settings" 
+                  className="block" 
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Button variant="ghost" className="w-full justify-start flex items-center gap-2">
+                    <Settings size={16} />
+                    Settings
+                  </Button>
                 </Link>
                 <Button 
                   onClick={() => {
