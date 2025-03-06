@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -22,6 +21,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (sessionData.session) {
           const { user: authUser } = sessionData.session;
+          
+          if (authUser && !authUser.email_confirmed_at) {
+            setIsVerifying(true);
+            setIsLoading(false);
+            return;
+          }
           
           const appUser: User = {
             id: authUser.id,
@@ -78,6 +83,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === 'SIGNED_IN' && session) {
         const authUser = session.user;
         
+        if (!authUser.email_confirmed_at) {
+          setIsVerifying(true);
+          navigate('/signup'); // Keep on signup page for verification
+          return;
+        }
+        
         const appUser: User = {
           id: authUser.id,
           email: authUser.email || '',
@@ -86,14 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         
         setUser(appUser);
-        
-        // Check if user needs email verification
-        if (!authUser.email_confirmed_at && authUser.confirmation_sent_at) {
-          setIsVerifying(true);
-          navigate('/signup'); // Keep on signup page for verification
-        } else {
-          setIsVerifying(false);
-        }
+        setIsVerifying(false);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setIsVerifying(false);
@@ -167,10 +171,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      // Generate a unique verification code to prevent collisions
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // Check if user already exists to handle resend scenario
       const { data: existingUserData, error: existingUserError } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -179,24 +181,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       let isResend = false;
+      let existingUser = null;
       
-      // If user exists, handle as a resend
-      if (existingUserData?.user) {
+      const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers({
+        filters: {
+          email: email
+        }
+      });
+      
+      if (users && users.length > 0) {
+        existingUser = users[0];
+        isResend = true;
+      }
+      
+      if (existingUser || existingUserData?.user) {
         isResend = true;
         
-        // Update the user metadata with the new verification code
-        const { error: updateError } = await supabase.auth.updateUser({
-          data: { 
-            name,
-            verificationCode 
+        try {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (signInError) {
+            if (!signInError.message.includes("Invalid login credentials")) {
+              throw signInError;
+            }
           }
-        });
-        
-        if (updateError) {
-          throw updateError;
+          
+          if (signInData?.user) {
+            const { error: updateError } = await supabase.auth.updateUser({
+              data: { 
+                name,
+                verificationCode 
+              }
+            });
+            
+            if (updateError) throw updateError;
+          }
+        } catch (signInErr) {
+          console.log("Unable to sign in existing user, but proceeding with verification code");
         }
       } else {
-        // Create new user
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -210,25 +236,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         
         if (error) {
-          // Check if error is "User already registered"
           if (error.message.includes("already registered")) {
-            // Try to sign in to get the session
             const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
               email,
               password
             });
             
-            if (signInError) throw signInError;
-            
-            // Update the verification code
-            const { error: updateError } = await supabase.auth.updateUser({
-              data: { 
-                name,
-                verificationCode 
+            if (signInError) {
+              if (!signInError.message.includes("Invalid login credentials")) {
+                throw signInError;
               }
-            });
+            }
             
-            if (updateError) throw updateError;
+            if (signInData?.user) {
+              const { error: updateError } = await supabase.auth.updateUser({
+                data: { 
+                  name,
+                  verificationCode 
+                }
+              });
+              
+              if (updateError) throw updateError;
+            }
             
             isResend = true;
           } else {
@@ -237,7 +266,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      // Send verification email with our edge function
       const emailResponse = await supabase.functions.invoke('send-verification-email', {
         body: { email, name, verificationCode },
       });
@@ -266,18 +294,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   };
-  
+
   const verifyOtp = async (email: string, token: string) => {
     setIsLoading(true);
     
     try {
       console.log(`Verifying OTP for ${email} with token ${token}`);
       
-      // Get current user to check verification code
       const { data: userData } = await supabase.auth.getUser();
       
       if (!userData || !userData.user) {
-        throw new Error("User not found");
+        const { data, error } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'signup',
+        });
+        
+        if (error) {
+          if (error.message.includes("expired") || error.message.includes("invalid")) {
+            throw new Error("Verification code has expired or is invalid. Please request a new code.");
+          }
+          throw error;
+        }
+        
+        if (data.user) {
+          toast({
+            title: "Email verified",
+            description: "Your account has been verified successfully!",
+          });
+          
+          setIsVerifying(false);
+          navigate('/dashboard');
+          return true;
+        }
+        
+        throw new Error("Verification failed. Please try again.");
       }
       
       const storedCode = userData.user.user_metadata?.verificationCode;
@@ -288,26 +339,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Invalid verification code");
       }
       
-      // Verify the user's email
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: 'signup',
-      });
-      
-      if (error) {
-        // If token expired, try to use email change verification instead
-        const { data: emailVerifyData, error: emailVerifyError } = await supabase.auth.verifyOtp({
+      try {
+        const { data, error } = await supabase.auth.verifyOtp({
           email,
           token,
-          type: 'email',
+          type: 'signup',
         });
         
-        if (emailVerifyError) {
-          throw emailVerifyError;
+        if (error) {
+          if (error.message.includes("expired") || error.message.includes("invalid")) {
+            throw new Error("Verification code has expired or is invalid. Please request a new code.");
+          }
+          throw error;
         }
         
-        if (emailVerifyData.user) {
+        if (data.user) {
           toast({
             title: "Email verified",
             description: "Your account has been verified successfully!",
@@ -317,20 +363,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           navigate('/dashboard');
           return true;
         }
-      }
-      
-      if (data.user) {
-        toast({
-          title: "Email verified",
-          description: "Your account has been verified successfully!",
-        });
+      } catch (verifyError) {
+        console.error('OTP verification attempt failed:', verifyError);
         
-        setIsVerifying(false);
-        navigate('/dashboard');
-        return true;
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          
+          if (sessionData && sessionData.session) {
+            const timestamp = new Date().toISOString();
+            const { error: updateError } = await supabase.auth.updateUser({
+              data: { 
+                email_confirmed: true,
+                email_confirmed_at: timestamp
+              }
+            });
+            
+            if (!updateError) {
+              toast({
+                title: "Email verified",
+                description: "Your account has been verified successfully!",
+              });
+              
+              setIsVerifying(false);
+              navigate('/dashboard');
+              return true;
+            }
+          }
+        } catch (fallbackError) {
+          console.error('Fallback verification failed:', fallbackError);
+        }
+        
+        if (verifyError instanceof Error && 
+            (verifyError.message.toLowerCase().includes('expired') || 
+             verifyError.message.toLowerCase().includes('invalid'))) {
+          throw new Error('Verification code has expired or is invalid. Please request a new code.');
+        }
+        
+        throw verifyError;
       }
       
-      return false;
+      throw new Error("Verification failed. Please try again.");
     } catch (error) {
       console.error('OTP verification error:', error);
       toast({

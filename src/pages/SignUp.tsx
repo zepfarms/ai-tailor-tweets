@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { toast } from '@/components/ui/use-toast';
 
 const SignUp: React.FC = () => {
   const { signup, isLoading, user, isVerifying, verifyOtp } = useAuth();
@@ -18,6 +19,8 @@ const SignUp: React.FC = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
   const [showVerification, setShowVerification] = useState(false);
+  const [resendDisabled, setResendDisabled] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
   const navigate = useNavigate();
   
   // Check if user is already verified and logged in
@@ -28,6 +31,22 @@ const SignUp: React.FC = () => {
       setShowVerification(true);
     }
   }, [user, isLoading, isVerifying, navigate]);
+
+  // Handle resend cooldown timer
+  useEffect(() => {
+    let timer: number | undefined;
+    if (resendCountdown > 0) {
+      timer = window.setTimeout(() => {
+        setResendCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (resendCountdown === 0) {
+      setResendDisabled(false);
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [resendCountdown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +61,13 @@ const SignUp: React.FC = () => {
       const result = await signup(email, password, name);
       if (result?.success) {
         setShowVerification(true);
+        toast({
+          title: "Verification code sent",
+          description: "Please check your email for the verification code.",
+        });
       }
     } catch (err) {
+      console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'Failed to sign up');
     }
   };
@@ -59,8 +83,48 @@ const SignUp: React.FC = () => {
     
     try {
       await verifyOtp(email, verificationCode);
+      toast({
+        title: "Verification successful",
+        description: "Your email has been verified successfully!",
+      });
     } catch (err) {
+      console.error('Verification error:', err);
       setError(err instanceof Error ? err.message : 'Failed to verify code');
+      
+      // If error contains "expired", show a more helpful message
+      if (err instanceof Error && 
+          (err.message.toLowerCase().includes('expired') || 
+           err.message.toLowerCase().includes('invalid'))) {
+        setError('Verification code has expired or is invalid. Please request a new code.');
+      }
+    }
+  };
+
+  const handleResendCode = async () => {
+    setResendDisabled(true);
+    setResendCountdown(60); // 60 second cooldown
+    
+    try {
+      const result = await signup(email, password, name);
+      if (result?.success) {
+        toast({
+          title: "Verification code resent",
+          description: "Please check your email for the new verification code.",
+        });
+      }
+    } catch (err) {
+      console.error('Resend error:', err);
+      // Handle "User already registered" error more gracefully
+      if (err instanceof Error && err.message.includes('already registered')) {
+        toast({
+          title: "Verification code resent",
+          description: "Please check your email for the new verification code.",
+        });
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to resend verification code');
+        setResendDisabled(false);
+        setResendCountdown(0);
+      }
     }
   };
 
@@ -194,25 +258,23 @@ const SignUp: React.FC = () => {
                   </form>
                 </CardContent>
                 
-                <CardFooter>
+                <CardFooter className="flex flex-col">
                   <div className="text-sm text-center w-full">
                     Didn't receive a code?{" "}
                     <Button 
                       variant="link" 
                       className="p-0 h-auto text-blue-500 hover:text-blue-600 font-medium"
-                      onClick={() => {
-                        if (email && name) {
-                          signup(email, password, name).catch(err => {
-                            setError(err instanceof Error ? err.message : 'Failed to resend verification code');
-                          });
-                        } else {
-                          setError('Email or name is missing. Please go back and try again.');
-                        }
-                      }}
-                      disabled={isLoading}
+                      onClick={handleResendCode}
+                      disabled={resendDisabled}
                     >
-                      Resend
+                      {resendDisabled 
+                        ? `Resend (${resendCountdown}s)` 
+                        : "Resend"}
                     </Button>
+                  </div>
+                  
+                  <div className="text-xs text-muted-foreground mt-4 text-center">
+                    The verification code will expire after 30 minutes. If it expires, you can request a new one.
                   </div>
                 </CardFooter>
               </>
