@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -262,7 +263,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     }
   };
 
-  const postToX = () => {
+  const openXWebIntent = () => {
     if (!content.trim()) {
       toast({
         title: "Error",
@@ -409,7 +410,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
               </Button>
             ) : (
               <Button 
-                onClick={postToX}
+                onClick={openXWebIntent}
                 disabled={!content.trim()}
                 className="flex items-center gap-2"
                 style={{ 

@@ -9,6 +9,66 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      oauth_states: {
+        Row: {
+          code_verifier: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          provider: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          code_verifier: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          provider: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          code_verifier?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          provider?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      posts: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          published: boolean | null
+          scheduled_for: string | null
+          tweet_id: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          published?: boolean | null
+          scheduled_for?: string | null
+          tweet_id?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          published?: boolean | null
+          scheduled_for?: string | null
+          tweet_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       x_accounts: {
         Row: {
           access_token: string
