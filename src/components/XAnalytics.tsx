@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Loader2, Users, MessageSquare, TrendingUp, Eye, Twitter } from 'lucide-react';
@@ -7,12 +7,15 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import AnalyticsCard from '@/components/AnalyticsCard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface XAnalyticsProps {
   className?: string;
 }
 
 interface AnalyticsData {
+  username?: string;
   followerCount: number;
   followingCount: number;
   tweetsCount: number;
@@ -32,56 +35,120 @@ interface AnalyticsData {
 }
 
 const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
-  const [loading, setLoading] = React.useState(true);
-  const [analytics, setAnalytics] = React.useState<AnalyticsData | null>(null);
-  const [username, setUsername] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [username, setUsername] = useState<string>('');
+  const [displayedUsername, setDisplayedUsername] = useState<string | null>(null);
+  const [usernameInput, setUsernameInput] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
   React.useEffect(() => {
-    const fetchAnalytics = async () => {
-      if (!user?.id || !user.xLinked) {
-        setLoading(false);
-        return;
-      }
+    // If the user has a linked X account, fetch analytics for it
+    const fetchUserLinkedAnalytics = async () => {
+      if (user?.id && user.xLinked && user.xUsername) {
+        try {
+          setLoading(true);
+          setError(null);
+          
+          // Extract username from the format @username
+          const cleanUsername = user.xUsername.startsWith('@') 
+            ? user.xUsername.substring(1) 
+            : user.xUsername;
+            
+          setUsername(cleanUsername);
+          
+          const { data, error: functionError } = await supabase.functions.invoke('twitter-analytics', {
+            body: { userId: user.id }
+          });
 
-      try {
-        setLoading(true);
-        setError(null);
+          if (functionError) {
+            console.error('Error fetching X analytics:', functionError);
+            throw new Error('Failed to fetch analytics');
+          }
 
-        const { data, error: functionError } = await supabase.functions.invoke('twitter-analytics', {
-          body: { userId: user.id }
-        });
+          if (!data || data.error) {
+            throw new Error(data?.error || 'Failed to fetch analytics');
+          }
 
-        if (functionError) {
-          console.error('Error fetching X analytics:', functionError);
-          throw new Error('Failed to fetch analytics');
+          setAnalytics(data.data);
+          setDisplayedUsername(data.username);
+          
+        } catch (err) {
+          console.error('Analytics error:', err);
+          setError(err instanceof Error ? err.message : 'Failed to load analytics');
+          
+          toast({
+            title: 'Failed to load analytics',
+            description: err instanceof Error ? err.message : 'Please try again later',
+            variant: 'destructive',
+          });
+        } finally {
+          setLoading(false);
         }
-
-        if (!data || data.error) {
-          throw new Error(data?.error || 'Failed to fetch analytics');
-        }
-
-        setAnalytics(data.data);
-        setUsername(data.username);
-        
-      } catch (err) {
-        console.error('Analytics error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load analytics');
-        
-        toast({
-          title: 'Failed to load analytics',
-          description: err instanceof Error ? err.message : 'Please try again later',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
       }
     };
 
-    fetchAnalytics();
+    fetchUserLinkedAnalytics();
   }, [user, toast]);
+
+  const fetchAnalytics = async (xUsername: string) => {
+    if (!xUsername) {
+      toast({
+        title: 'Username required',
+        description: 'Please enter an X username to fetch analytics',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Clean the username (remove @ if present)
+      const cleanUsername = xUsername.startsWith('@') ? xUsername.substring(1) : xUsername;
+      
+      const { data, error: functionError } = await supabase.functions.invoke('twitter-analytics', {
+        body: { username: cleanUsername }
+      });
+
+      if (functionError) {
+        console.error('Error fetching X analytics:', functionError);
+        throw new Error('Failed to fetch analytics');
+      }
+
+      if (!data || data.error) {
+        throw new Error(data?.error || 'Failed to fetch analytics');
+      }
+
+      setAnalytics(data.data);
+      setDisplayedUsername(data.username);
+      
+      toast({
+        title: 'Analytics loaded',
+        description: `Displaying analytics for @${data.username}`,
+      });
+      
+    } catch (err) {
+      console.error('Analytics error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load analytics');
+      
+      toast({
+        title: 'Failed to load analytics',
+        description: err instanceof Error ? err.message : 'Please try again later',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchAnalytics(usernameInput);
+  };
 
   if (loading) {
     return (
@@ -92,29 +159,33 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
     );
   }
 
-  if (error) {
+  if (error && !analytics) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <p className="text-red-500 mb-2">Error loading analytics: {error}</p>
-        <p className="text-sm text-muted-foreground">Please try again later</p>
+        <p className="text-sm text-muted-foreground mb-4">Please try again later</p>
+        
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Enter X Username</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="flex space-x-2">
+                <Input
+                  placeholder="Enter X username (e.g., elonmusk)"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                />
+                <Button type="submit" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Get Analytics
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
-    );
-  }
-
-  if (!user?.xLinked) {
-    return (
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle>X Analytics</CardTitle>
-        </CardHeader>
-        <CardContent className="text-center py-8">
-          <Twitter className="h-12 w-12 mx-auto text-blue-500 mb-4" />
-          <p className="text-lg font-medium mb-2">Link your X account to see analytics</p>
-          <p className="text-sm text-muted-foreground">
-            Connect your X account to view engagement metrics and follower growth
-          </p>
-        </CardContent>
-      </Card>
     );
   }
 
@@ -124,8 +195,23 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
         <CardHeader>
           <CardTitle>X Analytics</CardTitle>
         </CardHeader>
-        <CardContent className="text-center py-8">
-          <p className="text-lg font-medium">No analytics data available</p>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Enter an X username to view their public analytics
+            </p>
+            <div className="flex space-x-2">
+              <Input
+                placeholder="Enter X username (e.g., elonmusk)"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+              />
+              <Button type="submit" disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Get Analytics
+              </Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
     );
@@ -134,7 +220,20 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
   return (
     <div className={`space-y-6 ${className}`}>
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">X Analytics for {username || user.xUsername}</h2>
+        <h2 className="text-2xl font-bold">X Analytics for @{displayedUsername || username}</h2>
+        
+        <form onSubmit={handleSubmit} className="flex space-x-2">
+          <Input
+            placeholder="Enter X username"
+            value={usernameInput}
+            onChange={(e) => setUsernameInput(e.target.value)}
+            className="w-48 md:w-64"
+          />
+          <Button type="submit" variant="outline" disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Load
+          </Button>
+        </form>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
