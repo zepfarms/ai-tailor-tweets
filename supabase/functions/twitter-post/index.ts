@@ -19,18 +19,21 @@ serve(async (req) => {
   try {
     console.log("Twitter post function called");
     
-    const { userId, content } = await req.json();
+    const { userId, content, media } = await req.json();
     
     if (!userId) {
       throw new Error("User ID is required");
     }
     
-    if (!content) {
-      throw new Error("Post content is required");
+    if (!content && !media) {
+      throw new Error("Post content or media is required");
     }
     
     console.log("User ID:", userId);
     console.log("Content:", content);
+    if (media) {
+      console.log("Media included:", media.length, "items");
+    }
     
     // Create Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -49,6 +52,87 @@ serve(async (req) => {
     
     console.log("X account found:", accountData.x_username);
     
+    // Upload media first if provided
+    let mediaIds = [];
+    if (media && media.length > 0) {
+      for (const mediaItem of media) {
+        console.log("Uploading media to Twitter");
+        
+        // First, we need to initialize the media upload
+        const initResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json?command=INIT", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": `Bearer ${accountData.access_token}`,
+          },
+          body: new URLSearchParams({
+            total_bytes: mediaItem.size.toString(),
+            media_type: mediaItem.type,
+            media_category: mediaItem.type.startsWith('video') ? 'tweet_video' : 'tweet_image'
+          }),
+        });
+        
+        if (!initResponse.ok) {
+          const initError = await initResponse.json();
+          console.error("Media init error:", initError);
+          throw new Error("Failed to initialize media upload");
+        }
+        
+        const initData = await initResponse.json();
+        const mediaId = initData.media_id_string;
+        console.log("Media ID:", mediaId);
+        
+        // Now append the media data
+        const appendResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json?command=APPEND", {
+          method: "POST",
+          headers: {
+            "Content-Type": "multipart/form-data",
+            "Authorization": `Bearer ${accountData.access_token}`,
+          },
+          body: new FormData()
+            .append("media_id", mediaId)
+            .append("segment_index", "0")
+            .append("media", mediaItem.data)
+        });
+        
+        if (!appendResponse.ok) {
+          const appendError = await appendResponse.text();
+          console.error("Media append error:", appendError);
+          throw new Error("Failed to upload media");
+        }
+        
+        // Finalize the media upload
+        const finalizeResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json?command=FINALIZE", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": `Bearer ${accountData.access_token}`,
+          },
+          body: new URLSearchParams({
+            media_id: mediaId
+          }),
+        });
+        
+        if (!finalizeResponse.ok) {
+          const finalizeError = await finalizeResponse.json();
+          console.error("Media finalize error:", finalizeError);
+          throw new Error("Failed to finalize media upload");
+        }
+        
+        mediaIds.push(mediaId);
+      }
+    }
+    
+    // Build the tweet payload
+    const tweetPayload = {
+      text: content || ""
+    };
+    
+    // Add media if we have IDs
+    if (mediaIds.length > 0) {
+      tweetPayload.media = { media_ids: mediaIds };
+    }
+    
     // Post to Twitter
     const tweetResponse = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
@@ -56,9 +140,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${accountData.access_token}`,
       },
-      body: JSON.stringify({
-        text: content
-      }),
+      body: JSON.stringify(tweetPayload),
     });
     
     const tweetData = await tweetResponse.json();
@@ -78,7 +160,8 @@ serve(async (req) => {
         content: content,
         published: true,
         created_at: new Date().toISOString(),
-        tweet_id: tweetData.data?.id
+        tweet_id: tweetData.data?.id,
+        has_media: mediaIds.length > 0
       });
     
     if (postError) {

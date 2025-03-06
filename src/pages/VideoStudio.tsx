@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from "@/components/ui/use-toast";
 import { VideoStudioCanvas } from '@/components/VideoStudio/VideoStudioCanvas';
 import { MediaPicker } from '@/components/VideoStudio/MediaPicker';
@@ -26,13 +27,15 @@ export interface TextElement {
 }
 
 const VideoStudio: React.FC = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, postToX } = useAuth();
   const navigate = useNavigate();
   const [currentProject, setCurrentProject] = useState<any>(null);
+  const [postText, setPostText] = useState<string>("");
   
   // State to store selected media and text elements
   const [selectedMedia, setSelectedMedia] = useState<File[]>([]);
   const [textElements, setTextElements] = useState<TextElement[]>([]);
+  const [isPosting, setIsPosting] = useState(false);
   
   useEffect(() => {
     if (!isLoading && !user) {
@@ -48,18 +51,57 @@ const VideoStudio: React.FC = () => {
     });
   };
 
-  const handlePostToX = () => {
-    // Open X Web Intent with video
-    let intentUrl = "https://twitter.com/intent/tweet?";
-    intentUrl += "text=" + encodeURIComponent("Check out this video I created!");
-    
-    // Open in a popup window
-    window.open(intentUrl, "_blank", "width=550,height=420");
-    
-    toast({
-      title: "Share to X",
-      description: "Complete your post in the X window",
-    });
+  const handlePostToX = async () => {
+    if (selectedMedia.length === 0) {
+      toast({
+        title: "No media selected",
+        description: "Please add at least one image or video before posting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user?.xLinked) {
+      toast({
+        title: "X account not linked",
+        description: "Please link your X account in settings first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPosting(true);
+
+    try {
+      // Prepare media data
+      const media = await Promise.all(
+        selectedMedia.map(async (file) => {
+          const arrayBuffer = await file.arrayBuffer();
+          return {
+            data: arrayBuffer,
+            type: file.type,
+            size: file.size
+          };
+        })
+      );
+      
+      // Post to X using the auth context function
+      await postToX(postText, media);
+      
+      toast({
+        title: "Posted to X",
+        description: "Your media has been shared on X successfully",
+      });
+    } catch (error) {
+      console.error("Error posting to X:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to post to X",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   if (isLoading || !user) {
@@ -104,10 +146,17 @@ const VideoStudio: React.FC = () => {
                 border: "none"
               }}
               onClick={handlePostToX}
+              disabled={isPosting || selectedMedia.length === 0 || !user?.xLinked}
               className="flex items-center gap-2"
             >
-              <Share className="h-4 w-4" />
-              Post to X
+              {isPosting ? (
+                <span className="animate-pulse">Posting...</span>
+              ) : (
+                <>
+                  <Share className="h-4 w-4" />
+                  Post to X
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -158,6 +207,24 @@ const VideoStudio: React.FC = () => {
               <TabsContent value="export">
                 <div className="space-y-4">
                   <h3 className="font-medium">Export Settings</h3>
+                  
+                  <div className="space-y-2">
+                    <label htmlFor="post-text" className="text-sm font-medium">
+                      Post Text (Optional)
+                    </label>
+                    <Textarea
+                      id="post-text"
+                      value={postText}
+                      onChange={(e) => setPostText(e.target.value)}
+                      placeholder="Add text to accompany your media..."
+                      className="min-h-[80px] resize-none"
+                      maxLength={280}
+                    />
+                    <div className="text-xs text-right text-muted-foreground">
+                      {postText.length}/280
+                    </div>
+                  </div>
+                  
                   <div className="space-y-2">
                     <Button 
                       className="w-full"
@@ -169,13 +236,14 @@ const VideoStudio: React.FC = () => {
                       variant="outline"
                       className="w-full"
                       onClick={handlePostToX}
+                      disabled={isPosting || selectedMedia.length === 0 || !user?.xLinked}
                       style={{ 
                         backgroundColor: "#1DA1F2", 
                         color: "white",
                         border: "none"
                       }}
                     >
-                      Share to X
+                      {isPosting ? "Posting..." : "Share to X"}
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">

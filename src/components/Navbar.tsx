@@ -18,9 +18,14 @@ const Navbar: React.FC = () => {
       <div className="container mx-auto flex items-center justify-between px-4 md:px-6">
         <Link 
           to="/" 
-          className="flex items-center space-x-2"
+          className="flex items-center space-x-1"
         >
-          <span className="font-bold text-2xl bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">Posted Pal</span>
+          <span className="font-black text-2xl text-black tracking-tight">
+            Posted
+          </span>
+          <span className="font-serif text-2xl italic bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+            Pal
+          </span>
         </Link>
 
         {/* Desktop Navigation */}

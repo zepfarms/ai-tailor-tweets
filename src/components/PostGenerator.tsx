@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCw, Calendar, Share, TrendingUp } from 'lucide-react';
+import { RefreshCw, Calendar, Share, TrendingUp, ImagePlus, X } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
@@ -23,6 +23,9 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const [isPosting, setIsPosting] = useState(false);
   const [suggestedPosts, setSuggestedPosts] = useState<string[]>([]);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user, postToX } = useAuth();
 
@@ -31,6 +34,12 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       generateSuggestedPosts();
     }
   }, [selectedTopics]);
+
+  useEffect(() => {
+    return () => {
+      mediaPreviews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [mediaPreviews]);
 
   const generateSuggestedPosts = async () => {
     setIsLoadingTrends(true);
@@ -176,10 +185,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   };
 
   const handleSchedule = () => {
-    if (!content.trim()) {
+    if (!content.trim() && mediaFiles.length === 0) {
       toast({
         title: "Error",
-        description: "Please generate or write content first",
+        description: "Please add content or media first",
         variant: "destructive",
       });
       return;
@@ -197,33 +206,74 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     }, 800);
   };
 
-  const handlePost = () => {
-    if (!content.trim()) {
+  const handleMediaSelect = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (mediaFiles.length + files.length > 4) {
       toast({
-        title: "Error",
-        description: "Please generate or write content first",
+        title: "Too many files",
+        description: "You can only attach up to 4 media items",
         variant: "destructive",
       });
       return;
     }
 
-    setIsPosting(true);
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    Array.from(files).forEach(file => {
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        toast({
+          title: "Unsupported file type",
+          description: "Only images and videos are supported",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const sizeLimit = file.type.startsWith('video/') ? 15 * 1024 * 1024 : 10 * 1024 * 1024;
+      if (file.size > sizeLimit) {
+        toast({
+          title: "File too large",
+          description: file.type.startsWith('video/') 
+            ? "Videos must be smaller than 15MB" 
+            : "Images must be smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      newFiles.push(file);
+      newPreviews.push(URL.createObjectURL(file));
+    });
+
+    setMediaFiles(prev => [...prev, ...newFiles]);
+    setMediaPreviews(prev => [...prev, ...newPreviews]);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeMedia = (index: number) => {
+    URL.revokeObjectURL(mediaPreviews[index]);
     
-    setTimeout(() => {
-      onPost(content);
-      setIsPosting(false);
-      toast({
-        title: "Success",
-        description: "Post published successfully",
-      });
-    }, 800);
+    setMediaFiles(prev => prev.filter((_, i) => i !== index));
+    setMediaPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const postDirectlyToX = async () => {
-    if (!content.trim()) {
+    if (!content.trim() && mediaFiles.length === 0) {
       toast({
         title: "Error",
-        description: "Please generate or write content first",
+        description: "Please add content or media first",
         variant: "destructive",
       });
       return;
@@ -241,7 +291,18 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     setIsPosting(true);
     
     try {
-      await postToX(content);
+      const media = await Promise.all(
+        mediaFiles.map(async (file) => {
+          const arrayBuffer = await file.arrayBuffer();
+          return {
+            data: arrayBuffer,
+            type: file.type,
+            size: file.size
+          };
+        })
+      );
+      
+      await postToX(content, media.length > 0 ? media : undefined);
       
       toast({
         title: "Success",
@@ -260,10 +321,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   };
 
   const openXWebIntent = () => {
-    if (!content.trim()) {
+    if (!content.trim() && mediaFiles.length === 0) {
       toast({
         title: "Error",
-        description: "Please generate or write content first",
+        description: "Please add content or media first",
         variant: "destructive",
       });
       return;
@@ -356,6 +417,63 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
           />
         </div>
         
+        <div className="mb-4">
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden" 
+            accept="image/*, video/*"
+            multiple
+          />
+          
+          {mediaPreviews.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {mediaPreviews.map((preview, index) => (
+                <div key={index} className="relative rounded-md overflow-hidden aspect-video bg-gray-100">
+                  {mediaFiles[index]?.type.startsWith('video/') ? (
+                    <video 
+                      src={preview} 
+                      className="w-full h-full object-cover" 
+                      controls
+                    />
+                  ) : (
+                    <img 
+                      src={preview} 
+                      alt={`Media ${index + 1}`} 
+                      className="w-full h-full object-cover" 
+                    />
+                  )}
+                  <button 
+                    onClick={() => removeMedia(index)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+                    type="button"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleMediaSelect}
+            disabled={mediaFiles.length >= 4}
+            className="w-full flex items-center justify-center gap-2 border-dashed"
+          >
+            <ImagePlus className="h-4 w-4" />
+            {mediaFiles.length > 0 ? `Add More Media (${mediaFiles.length}/4)` : "Add Photos/Videos"}
+          </Button>
+          
+          {mediaFiles.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {mediaFiles.filter(f => f.type.startsWith('image/')).length} photos, {mediaFiles.filter(f => f.type.startsWith('video/')).length} videos added
+            </p>
+          )}
+        </div>
+        
         <div className="flex flex-wrap gap-3 justify-between">
           <Button 
             onClick={generatePost} 
@@ -375,7 +493,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
             <Button 
               onClick={handleSchedule} 
               variant="outline" 
-              disabled={isSaving || !content.trim()}
+              disabled={isSaving || (!content.trim() && mediaFiles.length === 0)}
               className="flex items-center gap-2"
             >
               {isSaving ? (
@@ -387,8 +505,8 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
             </Button>
             
             <Button 
-              onClick={openXWebIntent}
-              disabled={!content.trim()}
+              onClick={postDirectlyToX}
+              disabled={isPosting || (!content.trim() && mediaFiles.length === 0) || !user?.xLinked}
               className="flex items-center gap-2 button-glow"
               style={{ 
                 backgroundColor: "#1DA1F2", 
@@ -397,7 +515,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
               }}
             >
               <Share className="w-4 h-4" />
-              Post via Web
+              Post to X
             </Button>
           </div>
         </div>
