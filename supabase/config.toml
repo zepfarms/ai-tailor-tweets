@@ -1,1 +1,11 @@
+
 project_id = "rsbzrlvezpcejzyvkmpx"
+
+[functions.twitter-request-token]
+verify_jwt = false
+
+[functions.twitter-access-token]
+verify_jwt = false
+
+[functions.twitter-post]
+verify_jwt = false

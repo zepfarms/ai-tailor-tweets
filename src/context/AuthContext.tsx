@@ -445,32 +445,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Initiating X account linking process...');
       console.log('User ID:', user.id);
       
-      const requestUrl = `${window.location.origin}/.netlify/functions/twitter-request-token`;
-      console.log('Request URL:', requestUrl);
-      
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: user.id,
-        }),
+      const { data, error } = await supabase.functions.invoke('twitter-request-token', {
+        body: { userId: user.id }
       });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response from server:', errorText);
-        throw new Error(`Request failed with status ${response.status}: ${response.statusText}`);
+
+      if (error) {
+        console.error('Error from twitter-request-token function:', error);
+        throw new Error(error.message || 'Failed to get authorization URL');
       }
       
-      let data;
-      try {
-        data = await response.json();
-        console.log('Response data:', data);
-      } catch (parseError) {
-        console.error('Failed to parse JSON response:', parseError);
-        throw new Error('Invalid response from server: Could not parse JSON');
+      console.log('Response data:', data);
+      
+      if (!data) {
+        throw new Error('No response data received');
       }
       
       if (data.error) {
@@ -479,11 +466,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data.authUrl) {
         console.log('Auth URL received, redirecting to:', data.authUrl);
-        // Store state and code verifier in localStorage for the callback
         localStorage.setItem('x_state', data.state);
         localStorage.setItem('x_user_id', user.id);
         
-        // Redirect to Twitter auth URL
         window.location.href = data.authUrl;
         return Promise.resolve();
       } else {
@@ -506,21 +491,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     try {
-      const response = await fetch(
-        `${window.location.origin}/.netlify/functions/twitter-post`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            content,
-          }),
-        }
-      );
+      const { data, error } = await supabase.functions.invoke('twitter-post', {
+        body: { userId: user.id, content }
+      });
       
-      const data = await response.json();
+      if (error) {
+        throw new Error(error.message || 'Failed to post to X');
+      }
       
       if (data.error) {
         throw new Error(data.error);

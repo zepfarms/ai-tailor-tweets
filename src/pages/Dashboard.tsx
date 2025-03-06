@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
-import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 
@@ -16,6 +17,7 @@ const Dashboard: React.FC = () => {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [linkingError, setLinkingError] = useState<string | null>(null);
   const [linkButtonClicked, setLinkButtonClicked] = useState(false);
+  const [isDebugVisible, setIsDebugVisible] = useState(false);
   
   const { user, isLoading, isLinkingX, linkXAccount } = useAuth();
 
@@ -112,6 +114,10 @@ const Dashboard: React.FC = () => {
     navigate('/create');
   };
 
+  const toggleDebugInfo = () => {
+    setIsDebugVisible(!isDebugVisible);
+  };
+
   if (isPageLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -139,12 +145,41 @@ const Dashboard: React.FC = () => {
       <Navbar />
       
       <main className="flex-1 container mx-auto px-4 md:px-6 py-12 mt-16">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {user.name}</h1>
-          <p className="text-muted-foreground">
-            Manage your content and post scheduling
-          </p>
+        <header className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Welcome, {user.name}</h1>
+            <p className="text-muted-foreground">
+              Manage your content and post scheduling
+            </p>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={toggleDebugInfo}
+            className="text-xs"
+          >
+            {isDebugVisible ? "Hide Debug" : "Show Debug"}
+          </Button>
         </header>
+
+        {isDebugVisible && (
+          <Card className="mb-6 bg-slate-50 dark:bg-slate-900">
+            <CardHeader>
+              <CardTitle className="text-sm">Debug Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs font-mono overflow-auto max-h-40">
+                <p>User ID: {user.id}</p>
+                <p>X Linked: {user.xLinked ? "Yes" : "No"}</p>
+                <p>X Username: {user.xUsername || "None"}</p>
+                <p>isLinkingX: {isLinkingX ? "Yes" : "No"}</p>
+                <p>linkButtonClicked: {linkButtonClicked ? "Yes" : "No"}</p>
+                <p>linkingError: {linkingError || "None"}</p>
+                <p>Environment: {window.location.origin}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <AnalyticsCard
@@ -209,8 +244,9 @@ const Dashboard: React.FC = () => {
                     Connect your X account to start creating and scheduling posts
                   </p>
                   {linkingError && (
-                    <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded-md w-full">
-                      {linkingError}
+                    <div className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-md w-full flex items-center justify-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{linkingError}</span>
                     </div>
                   )}
                   <Button 

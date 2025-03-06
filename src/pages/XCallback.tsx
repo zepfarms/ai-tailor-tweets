@@ -29,28 +29,20 @@ const XCallback: React.FC = () => {
         
         console.log('Exchanging code for access token...');
         
-        // Exchange the code for access token
-        const response = await fetch(
-          `${window.location.origin}/.netlify/functions/twitter-access-token`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              code,
-              state,
-            }),
-          }
-        );
+        // Call Supabase Edge Function instead of Netlify function
+        const { data, error: functionError } = await supabase.functions.invoke('twitter-access-token', {
+          body: { code, state }
+        });
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error response from server:', errorText);
-          throw new Error(`Failed to exchange code: ${response.status} ${response.statusText}`);
+        if (functionError) {
+          console.error('Error from twitter-access-token function:', functionError);
+          throw new Error(functionError.message || 'Failed to exchange code');
         }
         
-        const data = await response.json();
+        if (!data) {
+          throw new Error('No response data received');
+        }
+        
         console.log('Access token response received:', data);
         
         if (data.error) {
