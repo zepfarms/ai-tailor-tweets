@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -50,7 +51,8 @@ export type Topic =
   | "Travel"
   | "Gaming"
   | "Music"
-  | "Art";
+  | "Art"
+  | string; // Allow custom topics as strings
 
 export interface AuthContextType {
   user: User | null;

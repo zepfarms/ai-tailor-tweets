@@ -1,6 +1,9 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PlusCircle } from 'lucide-react';
 import { Topic } from '@/lib/types';
 
 interface TopicSelectionProps {
@@ -25,12 +28,22 @@ const availableTopics: Topic[] = [
 
 export const TopicSelection: React.FC<TopicSelectionProps> = ({ onSelectTopics }) => {
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
+  const [customTopic, setCustomTopic] = useState<string>('');
+  const [showCustomInput, setShowCustomInput] = useState<boolean>(false);
 
   const toggleTopic = (topic: Topic) => {
     if (selectedTopics.includes(topic)) {
       setSelectedTopics(selectedTopics.filter(t => t !== topic));
     } else {
       setSelectedTopics([...selectedTopics, topic]);
+    }
+  };
+
+  const handleAddCustomTopic = () => {
+    if (customTopic.trim() && !selectedTopics.includes(customTopic.trim())) {
+      setSelectedTopics([...selectedTopics, customTopic.trim()]);
+      setCustomTopic('');
+      setShowCustomInput(false);
     }
   };
 
@@ -62,7 +75,78 @@ export const TopicSelection: React.FC<TopicSelectionProps> = ({ onSelectTopics }
             {topic}
           </Button>
         ))}
+        
+        {/* Add Custom Topic Button */}
+        <Button
+          variant="outline"
+          className="border-dashed border-2 hover:border-blue-500 hover:text-blue-500"
+          onClick={() => setShowCustomInput(true)}
+        >
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Add Custom
+        </Button>
       </div>
+      
+      {/* Custom Topic Input */}
+      {showCustomInput && (
+        <div className="flex items-end gap-2 mt-4 animate-fade-in">
+          <div className="flex-1">
+            <Label htmlFor="customTopic" className="mb-2">
+              Enter your own topic
+            </Label>
+            <Input
+              id="customTopic"
+              value={customTopic}
+              onChange={(e) => setCustomTopic(e.target.value)}
+              placeholder="E.g., Cryptocurrency, Fitness, etc."
+              className="w-full"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddCustomTopic();
+                }
+              }}
+            />
+          </div>
+          <Button 
+            onClick={handleAddCustomTopic}
+            disabled={!customTopic.trim()}
+          >
+            Add
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => {
+              setShowCustomInput(false);
+              setCustomTopic('');
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
+      
+      {/* Selected Topics Display */}
+      {selectedTopics.length > 0 && (
+        <div className="mt-4">
+          <p className="text-sm text-muted-foreground mb-2">Selected Topics:</p>
+          <div className="flex flex-wrap gap-2">
+            {selectedTopics.map((topic) => (
+              <div 
+                key={topic}
+                className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm flex items-center"
+              >
+                {topic}
+                <button 
+                  className="ml-2 text-blue-500 hover:text-blue-700"
+                  onClick={() => toggleTopic(topic)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       <div className="flex justify-center mt-8">
         <Button 
