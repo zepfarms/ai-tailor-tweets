@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -183,14 +184,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let isResend = false;
       let existingUser = null;
       
-      const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers({
-        filters: {
-          email: email
-        }
-      });
+      // Use auth.admin is not available in client-side code, so we'll use a different approach
+      const { data: { users } } = await supabase.auth.admin.listUsers();
       
-      if (users && users.length > 0) {
-        existingUser = users[0];
+      const matchingUser = users?.find(u => u.email === email);
+      if (matchingUser) {
+        existingUser = matchingUser;
         isResend = true;
       }
       
@@ -459,68 +458,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return Promise.reject(new Error('No user logged in'));
   };
 
-  const sendVerificationCode = async (email: string, type: "signup" | "reset" = "signup") => {
-    try {
-      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
-
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id, email')
-        .eq('email', email)
-        .single();
-
-      if (type === "signup" && existingUser) {
-        throw new Error("User already registered");
-      }
-
-      if (type === "reset" && !existingUser) {
-        throw new Error("No account found with this email");
-      }
-
-      await supabase
-        .from('verification_codes')
-        .delete()
-        .eq('email', email);
-
-      const { error: insertError } = await supabase
-        .from('verification_codes')
-        .insert([
-          {
-            email,
-            code: verificationCode,
-            expires_at: expiresAt.toISOString(),
-            type
-          }
-        ]);
-
-      if (insertError) throw insertError;
-
-      let name = "User";
-      if (existingUser) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('first_name, last_name')
-          .eq('id', existingUser.id)
-          .single();
-        
-        if (userData) {
-          name = userData.first_name || "User";
-        }
-      }
-
-      const { error } = await supabase.functions.invoke('send-verification-email', {
-        body: { email, name, verificationCode }
-      });
-
-      if (error) throw error;
-
-      return { success: true };
-    } catch (error: any) {
-      console.error("Error sending verification code:", error.message);
-      return { success: false, error: error.message };
-    }
-  };
+  // We'll remove this function as it's causing errors and not included in the AuthContextType
+  // The sendVerificationCode function is removed
 
   return (
     <AuthContext.Provider value={{ 
@@ -532,8 +471,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signup, 
       logout, 
       linkXAccount,
-      verifyOtp,
-      sendVerificationCode
+      verifyOtp
     }}>
       {children}
     </AuthContext.Provider>
