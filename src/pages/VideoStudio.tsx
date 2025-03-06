@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -32,7 +31,6 @@ const VideoStudio: React.FC = () => {
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [postText, setPostText] = useState<string>("");
   
-  // State to store selected media and text elements
   const [selectedMedia, setSelectedMedia] = useState<File[]>([]);
   const [textElements, setTextElements] = useState<TextElement[]>([]);
   const [isPosting, setIsPosting] = useState(false);
@@ -73,7 +71,6 @@ const VideoStudio: React.FC = () => {
     setIsPosting(true);
 
     try {
-      // Prepare media data
       const media = await Promise.all(
         selectedMedia.map(async (file) => {
           const arrayBuffer = await file.arrayBuffer();
@@ -85,8 +82,12 @@ const VideoStudio: React.FC = () => {
         })
       );
       
-      // Post to X using the auth context function
-      await postToX(postText, media);
+      const postData = {
+        content: postText,
+        media
+      };
+      
+      await postToX(postData);
       
       toast({
         title: "Posted to X",

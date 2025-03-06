@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -291,18 +292,24 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     setIsPosting(true);
     
     try {
-      const media = await Promise.all(
-        mediaFiles.map(async (file) => {
-          const arrayBuffer = await file.arrayBuffer();
-          return {
-            data: arrayBuffer,
-            type: file.type,
-            size: file.size
-          };
-        })
-      );
+      // Create a single combined object for the postToX function
+      const postData = {
+        content,
+        media: mediaFiles.length > 0 ? 
+          await Promise.all(
+            mediaFiles.map(async (file) => {
+              const arrayBuffer = await file.arrayBuffer();
+              return {
+                data: arrayBuffer,
+                type: file.type,
+                size: file.size
+              };
+            })
+          ) : undefined
+      };
       
-      await postToX(content, media.length > 0 ? media : undefined);
+      // Call postToX with a single combined argument
+      await postToX(postData);
       
       toast({
         title: "Success",
