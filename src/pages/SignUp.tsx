@@ -20,10 +20,12 @@ const SignUp: React.FC = () => {
   const [showVerification, setShowVerification] = useState(false);
   const navigate = useNavigate();
   
-  // Redirect if user is already logged in
+  // Check if user is already verified and logged in
   useEffect(() => {
     if (user && !isLoading && !isVerifying) {
       navigate('/dashboard');
+    } else if (isVerifying) {
+      setShowVerification(true);
     }
   }, [user, isLoading, isVerifying, navigate]);
 
@@ -164,7 +166,7 @@ const SignUp: React.FC = () => {
                 <CardHeader className="space-y-1">
                   <CardTitle className="text-2xl font-bold text-center">Verify your email</CardTitle>
                   <CardDescription className="text-center">
-                    We've sent a verification code to your email
+                    We've sent a verification code to {email || "your email"}
                   </CardDescription>
                 </CardHeader>
                 
@@ -198,7 +200,15 @@ const SignUp: React.FC = () => {
                     <Button 
                       variant="link" 
                       className="p-0 h-auto text-blue-500 hover:text-blue-600 font-medium"
-                      onClick={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
+                      onClick={() => {
+                        if (email && name) {
+                          signup(email, password, name).catch(err => {
+                            setError(err instanceof Error ? err.message : 'Failed to resend verification code');
+                          });
+                        } else {
+                          setError('Email or name is missing. Please go back and try again.');
+                        }
+                      }}
                       disabled={isLoading}
                     >
                       Resend
