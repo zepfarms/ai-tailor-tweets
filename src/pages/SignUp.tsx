@@ -10,20 +10,22 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 const SignUp: React.FC = () => {
-  const { signup, isLoading, user } = useAuth();
+  const { signup, isLoading, user, isVerifying, verifyOtp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
+  const [showVerification, setShowVerification] = useState(false);
   const navigate = useNavigate();
   
   // Redirect if user is already logged in
   useEffect(() => {
-    if (user && !isLoading) {
+    if (user && !isLoading && !isVerifying) {
       navigate('/dashboard');
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, isVerifying, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,10 +37,28 @@ const SignUp: React.FC = () => {
     }
     
     try {
-      await signup(email, password, name);
-      // The navigation will be handled in the auth context after successful signup
+      const result = await signup(email, password, name);
+      if (result?.success) {
+        setShowVerification(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign up');
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!verificationCode.trim()) {
+      setError('Please enter the verification code');
+      return;
+    }
+    
+    try {
+      await verifyOtp(email, verificationCode);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify code');
     }
   };
 
@@ -61,81 +81,132 @@ const SignUp: React.FC = () => {
       <main className="flex-1 flex items-center justify-center py-12 px-4 mt-16">
         <div className="w-full max-w-md">
           <Card className="glass-card animate-scale-in">
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
-              <CardDescription className="text-center">
-                Enter your information to create your account
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input 
-                    id="name"
-                    type="text"
-                    placeholder="John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
+            {!showVerification ? (
+              <>
+                <CardHeader className="space-y-1">
+                  <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
+                  <CardDescription className="text-center">
+                    Enter your information to create your account
+                  </CardDescription>
+                </CardHeader>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input 
+                        id="name"
+                        type="text"
+                        placeholder="John Doe"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input 
+                        id="email"
+                        type="email"
+                        placeholder="m@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input 
+                        id="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input 
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    {error && (
+                      <div className="text-sm text-destructive">{error}</div>
+                    )}
+                    
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? "Creating account..." : "Create account"}
+                    </Button>
+                  </form>
+                </CardContent>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input 
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
+                <CardFooter>
+                  <div className="text-sm text-center w-full">
+                    Already have an account?{" "}
+                    <Link to="/login" className="text-blue-500 hover:text-blue-600 font-medium">
+                      Log in
+                    </Link>
+                  </div>
+                </CardFooter>
+              </>
+            ) : (
+              <>
+                <CardHeader className="space-y-1">
+                  <CardTitle className="text-2xl font-bold text-center">Verify your email</CardTitle>
+                  <CardDescription className="text-center">
+                    We've sent a verification code to your email
+                  </CardDescription>
+                </CardHeader>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <Input 
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
-                </div>
+                <CardContent>
+                  <form onSubmit={handleVerify} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="verificationCode">Verification Code</Label>
+                      <Input 
+                        id="verificationCode"
+                        type="text"
+                        placeholder="Enter the 6-digit code"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    {error && (
+                      <div className="text-sm text-destructive">{error}</div>
+                    )}
+                    
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? "Verifying..." : "Verify Email"}
+                    </Button>
+                  </form>
+                </CardContent>
                 
-                {error && (
-                  <div className="text-sm text-destructive">{error}</div>
-                )}
-                
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Create account"}
-                </Button>
-              </form>
-            </CardContent>
-            
-            <CardFooter>
-              <div className="text-sm text-center w-full">
-                Already have an account?{" "}
-                <Link to="/login" className="text-blue-500 hover:text-blue-600 font-medium">
-                  Log in
-                </Link>
-              </div>
-            </CardFooter>
+                <CardFooter>
+                  <div className="text-sm text-center w-full">
+                    Didn't receive a code?{" "}
+                    <Button 
+                      variant="link" 
+                      className="p-0 h-auto text-blue-500 hover:text-blue-600 font-medium"
+                      onClick={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
+                      disabled={isLoading}
+                    >
+                      Resend
+                    </Button>
+                  </div>
+                </CardFooter>
+              </>
+            )}
           </Card>
         </div>
       </main>

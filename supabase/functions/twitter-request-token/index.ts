@@ -3,7 +3,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
-const CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "";
+const CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://www.postedpal.com/x-callback";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

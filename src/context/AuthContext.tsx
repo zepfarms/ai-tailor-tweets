@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -10,6 +11,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLinkingX, setIsLinkingX] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -163,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           data: {
             name,
           },
+          emailRedirectTo: 'https://www.postedpal.com/verify-email',
         },
       });
       
@@ -170,15 +173,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data.user) {
         toast({
-          title: "Account created",
-          description: "Welcome to PostAI!",
+          title: "Verification email sent",
+          description: "Please check your email to verify your account",
         });
-        navigate('/dashboard');
+        
+        setIsVerifying(true);
+        return { success: true, user: data.user };
       }
     } catch (error) {
       console.error('Signup error:', error);
       toast({
         title: "Sign up failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const verifyOtp = async (email: string, token: string) => {
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
+      });
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        toast({
+          title: "Email verified",
+          description: "Your account has been verified successfully!",
+        });
+        
+        setIsVerifying(false);
+        navigate('/dashboard');
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      toast({
+        title: "Verification failed",
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
@@ -235,10 +277,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, 
       isLoading, 
       isLinkingX,
+      isVerifying,
       login, 
       signup, 
       logout, 
-      linkXAccount 
+      linkXAccount,
+      verifyOtp
     }}>
       {children}
     </AuthContext.Provider>
