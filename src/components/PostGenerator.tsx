@@ -24,10 +24,9 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const [suggestedPosts, setSuggestedPosts] = useState<string[]>([]);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, postToX } = useAuth();
 
   useEffect(() => {
-    // Generate post suggestions when topics are selected
     if (selectedTopics.length > 0) {
       generateSuggestedPosts();
     }
@@ -112,12 +111,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       
       selectedTopics.forEach(topic => {
         if (mockTrendingTopics[topic]) {
-          // Add all posts for this topic
           generated = [...generated, ...mockTrendingTopics[topic]];
         }
       });
       
-      // Shuffle the array to mix up the topics
       generated = generated.sort(() => Math.random() - 0.5).slice(0, 6);
       
       setSuggestedPosts(generated);
@@ -272,11 +269,9 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
-    // Simple X Web Intent implementation that doesn't require authentication
     let intentUrl = "https://twitter.com/intent/tweet?";
     intentUrl += "text=" + encodeURIComponent(content);
     
-    // Open in a popup window
     window.open(intentUrl, "_blank", "width=550,height=420");
     
     toast({
@@ -284,7 +279,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       description: "Complete your post in the X window",
     });
     
-    // Call the onPost function to handle any UI updates or redirects
     onPost(content);
   };
 
