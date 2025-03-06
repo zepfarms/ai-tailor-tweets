@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType } from '@/lib/types';
@@ -33,7 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: authUser.id,
             email: authUser.email || '',
             name: authUser.user_metadata.name || 'User',
-            xLinked: false, // Initialize as false, will check in the next useEffect
+            xLinked: false,
           };
           
           setUser(appUser);
@@ -86,7 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (!authUser.email_confirmed_at) {
           setIsVerifying(true);
-          navigate('/signup'); // Keep on signup page for verification
+          navigate('/signup');
           return;
         }
         
@@ -94,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: authUser.id,
           email: authUser.email || '',
           name: authUser.user_metadata.name || 'User',
-          xLinked: false, // Initialize as false, will check in separate effect
+          xLinked: false,
         };
         
         setUser(appUser);
@@ -174,7 +173,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // Use a different approach to check for existing users
       const { data: existingUserData, error: existingUserError } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -185,7 +183,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let isResend = false;
       let existingUser = null;
       
-      // Try to find any existing users through the session
       const { data: sessionData } = await supabase.auth.getSession();
       const matchingUser = sessionData?.session?.user;
       if (matchingUser && matchingUser.email === email) {
@@ -445,7 +442,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLinkingX(true);
     
     try {
-      // Call the Twitter request token function to get auth URL
       const response = await fetch(
         `${window.location.origin}/.netlify/functions/twitter-request-token`,
         {
@@ -466,12 +462,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       if (data.authUrl) {
-        // Store code verifier and state in local storage
         localStorage.setItem('x_code_verifier', data.codeVerifier);
         localStorage.setItem('x_state', data.state);
         localStorage.setItem('x_user_id', user.id);
-        
-        // Redirect to Twitter auth URL
         window.location.href = data.authUrl;
         return Promise.resolve();
       } else {
@@ -484,8 +477,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // We'll remove this function as it's causing errors and not included in the AuthContextType
-  // The sendVerificationCode function is removed
+  const postToX = async (content: string) => {
+    if (!user) {
+      return Promise.reject(new Error('No user logged in'));
+    }
+    
+    if (!user.xLinked) {
+      return Promise.reject(new Error('X account not linked'));
+    }
+    
+    try {
+      const response = await fetch(
+        `${window.location.origin}/.netlify/functions/twitter-post`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            content,
+          }),
+        }
+      );
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error posting to X:', error);
+      return Promise.reject(error);
+    }
+  };
 
   return (
     <AuthContext.Provider value={{ 
@@ -497,6 +524,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signup, 
       logout, 
       linkXAccount,
+      postToX,
       verifyOtp
     }}>
       {children}

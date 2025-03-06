@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { OAuth } from "https://deno.land/x/oauth2_client@v1.0.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
@@ -23,44 +22,72 @@ serve(async (req) => {
   try {
     console.log("Twitter access token function called");
     
-    const { code, codeVerifier, state, userId } = await req.json();
+    const { code, state } = await req.json();
+    
+    if (!code) {
+      throw new Error("Authorization code is required");
+    }
+    
+    if (!state) {
+      throw new Error("State parameter is required");
+    }
     
     console.log("Code provided:", !!code);
-    console.log("Code verifier length:", codeVerifier?.length);
     console.log("State:", state);
-    console.log("User ID:", userId);
     
-    // Extract userId from state if it's in the format "uuid_userId"
-    let extractedUserId = userId;
-    if (state && state.includes("_")) {
-      extractedUserId = state.split("_")[1];
-      console.log("Extracted user ID from state:", extractedUserId);
+    // Create Supabase client
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    
+    // Retrieve the stored OAuth state
+    const { data: oauthData, error: oauthError } = await supabase
+      .from('oauth_states')
+      .select('*')
+      .eq('state', state)
+      .eq('provider', 'twitter')
+      .single();
+    
+    if (oauthError || !oauthData) {
+      console.error("Error retrieving OAuth state:", oauthError);
+      throw new Error("Invalid state parameter");
     }
     
-    if (!extractedUserId) {
-      throw new Error("User ID is required");
-    }
-
-    const oauth = new OAuth({
-      clientId: TWITTER_CLIENT_ID,
-      clientSecret: TWITTER_CLIENT_SECRET,
-      authorizationEndpointUri: "https://twitter.com/i/oauth2/authorize",
-      tokenUri: "https://api.twitter.com/2/oauth2/token",
-      redirectUri: TWITTER_CALLBACK_URL,
-      scope: ["tweet.read", "tweet.write", "users.read", "offline.access"],
-      state,
-      codeChallengeMethod: "S256",
+    const userId = oauthData.user_id;
+    const codeVerifier = oauthData.code_verifier;
+    
+    console.log("Retrieved user ID:", userId);
+    console.log("Code verifier found:", !!codeVerifier);
+    
+    // Exchange the authorization code for an access token
+    const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`)}`,
+      },
+      body: new URLSearchParams({
+        code,
+        grant_type: "authorization_code",
+        client_id: TWITTER_CLIENT_ID,
+        redirect_uri: TWITTER_CALLBACK_URL,
+        code_verifier: codeVerifier,
+      }),
     });
-
-    const tokens = await oauth.code.getToken(code, codeVerifier);
-    console.log("Token response:", !!tokens);
-    console.log("Access token length:", tokens.accessToken?.length);
-    console.log("Refresh token:", !!tokens.refreshToken);
-
+    
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenResponse.ok) {
+      console.error("Token response error:", tokenData);
+      throw new Error(tokenData.error_description || "Failed to exchange code for token");
+    }
+    
+    console.log("Token response:", !!tokenData);
+    console.log("Access token obtained:", !!tokenData.access_token);
+    console.log("Refresh token:", !!tokenData.refresh_token);
+    
     // Get Twitter user info
     const userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
       headers: {
-        Authorization: `Bearer ${tokens.accessToken}`,
+        Authorization: `Bearer ${tokenData.access_token}`,
       },
     });
 
@@ -68,31 +95,26 @@ serve(async (req) => {
     console.log("User data:", userData);
 
     if (userData.data) {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
       // Store the Twitter account information in the database
       const { error } = await supabase.from("x_accounts").upsert({
-        user_id: extractedUserId,
+        user_id: userId,
         x_user_id: userData.data.id,
         x_username: userData.data.username,
         profile_image_url: userData.data.profile_image_url,
-        access_token: tokens.accessToken,
-        access_token_secret: tokens.refreshToken || "",
+        access_token: tokenData.access_token,
+        access_token_secret: tokenData.refresh_token || "",
       });
 
       if (error) {
         console.error("Error storing Twitter account:", error);
-        return new Response(
-          JSON.stringify({ error: "Failed to store Twitter account" }),
-          {
-            status: 500,
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          }
-        );
+        throw new Error("Failed to store Twitter account");
       }
+      
+      // Clean up the OAuth state
+      await supabase
+        .from('oauth_states')
+        .delete()
+        .eq('state', state);
 
       return new Response(
         JSON.stringify({
@@ -107,16 +129,7 @@ serve(async (req) => {
         }
       );
     } else {
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch Twitter user data" }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        }
-      );
+      throw new Error("Failed to fetch Twitter user data");
     }
   } catch (error) {
     console.error("Error:", error);

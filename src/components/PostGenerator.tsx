@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { RefreshCw, Calendar, Send, Check, Share, TrendingUp } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
+import { useAuth } from '@/context/AuthContext';
 
 interface PostGeneratorProps {
   selectedTopics: Topic[];
@@ -24,6 +24,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const [suggestedPosts, setSuggestedPosts] = useState<string[]>([]);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
   const { toast } = useToast();
+  const { user, postToX } = useAuth();
 
   useEffect(() => {
     // Generate post suggestions when topics are selected
@@ -221,6 +222,46 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     }, 800);
   };
 
+  const postDirectlyToX = async () => {
+    if (!content.trim()) {
+      toast({
+        title: "Error",
+        description: "Please generate or write content first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user?.xLinked) {
+      toast({
+        title: "Error",
+        description: "Please link your X account first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPosting(true);
+    
+    try {
+      await postToX(content);
+      
+      toast({
+        title: "Success",
+        description: "Your post has been published to X",
+      });
+    } catch (error) {
+      console.error("Error posting to X:", error);
+      toast({
+        title: "Failed to post to X",
+        description: error instanceof Error ? error.message : "Please try again later",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
   const postToX = () => {
     if (!content.trim()) {
       toast({
@@ -348,19 +389,39 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
               {isSaving ? "Scheduling..." : "Schedule"}
             </Button>
             
-            <Button 
-              onClick={postToX}
-              disabled={!content.trim()}
-              className="flex items-center gap-2"
-              style={{ 
-                backgroundColor: "#1DA1F2", 
-                color: "white",
-                border: "none"
-              }}
-            >
-              <Share className="w-4 h-4" />
-              Post to X
-            </Button>
+            {user?.xLinked ? (
+              <Button 
+                onClick={postDirectlyToX}
+                disabled={isPosting || !content.trim()}
+                className="flex items-center gap-2"
+                style={{ 
+                  backgroundColor: "#1DA1F2", 
+                  color: "white",
+                  border: "none"
+                }}
+              >
+                {isPosting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Share className="w-4 h-4" />
+                )}
+                {isPosting ? "Posting..." : "Post to X"}
+              </Button>
+            ) : (
+              <Button 
+                onClick={postToX}
+                disabled={!content.trim()}
+                className="flex items-center gap-2"
+                style={{ 
+                  backgroundColor: "#1DA1F2", 
+                  color: "white",
+                  border: "none"
+                }}
+              >
+                <Share className="w-4 h-4" />
+                Post via Web
+              </Button>
+            )}
             
             <Button 
               onClick={handlePost} 

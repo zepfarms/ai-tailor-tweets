@@ -1,19 +1,21 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const XCallback: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Get the authorization code from the URL
-        const urlParams = new URLSearchParams(window.location.search);
+        // Get the authorization code and state from the URL
+        const urlParams = new URLSearchParams(location.search);
         const code = urlParams.get('code');
         const state = urlParams.get('state');
         
@@ -23,23 +25,6 @@ const XCallback: React.FC = () => {
         
         if (!state) {
           throw new Error('No state parameter received');
-        }
-        
-        // Retrieve the code verifier and user ID from localStorage
-        const codeVerifier = localStorage.getItem('x_code_verifier');
-        const userId = localStorage.getItem('x_user_id');
-        const savedState = localStorage.getItem('x_state');
-        
-        if (!codeVerifier) {
-          throw new Error('No code verifier found');
-        }
-        
-        if (!userId) {
-          throw new Error('No user ID found');
-        }
-        
-        if (state !== savedState) {
-          throw new Error('State mismatch - possible CSRF attack');
         }
         
         // Exchange the code for access token
@@ -52,9 +37,7 @@ const XCallback: React.FC = () => {
             },
             body: JSON.stringify({
               code,
-              codeVerifier,
               state,
-              userId,
             }),
           }
         );
@@ -66,11 +49,6 @@ const XCallback: React.FC = () => {
         }
         
         if (data.success && data.username) {
-          // Clear localStorage items
-          localStorage.removeItem('x_code_verifier');
-          localStorage.removeItem('x_state');
-          localStorage.removeItem('x_user_id');
-          
           // Redirect to dashboard with success parameter
           navigate(`/dashboard?x_auth_success=true&username=${data.username}`);
         } else {
@@ -79,11 +57,6 @@ const XCallback: React.FC = () => {
       } catch (err) {
         console.error('Error in X callback:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
-        
-        // Clear localStorage items
-        localStorage.removeItem('x_code_verifier');
-        localStorage.removeItem('x_state');
-        localStorage.removeItem('x_user_id');
         
         toast({
           title: 'Failed to link X account',
@@ -99,7 +72,7 @@ const XCallback: React.FC = () => {
     };
     
     handleCallback();
-  }, [navigate, toast]);
+  }, [navigate, toast, location.search]);
   
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">

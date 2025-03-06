@@ -51,5 +51,6 @@ export interface AuthContextType {
   signup: (email: string, password: string, name: string) => Promise<any>;
   logout: () => Promise<void>;
   linkXAccount: () => Promise<void>;
+  postToX: (content: string) => Promise<any>;
   verifyOtp: (email: string, token: string) => Promise<boolean>;
 }
