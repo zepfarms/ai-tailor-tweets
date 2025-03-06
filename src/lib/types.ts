@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email: string;
@@ -27,6 +26,17 @@ export interface Post {
   userId: string;
 }
 
+export interface MediaItem {
+  data: ArrayBuffer;
+  type: string;
+  size: number;
+}
+
+export interface PostToXData {
+  content: string;
+  media?: MediaItem[];
+}
+
 export type Topic = 
   | "Technology"
   | "Politics"
@@ -51,6 +61,6 @@ export interface AuthContextType {
   signup: (email: string, password: string, name: string) => Promise<any>;
   logout: () => Promise<void>;
   linkXAccount: () => Promise<void>;
-  postToX: (content: string) => Promise<any>;
+  postToX: (data: PostToXData) => Promise<any>;
   verifyOtp: (email: string, token: string) => Promise<boolean>;
 }

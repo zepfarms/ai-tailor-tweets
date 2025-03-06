@@ -484,7 +484,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const postToX = async (content: string) => {
+  const postToX = async (data: PostToXData) => {
     if (!user) {
       return Promise.reject(new Error('No user logged in'));
     }
@@ -494,19 +494,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     try {
-      const { data, error } = await supabase.functions.invoke('twitter-post', {
-        body: { userId: user.id, content }
+      const { data: responseData, error } = await supabase.functions.invoke('twitter-post', {
+        body: { userId: user.id, content: data.content, media: data.media }
       });
       
       if (error) {
         throw new Error(error.message || 'Failed to post to X');
       }
       
-      if (data.error) {
-        throw new Error(data.error);
+      if (responseData.error) {
+        throw new Error(responseData.error);
       }
       
-      return data;
+      return responseData;
     } catch (error) {
       console.error('Error posting to X:', error);
       return Promise.reject(error);

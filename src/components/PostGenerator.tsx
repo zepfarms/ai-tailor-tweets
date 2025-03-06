@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -292,7 +291,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     setIsPosting(true);
     
     try {
-      // Create a single combined object for the postToX function
       const postData = {
         content,
         media: mediaFiles.length > 0 ? 
@@ -308,7 +306,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
           ) : undefined
       };
       
-      // Call postToX with a single combined argument
       await postToX(postData);
       
       toast({
