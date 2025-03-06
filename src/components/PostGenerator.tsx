@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCw, Calendar, Share, TrendingUp, ImagePlus, X } from 'lucide-react';
+import { RefreshCw, Calendar, Share, TrendingUp, ImagePlus, X, AlertCircle } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PostGeneratorProps {
   selectedTopics: Topic[];
@@ -386,6 +387,16 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     });
   };
 
+  const getPostButtonDisabledReason = (): string | null => {
+    if (!user?.xLinked) {
+      return "You need to link your X account in settings first";
+    }
+    if (!content.trim() && mediaFiles.length === 0) {
+      return "Please add content or media before posting";
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="text-center">
@@ -539,25 +550,49 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
               {isSaving ? "Scheduling..." : "Schedule"}
             </Button>
             
-            <Button 
-              onClick={postDirectlyToX}
-              disabled={isPosting || (!content.trim() && mediaFiles.length === 0) || !user?.xLinked}
-              className="flex items-center gap-2 button-glow"
-              style={{ 
-                backgroundColor: "#1DA1F2", 
-                color: "white",
-                border: "none"
-              }}
-            >
-              <Share className="w-4 h-4" />
-              Post to X
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="inline-block">
+                    <Button 
+                      onClick={postDirectlyToX}
+                      disabled={isPosting || (!content.trim() && mediaFiles.length === 0) || !user?.xLinked}
+                      className="flex items-center gap-2 button-glow"
+                      style={{ 
+                        backgroundColor: "#1DA1F2", 
+                        color: "white",
+                        border: "none"
+                      }}
+                    >
+                      {isPosting ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Share className="w-4 h-4" />
+                      )}
+                      {!user?.xLinked && <AlertCircle className="w-4 h-4 ml-1" />}
+                      Post to X
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                {getPostButtonDisabledReason() && (
+                  <TooltipContent side="top">
+                    <p>{getPostButtonDisabledReason()}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </div>
       
       <div className="text-sm text-muted-foreground text-center">
         <p>Selected topics: {selectedTopics.join(", ")}</p>
+        {!user?.xLinked && (
+          <p className="mt-2 text-amber-500 flex items-center justify-center gap-1">
+            <AlertCircle className="w-4 h-4" />
+            Your X account is not linked. Visit Settings to link your account.
+          </p>
+        )}
       </div>
     </div>
   );
