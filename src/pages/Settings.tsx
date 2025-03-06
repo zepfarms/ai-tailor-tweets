@@ -11,7 +11,9 @@ const Settings: React.FC = () => {
 
   const handleLinkX = async () => {
     try {
-      await linkXAccount();
+      // Get the current hostname and protocol for the redirect
+      const redirectUri = window.location.origin + '/x-callback';
+      await linkXAccount(redirectUri);
     } catch (error) {
       console.error('Error linking X account:', error);
       toast({

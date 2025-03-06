@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType, PostToXData } from '@/lib/types';
@@ -435,53 +434,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const linkXAccount = async () => {
-    if (!user) {
-      return Promise.reject(new Error('No user logged in'));
-    }
-    
+  const linkXAccount = async (redirectUri?: string) => {
     setIsLinkingX(true);
-    
     try {
+      const redirectUrl = redirectUri || 'https://www.postedpal.com/x-callback';
+      
       console.log('Initiating X account linking process...');
-      console.log('User ID:', user.id);
+      console.log('User ID:', user?.id);
       
       const { data, error } = await supabase.functions.invoke('twitter-request-token', {
         body: { 
-          userId: user.id,
-          redirectUri: window.location.origin + '/x-callback'
-        }
+          userId: user?.id,
+          redirectUri: redirectUrl 
+        },
       });
 
       if (error) {
-        console.error('Error from twitter-request-token function:', error);
-        throw new Error(error.message || 'Failed to get authorization URL');
+        console.error('Error getting Twitter request token:', error);
+        throw new Error(error.message);
       }
-      
+
       console.log('Response data:', data);
       
-      if (!data) {
-        throw new Error('No response data received');
-      }
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      if (data.authUrl) {
+      if (data && data.authUrl) {
         console.log('Auth URL received, redirecting to:', data.authUrl);
-        localStorage.setItem('x_state', data.state);
-        localStorage.setItem('x_user_id', user.id);
-        
         window.location.href = data.authUrl;
-        return Promise.resolve();
       } else {
-        throw new Error('No auth URL returned from server');
+        throw new Error('Failed to receive authentication URL from Twitter');
       }
     } catch (error) {
-      console.error('Error initiating X auth:', error);
+      console.error('Error in linkXAccount:', error);
+      throw error;
+    } finally {
       setIsLinkingX(false);
-      return Promise.reject(error);
     }
   };
 

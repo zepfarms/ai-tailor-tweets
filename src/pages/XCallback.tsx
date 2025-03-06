@@ -1,94 +1,85 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 const XCallback: React.FC = () => {
+  const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
-  const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
-    const handleCallback = async () => {
+    const processCallback = async () => {
       try {
-        // Get the authorization code and state from the URL
-        const urlParams = new URLSearchParams(location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
+        // Get the query parameters from the URL
+        const queryParams = new URLSearchParams(location.search);
+        const code = queryParams.get('code');
+        const state = queryParams.get('state');
+        const error = queryParams.get('error');
         
-        if (!code) {
-          throw new Error('No authorization code received');
+        console.log('X Callback received:', { code, state, error });
+        
+        if (error) {
+          setError(`Twitter authorization error: ${error}`);
+          setTimeout(() => navigate('/settings'), 3000);
+          return;
         }
         
-        if (!state) {
-          throw new Error('No state parameter received');
+        if (!code || !state) {
+          setError('Missing required parameters from Twitter');
+          setTimeout(() => navigate('/settings'), 3000);
+          return;
         }
-        
-        console.log('Exchanging code for access token...');
-        
-        // Call Supabase Edge Function
-        const { data, error: functionError } = await supabase.functions.invoke('twitter-access-token', {
-          body: { code, state, redirectUri: window.location.origin + '/x-callback' }
+
+        // Exchange the code for an access token
+        const { data, error: tokenError } = await supabase.functions.invoke('twitter-access-token', {
+          body: { code, state, redirectUri: window.location.origin + '/x-callback' },
         });
-        
-        if (functionError) {
-          console.error('Error from twitter-access-token function:', functionError);
-          throw new Error(functionError.message || 'Failed to exchange code');
+
+        if (tokenError) {
+          console.error('Error exchanging code for token:', tokenError);
+          setError(tokenError.message);
+          setTimeout(() => navigate('/settings'), 3000);
+          return;
         }
+
+        console.log('Twitter account linked successfully');
         
-        if (!data) {
-          throw new Error('No response data received');
-        }
-        
-        console.log('Access token response received:', data);
-        
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        
-        if (data.success && data.username) {
-          console.log('Successfully linked X account for:', data.username);
-          // Redirect to dashboard with success parameter
-          navigate(`/dashboard?x_auth_success=true&username=${data.username}`);
-        } else {
-          throw new Error('Failed to link X account: No success confirmation received');
-        }
+        // Success! Redirect to the settings page
+        setTimeout(() => navigate('/settings'), 1000);
       } catch (err) {
-        console.error('Error in X callback:', err);
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
-        
-        toast({
-          title: 'Failed to link X account',
-          description: err instanceof Error ? err.message : 'Please try again later',
-          variant: 'destructive',
-        });
-        
-        // Redirect to dashboard after a delay
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 3000);
+        console.error('Error in X callback processing:', err);
+        setError('An unexpected error occurred. Please try again.');
+        setTimeout(() => navigate('/settings'), 3000);
+      } finally {
+        setIsProcessing(false);
       }
     };
-    
-    handleCallback();
-  }, [navigate, toast, location.search]);
-  
+
+    processCallback();
+  }, [location.search, navigate]);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      {error ? (
-        <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-red-500">Error Linking X Account</h1>
-          <p className="text-muted-foreground">{error}</p>
-          <p>Redirecting you back to dashboard...</p>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      {isProcessing ? (
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Connecting your X account</h1>
+          <p className="text-muted-foreground">Please wait while we finalize the connection...</p>
+        </div>
+      ) : error ? (
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2 text-destructive">Connection Error</h1>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <p>Redirecting you back to settings...</p>
         </div>
       ) : (
-        <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-          <h1 className="text-2xl font-bold">Linking Your X Account</h1>
-          <p className="text-muted-foreground">Please wait while we complete the connection...</p>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2 text-success">Success!</h1>
+          <p className="text-muted-foreground">Your X account has been connected successfully.</p>
+          <p>Redirecting you back to settings...</p>
         </div>
       )}
     </div>
