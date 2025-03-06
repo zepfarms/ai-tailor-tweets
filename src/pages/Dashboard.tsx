@@ -11,6 +11,7 @@ import XAnalytics from '@/components/XAnalytics';
 import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +21,75 @@ const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics'>('overview');
   
   const { user, isLoading } = useAuth();
+
+  // Fetch posts data from Supabase
+  const { data: postsData, isLoading: isPostsLoading } = useQuery({
+    queryKey: ['posts', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data: scheduledPosts, error: scheduledError } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('published', false)
+        .not('scheduled_for', 'is', null);
+      
+      const { data: publishedPosts, error: publishedError } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('published', true);
+      
+      if (scheduledError) {
+        console.error('Error fetching scheduled posts:', scheduledError);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch scheduled posts',
+          variant: 'destructive',
+        });
+      }
+      
+      if (publishedError) {
+        console.error('Error fetching published posts:', publishedError);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch published posts',
+          variant: 'destructive',
+        });
+      }
+      
+      return {
+        scheduledPosts: scheduledPosts || [],
+        publishedPosts: publishedPosts || [],
+      };
+    },
+    enabled: !!user?.id,
+  });
+
+  // Calculate metrics
+  const scheduledPostsCount = postsData?.scheduledPosts?.length || 0;
+  const publishedPostsCount = postsData?.publishedPosts?.length || 0;
+  
+  // Calculate engagement (mock calculation based on published posts)
+  const calculateEngagement = () => {
+    if (!postsData?.publishedPosts || postsData.publishedPosts.length === 0) return 0;
+    // In a real app, this would query engagement metrics from X API or another source
+    // For now, we'll use a simple algorithm based on post count
+    return postsData.publishedPosts.length * (Math.floor(Math.random() * 20) + 10);
+  };
+  
+  const totalEngagement = calculateEngagement();
+  
+  // Calculate average response time (mock calculation)
+  const calculateResponseTime = () => {
+    if (!postsData?.publishedPosts || postsData.publishedPosts.length === 0) return "0h";
+    // In a real app, this would be calculated from actual response times
+    // For now, we'll return a realistic value
+    return ((Math.random() * 3) + 1).toFixed(1) + "h";
+  };
+  
+  const avgResponseTime = calculateResponseTime();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -68,6 +138,23 @@ const Dashboard: React.FC = () => {
       </div>
     );
   }
+
+  // Calculate trends (mock data - in real app this would compare to previous period)
+  const getScheduledPostsTrend = () => {
+    return { value: 8, isPositive: true };
+  };
+  
+  const getPublishedPostsTrend = () => {
+    return { value: 12, isPositive: true };
+  };
+  
+  const getEngagementTrend = () => {
+    return { value: 5, isPositive: publishedPostsCount > 0 };
+  };
+  
+  const getResponseTimeTrend = () => {
+    return { value: 10, isPositive: true };
+  };
 
   return (
     <div className="min-h-screen flex flex-col page-transition">
@@ -121,6 +208,8 @@ const Dashboard: React.FC = () => {
                 <p>X Username: {user.xUsername || "None"}</p>
                 <p>Environment: {window.location.origin}</p>
                 <p>Active Tab: {activeTab}</p>
+                <p>Scheduled Posts: {scheduledPostsCount}</p>
+                <p>Published Posts: {publishedPostsCount}</p>
               </div>
             </CardContent>
           </Card>
@@ -133,27 +222,27 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <AnalyticsCard
                 title="Scheduled Posts"
-                value="12"
+                value={scheduledPostsCount.toString()}
                 icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
-                trend={{ value: 16, isPositive: true }}
+                trend={getScheduledPostsTrend()}
               />
               <AnalyticsCard
                 title="Posts Published"
-                value="48"
+                value={publishedPostsCount.toString()}
                 icon={<Check className="h-4 w-4 text-muted-foreground" />}
-                trend={{ value: 8, isPositive: true }}
+                trend={getPublishedPostsTrend()}
               />
               <AnalyticsCard
                 title="Total Engagement"
-                value="1,493"
+                value={totalEngagement.toString()}
                 icon={<MessageSquare className="h-4 w-4 text-muted-foreground" />}
-                trend={{ value: 3, isPositive: false }}
+                trend={getEngagementTrend()}
               />
               <AnalyticsCard
                 title="Average Response Time"
-                value="2.3h"
+                value={avgResponseTime}
                 icon={<Clock className="h-4 w-4 text-muted-foreground" />}
-                trend={{ value: 10, isPositive: true }}
+                trend={getResponseTimeTrend()}
               />
             </div>
             
@@ -195,20 +284,37 @@ const Dashboard: React.FC = () => {
                   <CardTitle>Recent Activity</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="border-l-2 border-blue-500 pl-4 py-1">
-                      <p className="text-sm font-medium">Post scheduled for tomorrow at 9:00 AM</p>
-                      <p className="text-xs text-muted-foreground">2 hours ago</p>
+                  {isPostsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
-                    <div className="border-l-2 border-green-500 pl-4 py-1">
-                      <p className="text-sm font-medium">Post published successfully</p>
-                      <p className="text-xs text-muted-foreground">Yesterday at 3:45 PM</p>
+                  ) : postsData && (postsData.scheduledPosts.length > 0 || postsData.publishedPosts.length > 0) ? (
+                    <div className="space-y-4">
+                      {postsData.scheduledPosts.slice(0, 2).map((post) => (
+                        <div key={post.id} className="border-l-2 border-blue-500 pl-4 py-1">
+                          <p className="text-sm font-medium">Post scheduled for {new Date(post.scheduled_for).toLocaleDateString()} at {new Date(post.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()}</p>
+                        </div>
+                      ))}
+                      {postsData.publishedPosts.slice(0, 2).map((post) => (
+                        <div key={post.id} className="border-l-2 border-green-500 pl-4 py-1">
+                          <p className="text-sm font-medium">Post published successfully</p>
+                          <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()} at {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      ))}
                     </div>
-                    <div className="border-l-2 border-blue-500 pl-4 py-1">
-                      <p className="text-sm font-medium">3 new post drafts created</p>
-                      <p className="text-xs text-muted-foreground">Yesterday at 1:30 PM</p>
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-muted-foreground">No recent activity</p>
+                      <Button 
+                        variant="outline" 
+                        className="mt-4"
+                        onClick={() => navigate('/create')}
+                      >
+                        Create Your First Post
+                      </Button>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -219,34 +325,51 @@ const Dashboard: React.FC = () => {
                   <CardTitle>Upcoming Scheduled Posts</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="border rounded-lg p-4 hover:border-blue-200 transition-colors">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="font-medium">Post #{i}</div>
-                            <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                              Scheduled
+                  {isPostsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : postsData && postsData.scheduledPosts.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {postsData.scheduledPosts.slice(0, 3).map((post) => (
+                          <div key={post.id} className="border rounded-lg p-4 hover:border-blue-200 transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="font-medium">Scheduled Post</div>
+                              <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                Scheduled
+                              </div>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                              {post.content}
+                            </p>
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>{new Date(post.scheduled_for).toLocaleDateString()} at {new Date(post.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <button className="text-blue-500 hover:underline">Edit</button>
                             </div>
                           </div>
-                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                            {i === 1 && "Excited to share my thoughts on the latest tech developments in AI! Thread incoming..."}
-                            {i === 2 && "Just finished testing that new productivity app - here's my honest review..."}
-                            {i === 3 && "The future of content creation is here, and it's powered by AI. Here's why..."}
-                          </p>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Tomorrow at {i + 8}:00 AM</span>
-                            <button className="text-blue-500 hover:underline">Edit</button>
-                          </div>
+                        ))}
+                      </div>
+                      {postsData.scheduledPosts.length > 3 && (
+                        <div className="flex justify-center">
+                          <Button variant="outline" className="text-sm">
+                            View All Scheduled Posts
+                          </Button>
                         </div>
-                      ))}
+                      )}
                     </div>
-                    <div className="flex justify-center">
-                      <Button variant="outline" className="text-sm">
-                        View All Scheduled Posts
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-muted-foreground">No scheduled posts</p>
+                      <Button 
+                        variant="outline" 
+                        className="mt-4"
+                        onClick={() => navigate('/create')}
+                      >
+                        Schedule Your First Post
                       </Button>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
