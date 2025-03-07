@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -16,6 +17,7 @@ type Stage = "analyze" | "topics" | "create" | "schedule";
 const CreatePost: React.FC = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [stage, setStage] = useState<Stage>("analyze");
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
   const [currentContent, setCurrentContent] = useState("");
@@ -27,7 +29,14 @@ const CreatePost: React.FC = () => {
       return;
     }
     
-    // Remove X-linked check to avoid redirects causing blank screens
+    // Check if returning from X web intent
+    const status = searchParams.get('status');
+    if (status === 'shared') {
+      toast({
+        title: "Shared to X",
+        description: "Your post has been shared to X successfully",
+      });
+    }
     
     // Simulate account analysis
     if (stage === "analyze") {
@@ -38,7 +47,7 @@ const CreatePost: React.FC = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [user, isLoading, navigate, stage]);
+  }, [user, isLoading, navigate, stage, searchParams]);
 
   const handleTopicSelection = (topics: Topic[]) => {
     setSelectedTopics(topics);
@@ -51,12 +60,19 @@ const CreatePost: React.FC = () => {
   };
 
   const handlePostNow = (content: string) => {
-    // Simulate posting and return to dashboard
+    // Open Twitter web intent in a new window
+    let intentUrl = "https://twitter.com/intent/tweet?";
+    intentUrl += "text=" + encodeURIComponent(content);
+    
+    window.open(intentUrl, "_blank", "width=550,height=420");
+    
     toast({
-      title: "Post Published",
-      description: "Your post has been published to X",
+      title: "X Post Window Opened",
+      description: "Complete your post in the X window",
     });
-    navigate('/dashboard');
+    
+    // Navigate back to dashboard
+    navigate('/dashboard?status=shared');
   };
 
   const handleScheduleComplete = () => {
@@ -144,6 +160,7 @@ const CreatePost: React.FC = () => {
               selectedTopics={selectedTopics} 
               onSchedule={handleSchedulePost}
               onPost={handlePostNow}
+              useWebIntent={true}
             />
           )}
           

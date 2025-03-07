@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCw, Calendar, Share, TrendingUp, ImagePlus, X, AlertCircle } from 'lucide-react';
+import { RefreshCw, Calendar, Share, TrendingUp, ImagePlus, X, AlertCircle, ExternalLink } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
@@ -12,12 +13,14 @@ interface PostGeneratorProps {
   selectedTopics: Topic[];
   onSchedule: (content: string) => void;
   onPost: (content: string) => void;
+  useWebIntent?: boolean;
 }
 
 export const PostGenerator: React.FC<PostGeneratorProps> = ({ 
   selectedTopics, 
   onSchedule,
-  onPost
+  onPost,
+  useWebIntent = false
 }) => {
   const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -312,6 +315,11 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
+    if (useWebIntent) {
+      openXWebIntent();
+      return;
+    }
+
     if (!user?.xLinked || !postToX) {
       toast({
         title: "X Integration Disabled",
@@ -367,16 +375,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
-    let intentUrl = "https://twitter.com/intent/tweet?";
-    intentUrl += "text=" + encodeURIComponent(content);
-    
-    window.open(intentUrl, "_blank", "width=550,height=420");
-    
-    toast({
-      title: "X Post Window Opened",
-      description: "Complete your post in the X window",
-    });
-    
     onPost(content);
   };
 
@@ -389,6 +387,13 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   };
 
   const getPostButtonDisabledReason = (): string | null => {
+    if (useWebIntent) {
+      if (!content.trim() && mediaFiles.length === 0) {
+        return "Please add content or media before posting";
+      }
+      return null;
+    }
+    
     if (!user?.xLinked || !postToX) {
       return "X integration is currently unavailable";
     }
@@ -557,7 +562,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
                   <div className="inline-block">
                     <Button 
                       onClick={postDirectlyToX}
-                      disabled={isPosting || (!content.trim() && mediaFiles.length === 0) || !user?.xLinked}
+                      disabled={isPosting || (!content.trim() && mediaFiles.length === 0)}
                       className="flex items-center gap-2 button-glow"
                       style={{ 
                         backgroundColor: "#1DA1F2", 
@@ -567,11 +572,13 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
                     >
                       {isPosting ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : useWebIntent ? (
+                        <ExternalLink className="w-4 h-4" />
                       ) : (
                         <Share className="w-4 h-4" />
                       )}
-                      {!user?.xLinked && <AlertCircle className="w-4 h-4 ml-1" />}
-                      Post to X
+                      {!useWebIntent && !user?.xLinked && <AlertCircle className="w-4 h-4 ml-1" />}
+                      {useWebIntent ? "Share to X" : "Post to X"}
                     </Button>
                   </div>
                 </TooltipTrigger>
@@ -588,7 +595,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       
       <div className="text-sm text-muted-foreground text-center">
         <p>Selected topics: {selectedTopics.join(", ")}</p>
-        {!user?.xLinked && (
+        {!useWebIntent && !user?.xLinked && (
           <p className="mt-2 text-amber-500 flex items-center justify-center gap-1">
             <AlertCircle className="w-4 h-4" />
             Your X account is not linked. 
