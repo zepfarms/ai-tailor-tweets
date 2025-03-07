@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -81,8 +80,8 @@ const Hero: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <p className="font-medium">@ArtificialUser</p>
-                    <p className="text-sm text-muted-foreground">Tech enthusiast • AI developer</p>
+                    <p className="font-medium">@operative007</p>
+                    <p className="text-sm text-muted-foreground">Political Commentator</p>
                   </div>
                 </div>
                 <div className="text-blue-500">
