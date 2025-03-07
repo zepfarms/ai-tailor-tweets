@@ -73,8 +73,12 @@ const Hero: React.FC = () => {
             <div className="glass-card p-6 md:p-8 rounded-3xl overflow-hidden shadow-soft transform hover:translate-y-[-5px] transition-all duration-300">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                    A
+                  <div className="w-10 h-10 rounded-full overflow-hidden">
+                    <img 
+                      src="/lovable-uploads/7dbbb812-bc81-449f-a25b-b3b45d6f1457.png"
+                      alt="Profile avatar" 
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
                     <p className="font-medium">@ArtificialUser</p>
