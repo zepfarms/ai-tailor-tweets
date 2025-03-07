@@ -11,6 +11,7 @@ import PostScheduler from '@/components/PostScheduler';
 import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
+import { postToSocialMedia } from '@/lib/ayrshareUtils';
 
 type Stage = "topics" | "create" | "schedule";
 
@@ -21,6 +22,7 @@ const CreatePost: React.FC = () => {
   const [stage, setStage] = useState<Stage>("topics");
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
   const [currentContent, setCurrentContent] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
   
   useEffect(() => {
     if (!isLoading && !user) {
@@ -48,41 +50,64 @@ const CreatePost: React.FC = () => {
     setStage("schedule");
   };
 
-  const handlePostNow = (content: string, mediaPreviews?: string[]) => {
-    // Open Twitter web intent in a new window
-    let intentUrl = "https://twitter.com/intent/tweet?";
-    intentUrl += "text=" + encodeURIComponent(content);
+  const handlePostNow = async (content: string, mediaPreviews?: string[]) => {
+    setIsPosting(true);
     
-    // Add media URLs if available
-    if (mediaPreviews && mediaPreviews.length > 0) {
-      // For the web intent, we can only include one URL in the text
-      // X will automatically expand this into a card with the image
-      const firstImageUrl = mediaPreviews[0];
+    try {
+      // First try posting via Ayrshare
+      await postToSocialMedia({
+        content,
+        mediaUrls: mediaPreviews,
+        platforms: ["twitter"]
+      });
       
-      // Add the image URL at the end of the text
-      // Only add if it's a real URL (not a blob URL)
-      if (firstImageUrl && !firstImageUrl.startsWith('blob:')) {
-        intentUrl += "%20" + encodeURIComponent(firstImageUrl);
-      } else {
-        // Alert the user that local images can't be shared directly
-        toast({
-          title: "Media Sharing Limitation",
-          description: "Local images can't be shared directly via X. Your post will be published via Ayrshare instead.",
-          variant: "default",
-        });
-        return;
+      toast({
+        title: "Posted to X",
+        description: "Your post has been shared to X via Ayrshare",
+      });
+      
+      // Navigate back to dashboard
+      navigate('/dashboard?status=shared');
+    } catch (error) {
+      console.error("Error posting to X:", error);
+      
+      // Fallback to web intent if Ayrshare fails
+      // Open Twitter web intent in a new window
+      let intentUrl = "https://twitter.com/intent/tweet?";
+      intentUrl += "text=" + encodeURIComponent(content);
+      
+      // Add media URLs if available
+      if (mediaPreviews && mediaPreviews.length > 0) {
+        // For the web intent, we can only include one URL in the text
+        // X will automatically expand this into a card with the image
+        const firstImageUrl = mediaPreviews[0];
+        
+        // Add the image URL at the end of the text
+        // Only add if it's a real URL (not a blob URL)
+        if (firstImageUrl && !firstImageUrl.startsWith('blob:')) {
+          intentUrl += "%20" + encodeURIComponent(firstImageUrl);
+        } else {
+          // Alert the user that local images can't be shared directly
+          toast({
+            title: "Media Sharing Limitation",
+            description: "Local images can't be shared directly via X. Please connect your X account to Ayrshare to enable image posting.",
+            variant: "default",
+          });
+        }
       }
+      
+      window.open(intentUrl, "_blank", "width=550,height=420");
+      
+      toast({
+        title: "X Post Window Opened",
+        description: "Complete your post in the X window. To enable direct posting with images, connect your X account in Settings.",
+      });
+      
+      // Navigate back to dashboard
+      navigate('/dashboard?status=shared');
+    } finally {
+      setIsPosting(false);
     }
-    
-    window.open(intentUrl, "_blank", "width=550,height=420");
-    
-    toast({
-      title: "X Post Window Opened",
-      description: "Complete your post in the X window",
-    });
-    
-    // Navigate back to dashboard
-    navigate('/dashboard?status=shared');
   };
 
   const handleScheduleComplete = () => {
@@ -146,6 +171,7 @@ const CreatePost: React.FC = () => {
               selectedTopics={selectedTopics} 
               onSchedule={handleSchedulePost}
               onPost={handlePostNow}
+              isPosting={isPosting}
               useWebIntent={false}
             />
           )}

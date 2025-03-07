@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,11 +11,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { linkSocialMediaProfile } from '@/lib/ayrshareUtils';
 
 const Settings: React.FC = () => {
   const { user, linkXAccount } = useAuth();
   const { toast } = useToast();
   const [isLinking, setIsLinking] = useState(false);
+  const [isLinkingAyrshare, setIsLinkingAyrshare] = useState(false);
   const [isLoadingDebug, setIsLoadingDebug] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailedError, setDetailedError] = useState<string | null>(null);
@@ -35,14 +36,12 @@ const Settings: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setError(errorMessage);
       
-      // Add more detail to common error messages
       if (errorMessage.includes("hostname could not be found")) {
         setDetailedError("The Twitter API servers could not be reached. This could be due to network connectivity issues or DNS problems.");
       } else if (errorMessage.includes("Failed to initialize X authentication")) {
         setDetailedError("The X authentication service returned an error. This may be due to incorrect API credentials or configuration.");
       }
       
-      // Collect debug info
       fetchDebugInfo();
       
       toast({
@@ -52,6 +51,37 @@ const Settings: React.FC = () => {
       });
     } finally {
       setIsLinking(false);
+    }
+  };
+
+  const handleConnectXViaAyrshare = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to connect your X account through Ayrshare.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLinkingAyrshare(true);
+    try {
+      const response = await linkSocialMediaProfile("twitter", user.id);
+      
+      if (response && response.authUrl) {
+        window.location.href = response.authUrl;
+      } else {
+        throw new Error("No authorization URL returned from Ayrshare");
+      }
+    } catch (error) {
+      console.error('Error linking X account via Ayrshare:', error);
+      toast({
+        title: "X Integration Error",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLinkingAyrshare(false);
     }
   };
 
@@ -371,7 +401,21 @@ const Settings: React.FC = () => {
                       ) : (
                         <Twitter className="mr-2 h-4 w-4" />
                       )}
-                      Connect X Account
+                      Connect X Account (Direct)
+                    </Button>
+                    
+                    <Button 
+                      onClick={handleConnectXViaAyrshare} 
+                      disabled={isLinkingAyrshare}
+                      variant="outline" 
+                      className="flex items-center"
+                    >
+                      {isLinkingAyrshare ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Twitter className="mr-2 h-4 w-4" />
+                      )}
+                      Connect X Account via Ayrshare
                     </Button>
                     
                     {!debugInfo && (
@@ -419,6 +463,62 @@ const Settings: React.FC = () => {
                 </div>
               )}
             </CardContent>
+          </Card>
+          
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <img src="https://www.ayrshare.com/wp-content/uploads/2020/08/ayr-logo-2156-reduced.png" alt="Ayrshare Logo" className="mr-2 h-5" />
+                Ayrshare Integration
+              </CardTitle>
+              <CardDescription>
+                Ayrshare allows you to post to multiple social media platforms
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Alert className="bg-blue-50 border-blue-200 mb-4">
+                <Info className="h-4 w-4 text-blue-500" />
+                <AlertTitle>Ayrshare Integration Active</AlertTitle>
+                <AlertDescription>
+                  Ayrshare is configured to help you post to social media platforms.
+                </AlertDescription>
+              </Alert>
+              
+              <p className="text-sm text-muted-foreground mb-4">
+                Ayrshare requires you to link individual social media accounts. Use the buttons below to connect your accounts.
+              </p>
+              
+              <div className="flex flex-col gap-2">
+                <Button 
+                  onClick={handleConnectXViaAyrshare} 
+                  disabled={isLinkingAyrshare}
+                  className="flex items-center"
+                >
+                  {isLinkingAyrshare ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Twitter className="mr-2 h-4 w-4" />
+                  )}
+                  Connect X via Ayrshare
+                </Button>
+              </div>
+              
+              <div className="mt-4 text-xs text-muted-foreground">
+                <p className="font-medium">Note:</p>
+                <p>You need to connect your social media accounts through Ayrshare to enable posting capabilities.</p>
+              </div>
+            </CardContent>
+            <CardFooter className="text-xs text-muted-foreground border-t pt-4">
+              <a 
+                href="https://www.ayrshare.com/social-apis/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center hover:text-blue-500 transition-colors"
+              >
+                Learn more about Ayrshare
+                <ExternalLink className="ml-1 h-3 w-3" />
+              </a>
+            </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>

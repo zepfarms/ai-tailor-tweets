@@ -10,7 +10,10 @@ export interface AyrsharePostData {
 export const postToSocialMedia = async (postData: AyrsharePostData): Promise<any> => {
   try {
     const response = await supabase.functions.invoke('ayrshare-post', {
-      body: postData
+      body: {
+        ...postData,
+        action: "post"
+      }
     });
     
     if (response.error) {
@@ -20,6 +23,27 @@ export const postToSocialMedia = async (postData: AyrsharePostData): Promise<any
     return response.data;
   } catch (error) {
     console.error("Error posting to social media:", error);
+    throw error;
+  }
+};
+
+export const linkSocialMediaProfile = async (profileType: string, userId: string): Promise<any> => {
+  try {
+    const response = await supabase.functions.invoke('ayrshare-post', {
+      body: {
+        action: "link_profile",
+        profileType,
+        userId
+      }
+    });
+    
+    if (response.error) {
+      throw new Error(response.error.message || "Failed to initiate profile linking");
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error("Error linking social media profile:", error);
     throw error;
   }
 };
