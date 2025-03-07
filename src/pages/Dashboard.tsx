@@ -110,9 +110,11 @@ const Dashboard: React.FC = () => {
 
   const handleLinkXAccount = async () => {
     try {
+      setIsPageLoading(true);
       await linkXAccount();
     } catch (error) {
       console.error('Error linking X account:', error);
+      setIsPageLoading(false);
       toast({
         title: "X Integration Error",
         description: "There was an issue connecting your X account. Please try again later.",
@@ -288,10 +290,20 @@ const Dashboard: React.FC = () => {
                     ) : (
                       <Button 
                         onClick={handleLinkXAccount}
+                        disabled={isPageLoading}
                         className="group"
                       >
-                        <Twitter className="mr-2 h-4 w-4" />
-                        Link X Account
+                        {isPageLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <Twitter className="mr-2 h-4 w-4" />
+                            Link X Account
+                          </>
+                        )}
                       </Button>
                     )}
                   </div>

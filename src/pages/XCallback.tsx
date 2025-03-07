@@ -1,89 +1,109 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
+import { processTwitterCallback } from '@/lib/xOAuthUtils';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import XAuthRedirectHandler from '@/components/XAuthRedirectHandler';
 
 const XCallback: React.FC = () => {
-  const [error, setError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(true);
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { refreshUser } = useAuth();
+  const { toast } = useToast();
+  const [isProcessing, setIsProcessing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const processCallback = async () => {
+    const handleCallback = async () => {
+      setIsProcessing(true);
+      
       try {
-        // Get the query parameters from the URL
-        const queryParams = new URLSearchParams(location.search);
-        const code = queryParams.get('code');
-        const state = queryParams.get('state');
-        const error = queryParams.get('error');
+        // Parse the query parameters
+        const params = new URLSearchParams(location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const oauthError = params.get('error');
         
-        console.log('X Callback received:', { code, state, error });
-        
-        if (error) {
-          setError(`Twitter authorization error: ${error}`);
-          setTimeout(() => navigate('/settings'), 3000);
+        // Check if there was an error returned from Twitter
+        if (oauthError) {
+          console.error('OAuth error returned from Twitter:', oauthError);
+          setError(`Twitter returned an error: ${oauthError}`);
           return;
         }
         
+        // Make sure we have the necessary parameters
         if (!code || !state) {
-          setError('Missing required parameters from Twitter');
-          setTimeout(() => navigate('/settings'), 3000);
+          console.error('Missing code or state parameter', { code, state });
+          setError('Missing authentication parameters');
           return;
         }
-
-        // Exchange the code for an access token
-        const { data, error: tokenError } = await supabase.functions.invoke('twitter-access-token', {
-          body: { code, state, redirectUri: window.location.origin + '/x-callback' },
-        });
-
-        if (tokenError) {
-          console.error('Error exchanging code for token:', tokenError);
-          setError(tokenError.message);
-          setTimeout(() => navigate('/settings'), 3000);
-          return;
-        }
-
-        console.log('Twitter account linked successfully');
         
-        // Success! Redirect to the settings page
-        setTimeout(() => navigate('/settings'), 1000);
-      } catch (err) {
-        console.error('Error in X callback processing:', err);
-        setError('An unexpected error occurred. Please try again.');
-        setTimeout(() => navigate('/settings'), 3000);
+        console.log('Processing X callback with code and state');
+        const result = await processTwitterCallback(code, state);
+        
+        if (result.success) {
+          // Refresh the user data to reflect the new X connection
+          await refreshUser();
+          
+          toast({
+            title: "X Account Connected",
+            description: `Successfully connected to X as @${result.username}`,
+          });
+          
+          // Return to the dashboard or original page
+          navigate(result.returnUrl);
+        } else {
+          setError('Failed to complete X authentication');
+        }
+      } catch (error) {
+        console.error('Error in X callback processing:', error);
+        setError(error instanceof Error ? error.message : 'An unknown error occurred');
       } finally {
         setIsProcessing(false);
       }
     };
-
-    processCallback();
-  }, [location.search, navigate]);
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      {isProcessing ? (
+    
+    handleCallback();
+  }, [location, navigate, toast, refreshUser]);
+  
+  if (isProcessing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Connecting your X account</h1>
-          <p className="text-muted-foreground">Please wait while we finalize the connection...</p>
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+          <h1 className="text-2xl font-bold mb-2">Connecting X Account</h1>
+          <p className="text-muted-foreground">Please wait while we complete the connection...</p>
         </div>
-      ) : error ? (
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2 text-destructive">Connection Error</h1>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <p>Redirecting you back to settings...</p>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          
+          <div className="flex justify-center">
+            <Button onClick={() => navigate('/dashboard')}>
+              Return to Dashboard
+            </Button>
+          </div>
         </div>
-      ) : (
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2 text-success">Success!</h1>
-          <p className="text-muted-foreground">Your X account has been connected successfully.</p>
-          <p>Redirecting you back to settings...</p>
-        </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+  
+  // If we get here, the XAuthRedirectHandler will take over
+  return <XAuthRedirectHandler />;
 };
 
 export default XCallback;
