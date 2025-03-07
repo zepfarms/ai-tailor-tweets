@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,9 +12,22 @@ import { useToast } from '@/components/ui/use-toast';
 const SubscriptionSuccess: React.FC = () => {
   const { user, updateSubscriptionStatus } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+
+  // Check for query parameters from Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const sessionId = params.get('session_id');
+    
+    if (sessionId) {
+      // Store session ID in session storage for verification
+      sessionStorage.setItem('stripe_session_id', sessionId);
+    }
+  }, [location]);
 
   useEffect(() => {
     if (!user) {
@@ -28,6 +41,7 @@ const SubscriptionSuccess: React.FC = () => {
         const hasActiveSubscription = await updateSubscriptionStatus();
         
         if (hasActiveSubscription) {
+          setSubscriptionStatus('active');
           toast({
             title: "Subscription Activated",
             description: "Thank you for subscribing to Posted Pal Pro!",
@@ -35,26 +49,28 @@ const SubscriptionSuccess: React.FC = () => {
           setIsLoading(false);
         } else {
           // If subscription is not active yet, retry a few times
-          if (retryCount < 5) {
-            console.log(`Subscription not active yet, retrying... (${retryCount + 1}/5)`);
+          if (retryCount < 8) {
+            console.log(`Subscription not active yet, retrying... (${retryCount + 1}/8)`);
             setTimeout(() => {
               setRetryCount(prev => prev + 1);
             }, 2000); // Wait 2 seconds before retrying
           } else {
-            // After 5 retries, just show the success message anyway
+            // After several retries, just show the success message anyway
             // The subscription might still be processing on Stripe's end
+            setSubscriptionStatus('processing');
             toast({
               title: "Subscription Processing",
-              description: "Your subscription is being processed. It may take a few moments to activate.",
+              description: "Your payment was successful! Your subscription is being processed and should be active soon.",
             });
             setIsLoading(false);
           }
         }
       } catch (error) {
         console.error('Error updating subscription status:', error);
+        setSubscriptionStatus('error');
         toast({
           title: "Error",
-          description: "There was an issue checking your subscription status.",
+          description: "There was an issue checking your subscription status. Please contact support if this persists.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -93,7 +109,9 @@ const SubscriptionSuccess: React.FC = () => {
               <CardDescription>
                 {isLoading 
                   ? "Please wait while we verify your payment..." 
-                  : "Your Posted Pal Pro subscription is now active"}
+                  : subscriptionStatus === 'active'
+                    ? "Your Posted Pal Pro subscription is now active"
+                    : "Your payment was successful! Your account will be upgraded shortly."}
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
@@ -104,7 +122,11 @@ const SubscriptionSuccess: React.FC = () => {
               ) : (
                 <div>
                   <p className="mb-6">
-                    Thank you for subscribing to Posted Pal Pro! You now have full access to all premium features.
+                    {subscriptionStatus === 'error' 
+                      ? "We encountered an issue while activating your subscription. Please contact our support team for assistance."
+                      : subscriptionStatus === 'processing'
+                        ? "Your payment was successful! Your account is being upgraded and all features will be available shortly."
+                        : "Thank you for subscribing to Posted Pal Pro! You now have full access to all premium features."}
                   </p>
                   <Button onClick={() => navigate('/dashboard')}>
                     Go to Dashboard

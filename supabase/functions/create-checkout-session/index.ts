@@ -46,13 +46,20 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
-      success_url: successUrl,
+      success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl,
       customer_email: customerEmail,
       client_reference_id: userId,
       metadata: {
         userId: userId,
+        customerEmail: customerEmail
       },
+      subscription_data: {
+        metadata: {
+          userId: userId,
+          customerEmail: customerEmail
+        }
+      }
     });
 
     console.log(`Checkout session created: ${session.id}`);
