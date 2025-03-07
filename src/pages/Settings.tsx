@@ -11,16 +11,19 @@ const Settings: React.FC = () => {
   const { user, linkXAccount } = useAuth();
   const { toast } = useToast();
   const [isLinking, setIsLinking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleConnectX = async () => {
     setIsLinking(true);
+    setError(null);
     try {
       await linkXAccount();
     } catch (error) {
       console.error('Error linking X account:', error);
+      setError(error instanceof Error ? error.message : "An unknown error occurred");
       toast({
         title: "X Integration Error",
-        description: "There was an issue connecting your X account. The X integration feature is currently unavailable.",
+        description: "There was an issue connecting your X account. Please check that all required API keys are configured.",
         variant: "destructive",
       });
     } finally {
@@ -77,6 +80,20 @@ const Settings: React.FC = () => {
                   Connect your X account to enable posting and analytics features
                 </AlertDescription>
               </Alert>
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Connection Error</AlertTitle>
+                  <AlertDescription className="text-sm">
+                    {error}
+                    <p className="mt-2">
+                      Please ensure that the X API keys are correctly configured in your application.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               <Button onClick={handleConnectX} disabled={isLinking} className="flex items-center">
                 {isLinking ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -86,7 +103,7 @@ const Settings: React.FC = () => {
                 Connect X Account
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
-                Note: X integration is currently disabled in demo mode. Contact support for more information.
+                Note: You will be redirected to X to authorize this application.
               </p>
             </div>
           )}

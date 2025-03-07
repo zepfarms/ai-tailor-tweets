@@ -20,7 +20,20 @@ serve(async (req) => {
   }
 
   try {
-    console.log("Twitter request token function called");
+    console.log("Twitter/X request token function called");
+    
+    // Check if environment variables are set
+    if (!TWITTER_CLIENT_ID) {
+      throw new Error("TWITTER_CLIENT_ID environment variable is not set");
+    }
+    
+    if (!TWITTER_CLIENT_SECRET) {
+      throw new Error("TWITTER_CLIENT_SECRET environment variable is not set");
+    }
+    
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase credentials are not properly configured");
+    }
     
     // Get the userId from the request body
     const { userId } = await req.json();
@@ -53,7 +66,7 @@ serve(async (req) => {
       throw new Error("Failed to store OAuth state");
     }
     
-    // Build the authorization URL
+    // Build the authorization URL - still using twitter.com as this is still the correct domain for OAuth
     const authUrl = new URL("https://twitter.com/i/oauth2/authorize");
     authUrl.searchParams.append("response_type", "code");
     authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
@@ -81,7 +94,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: "There was an error initiating X authentication. Please check that all required environment variables are properly configured."
+      }),
       {
         status: 500,
         headers: {

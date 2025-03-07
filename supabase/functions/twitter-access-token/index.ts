@@ -20,7 +20,20 @@ serve(async (req) => {
   }
 
   try {
-    console.log("Twitter access token function called");
+    console.log("Twitter/X access token function called");
+    
+    // Check if environment variables are set
+    if (!TWITTER_CLIENT_ID) {
+      throw new Error("TWITTER_CLIENT_ID environment variable is not set");
+    }
+    
+    if (!TWITTER_CLIENT_SECRET) {
+      throw new Error("TWITTER_CLIENT_SECRET environment variable is not set");
+    }
+    
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase credentials are not properly configured");
+    }
     
     const { code, state } = await req.json();
     
@@ -57,7 +70,7 @@ serve(async (req) => {
     console.log("Retrieved user ID:", userId);
     console.log("Code verifier found:", !!codeVerifier);
     
-    // Exchange the authorization code for an access token
+    // Exchange the authorization code for an access token - still using api.twitter.com as this is still the correct domain
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
       method: "POST",
       headers: {
@@ -73,12 +86,13 @@ serve(async (req) => {
       }),
     });
     
-    const tokenData = await tokenResponse.json();
-    
     if (!tokenResponse.ok) {
-      console.error("Token response error:", tokenData);
-      throw new Error(tokenData.error_description || "Failed to exchange code for token");
+      const errorData = await tokenResponse.text();
+      console.error("Token response error:", errorData);
+      throw new Error(`Failed to exchange code for token: ${errorData}`);
     }
+    
+    const tokenData = await tokenResponse.json();
     
     console.log("Token response:", !!tokenData);
     console.log("Access token obtained:", !!tokenData.access_token);
@@ -90,6 +104,12 @@ serve(async (req) => {
         Authorization: `Bearer ${tokenData.access_token}`,
       },
     });
+
+    if (!userResponse.ok) {
+      const errorData = await userResponse.text();
+      console.error("User info response error:", errorData);
+      throw new Error(`Failed to fetch user info: ${errorData}`);
+    }
 
     const userData = await userResponse.json();
     console.log("User data:", userData);
@@ -134,7 +154,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: "There was an error processing the X authentication callback. Please try again or contact support."
+      }),
       {
         status: 500,
         headers: {
