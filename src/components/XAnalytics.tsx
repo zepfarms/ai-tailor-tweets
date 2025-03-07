@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Loader2, Users, MessageSquare, TrendingUp, Eye, ImageIcon, Video, Calendar, Heart, Share2, MessageCircle } from 'lucide-react';
+import { Loader2, Users, MessageSquare, TrendingUp, Eye, ImageIcon, Video, Calendar, Heart, Share2, MessageCircle, Info } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +10,7 @@ import AnalyticsCard from '@/components/AnalyticsCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface XAnalyticsProps {
   className?: string;
@@ -49,6 +50,7 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
   const [displayedUsername, setDisplayedUsername] = useState<string | null>(null);
   const [usernameInput, setUsernameInput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [usingRealData, setUsingRealData] = useState<boolean>(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -82,6 +84,7 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
 
           setAnalytics(data.data);
           setDisplayedUsername(data.username);
+          setUsingRealData(data.usingRealData || false);
           
         } catch (err) {
           console.error('Analytics error:', err);
@@ -133,6 +136,7 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
 
       setAnalytics(data.data);
       setDisplayedUsername(data.username);
+      setUsingRealData(data.usingRealData || false);
       
       toast({
         title: 'Analytics loaded',
@@ -237,7 +241,27 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
   return (
     <div className={`space-y-6 ${className}`}>
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">X Analytics for @{displayedUsername || username}</h2>
+        <div className="flex items-center">
+          <h2 className="text-2xl font-bold">X Analytics for @{displayedUsername || username}</h2>
+          
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <div className="ml-2 flex items-center">
+                  <Badge variant={usingRealData ? "default" : "outline"} className="ml-2">
+                    {usingRealData ? "Real Data" : "Estimated Data"}
+                  </Badge>
+                  <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                {usingRealData 
+                  ? "This data is fetched directly from the X API using authenticated access." 
+                  : "This is estimated data since we don't have authenticated API access for this account."}
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
+        </div>
         
         <form onSubmit={handleSubmit} className="flex space-x-2">
           <Input
