@@ -35,10 +35,10 @@ export async function createCheckoutSession({
   }
 }
 
-export async function checkSubscriptionStatus(userId: string) {
+export async function checkSubscriptionStatus(userId: string, sessionId?: string) {
   try {
     const { data, error } = await supabase.functions.invoke('check-subscription', {
-      body: { userId }
+      body: { userId, sessionId }
     });
 
     if (error) throw error;

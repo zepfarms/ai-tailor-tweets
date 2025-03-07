@@ -24,7 +24,7 @@ serve(async (req) => {
   }
 
   try {
-    const { userId } = await req.json();
+    const { userId, sessionId } = await req.json();
 
     if (!userId) {
       return new Response(
@@ -76,6 +76,66 @@ serve(async (req) => {
       );
     }
     
+    // If we have a session ID from redirect, verify it directly with Stripe
+    if (sessionId) {
+      try {
+        console.log(`Verifying Stripe session ID: ${sessionId}`);
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        
+        if (session && session.payment_status === 'paid' && session.status === 'complete') {
+          const subscriptionId = session.subscription as string;
+          const customerId = session.customer as string;
+          
+          // Verify if there's an existing subscription record
+          const { data: existingSubscription } = await supabase
+            .from("subscriptions")
+            .select("*")
+            .eq("stripe_subscription_id", subscriptionId)
+            .maybeSingle();
+            
+          if (!existingSubscription) {
+            // Create subscription record if it doesn't exist yet
+            // This handles cases where the webhook might not have processed yet
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            
+            await supabase
+              .from("subscriptions")
+              .upsert({
+                user_id: userId,
+                stripe_customer_id: customerId,
+                stripe_subscription_id: subscriptionId,
+                status: subscription.status,
+                price_id: subscription.items.data[0]?.price.id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+              
+            console.log(`Created subscription record for ${subscriptionId}`);
+          }
+          
+          return new Response(
+            JSON.stringify({ 
+              hasActiveSubscription: true,
+              subscription: {
+                status: 'active',
+                stripe_subscription_id: subscriptionId,
+                stripe_customer_id: customerId,
+                user_id: userId,
+                verified_by_session: true
+              }
+            }),
+            { 
+              status: 200, 
+              headers: { ...corsHeaders, "Content-Type": "application/json" } 
+            }
+          );
+        }
+      } catch (stripeError) {
+        console.error("Error verifying Stripe session:", stripeError);
+        // Continue with normal flow, just log the error
+      }
+    }
+
     // Check subscription status in database
     const { data: subscription, error } = await supabase
       .from("subscriptions")

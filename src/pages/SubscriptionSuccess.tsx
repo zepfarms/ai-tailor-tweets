@@ -8,6 +8,7 @@ import Navbar from '@/components/Navbar';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { CheckCircle, Loader } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { checkSubscriptionStatus } from '@/lib/stripe';
 
 const SubscriptionSuccess: React.FC = () => {
   const { user, updateSubscriptionStatus } = useAuth();
@@ -17,17 +18,11 @@ const SubscriptionSuccess: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [verificationMethod, setVerificationMethod] = useState<string | null>(null);
 
-  // Check for query parameters from Stripe
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const sessionId = params.get('session_id');
-    
-    if (sessionId) {
-      // Store session ID in session storage for verification
-      sessionStorage.setItem('stripe_session_id', sessionId);
-    }
-  }, [location]);
+  // Get session ID from query parameters
+  const params = new URLSearchParams(location.search);
+  const sessionId = params.get('session_id');
 
   useEffect(() => {
     if (!user) {
@@ -35,13 +30,37 @@ const SubscriptionSuccess: React.FC = () => {
       return;
     }
 
-    const updateStatus = async () => {
+    const verifyPayment = async () => {
       try {
         setIsLoading(true);
+        
+        // If we have a session ID, verify directly with Stripe
+        if (sessionId) {
+          console.log(`Verifying payment with session ID: ${sessionId}`);
+          const result = await checkSubscriptionStatus(user.id, sessionId);
+
+          if (result?.hasActiveSubscription) {
+            setSubscriptionStatus('active');
+            setVerificationMethod('stripe_session');
+            toast({
+              title: "Subscription Activated",
+              description: "Thank you for subscribing to Posted Pal Pro!",
+            });
+            
+            // Also update auth context subscription status
+            await updateSubscriptionStatus();
+            
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // If session verification failed or no session ID, check subscription status normally
         const hasActiveSubscription = await updateSubscriptionStatus();
         
         if (hasActiveSubscription) {
           setSubscriptionStatus('active');
+          setVerificationMethod('database');
           toast({
             title: "Subscription Activated",
             description: "Thank you for subscribing to Posted Pal Pro!",
@@ -66,7 +85,7 @@ const SubscriptionSuccess: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error('Error updating subscription status:', error);
+        console.error('Error verifying payment:', error);
         setSubscriptionStatus('error');
         toast({
           title: "Error",
@@ -77,8 +96,8 @@ const SubscriptionSuccess: React.FC = () => {
       }
     };
 
-    updateStatus();
-  }, [user, navigate, updateSubscriptionStatus, toast, retryCount]);
+    verifyPayment();
+  }, [user, navigate, updateSubscriptionStatus, toast, retryCount, sessionId]);
 
   return (
     <div className="min-h-screen flex flex-col page-transition">
