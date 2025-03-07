@@ -34,6 +34,8 @@ serve(async (req) => {
       );
     }
 
+    console.log(`Creating checkout session for user ${userId} with price ${priceId}`);
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -52,6 +54,8 @@ serve(async (req) => {
         userId: userId,
       },
     });
+
+    console.log(`Checkout session created: ${session.id}`);
 
     return new Response(
       JSON.stringify({ id: session.id, url: session.url }),

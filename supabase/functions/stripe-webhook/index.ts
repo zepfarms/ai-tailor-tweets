@@ -44,7 +44,12 @@ serve(async (req) => {
         const customerId = session.customer;
         const subscriptionId = session.subscription;
 
+        console.log(`Checkout completed for user ${userId}, subscription ${subscriptionId}`);
+
         if (userId && customerId && subscriptionId) {
+          // Get subscription details from Stripe
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          
           // Store subscription data in Supabase
           const { error } = await supabase
             .from("subscriptions")
@@ -52,8 +57,8 @@ serve(async (req) => {
               user_id: userId,
               stripe_customer_id: customerId,
               stripe_subscription_id: subscriptionId,
-              status: 'active',
-              price_id: session.line_items?.data[0]?.price?.id || null,
+              status: subscription.status,
+              price_id: subscription.items.data[0]?.price.id,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             });
@@ -62,6 +67,8 @@ serve(async (req) => {
             console.error("Error saving subscription:", error);
             throw error;
           }
+          
+          console.log(`Subscription ${subscriptionId} saved successfully for user ${userId}`);
         }
         break;
       }
@@ -69,6 +76,8 @@ serve(async (req) => {
         const subscription = event.data.object;
         const status = subscription.status;
         const subscriptionId = subscription.id;
+
+        console.log(`Subscription ${subscriptionId} updated, new status: ${status}`);
 
         // Update subscription status in Supabase
         const { error } = await supabase
@@ -83,11 +92,15 @@ serve(async (req) => {
           console.error("Error updating subscription:", error);
           throw error;
         }
+        
+        console.log(`Subscription ${subscriptionId} status updated to ${status}`);
         break;
       }
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
         const subscriptionId = subscription.id;
+
+        console.log(`Subscription ${subscriptionId} deleted`);
 
         // Update subscription status in Supabase
         const { error } = await supabase
@@ -103,6 +116,8 @@ serve(async (req) => {
           console.error("Error canceling subscription:", error);
           throw error;
         }
+        
+        console.log(`Subscription ${subscriptionId} marked as canceled`);
         break;
       }
     }
