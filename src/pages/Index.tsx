@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Hero from '@/components/Hero';
 import Features from '@/components/Features';
 import Navbar from '@/components/Navbar';
@@ -8,32 +8,34 @@ import { FileText, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 
 const pricingTiers = [
   {
-    name: 'Free',
-    price: '$0',
-    period: 'forever',
-    description: 'Perfect for casual content creators',
+    name: 'Demo',
+    price: 'Free',
+    period: 'trial',
+    description: 'Try the platform with demo data',
     features: [
-      'Up to 10 posts per month',
-      'Basic analytics',
-      'AI content generation',
-      'Schedule posts in advance',
-      'Email support',
+      'Explore the full dashboard',
+      'Test post creation features',
+      'Sample analytics data',
+      'Preview scheduling tools',
+      'No credit card required',
     ],
     limitations: [
-      'Limited analytics history',
-      'No video creation tools',
-      'Standard AI models only',
+      'Uses demo data only',
+      'Limited to demo environment',
+      'No actual social posting',
     ],
-    ctaText: 'Get Started',
+    ctaText: 'Try Demo Account',
     popular: false,
     color: 'from-blue-400 to-blue-500',
+    isDemoAccount: true,
   },
   {
     name: 'Pro',
-    price: '$9',
+    price: '$19',
     period: 'per month',
     description: 'For content creators who post regularly',
     features: [
@@ -50,6 +52,7 @@ const pricingTiers = [
     ctaText: 'Upgrade to Pro',
     popular: true,
     color: 'from-purple-500 to-blue-500',
+    isDemoAccount: false,
   },
   {
     name: 'Ultimate',
@@ -57,7 +60,7 @@ const pricingTiers = [
     period: 'per month',
     description: 'For professional content creators and teams',
     features: [
-      'Up to 5000 posts per month',
+      'Up to 500 posts per month',
       'Comprehensive analytics',
       'Advanced AI models',
       'Video creator tools',
@@ -70,13 +73,34 @@ const pricingTiers = [
     ctaText: 'Upgrade to Ultimate',
     popular: false,
     color: 'from-purple-600 to-blue-600',
+    isDemoAccount: false,
   },
 ];
 
 const PricingCard: React.FC<{
   tier: typeof pricingTiers[0];
 }> = ({ tier }) => {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const handleDemoLogin = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await login('demo@postedpal.com', 'demopassword123');
+      toast({
+        title: "Demo Login Successful",
+        description: "You're now using a demo account with sample data",
+      });
+      navigate('/dashboard');
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Demo Login Failed",
+        description: "Unable to access demo account. Please try again later.",
+      });
+    }
+  };
   
   return (
     <Card className={`flex flex-col h-full transition-all duration-200 ${tier.popular ? 'shadow-xl scale-105 border-primary/30 z-10' : 'shadow-md hover:shadow-lg'}`}>
@@ -112,14 +136,24 @@ const PricingCard: React.FC<{
         </ul>
       </CardContent>
       <CardFooter className="pt-6">
-        <Link to={user ? '/settings' : '/signup'} className="w-full">
+        {tier.isDemoAccount ? (
           <Button 
             className={`w-full bg-gradient-to-r ${tier.color} hover:shadow-md transition-all duration-200`}
             size="lg"
+            onClick={handleDemoLogin}
           >
             {tier.ctaText}
           </Button>
-        </Link>
+        ) : (
+          <Link to={user ? '/settings' : '/signup'} className="w-full">
+            <Button 
+              className={`w-full bg-gradient-to-r ${tier.color} hover:shadow-md transition-all duration-200`}
+              size="lg"
+            >
+              {tier.ctaText}
+            </Button>
+          </Link>
+        )}
       </CardFooter>
     </Card>
   );
