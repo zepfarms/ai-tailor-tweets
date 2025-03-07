@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isDebugVisible, setIsDebugVisible] = useState(false);
@@ -64,6 +65,32 @@ const Dashboard: React.FC = () => {
     },
     enabled: !!user?.id,
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const xAuthSuccess = params.get('x_auth_success');
+    const username = params.get('username');
+    
+    if (xAuthSuccess === 'true' && username && user) {
+      const updatedUser = {
+        ...user,
+        xLinked: true,
+        xUsername: `@${username}`,
+      };
+      
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+      
+      toast({
+        title: "X Account Linked",
+        description: `Successfully linked to @${username}`,
+      });
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    }
+  }, [location.search, user, toast]);
 
   const scheduledPostsCount = postsData?.scheduledPosts?.length || 0;
   const publishedPostsCount = postsData?.publishedPosts?.length || 0;

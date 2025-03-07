@@ -1,109 +1,142 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { processTwitterCallback } from '@/lib/xOAuthUtils';
-import { Loader2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import XAuthRedirectHandler from '@/components/XAuthRedirectHandler';
 
 const XCallback: React.FC = () => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleCallback = async () => {
-      setIsProcessing(true);
-      
+    const processCallback = async () => {
       try {
-        // Parse the query parameters
-        const params = new URLSearchParams(location.search);
+        setIsProcessing(true);
+
+        // Get query parameters
+        const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         const state = params.get('state');
-        const oauthError = params.get('error');
-        
-        // Check if there was an error returned from Twitter
-        if (oauthError) {
-          console.error('OAuth error returned from Twitter:', oauthError);
-          setError(`Twitter returned an error: ${oauthError}`);
-          return;
-        }
-        
-        // Make sure we have the necessary parameters
-        if (!code || !state) {
-          console.error('Missing code or state parameter', { code, state });
-          setError('Missing authentication parameters');
-          return;
-        }
-        
-        console.log('Processing X callback with code and state');
-        const result = await processTwitterCallback(code, state);
-        
-        if (result.success) {
-          // Refresh the user data to reflect the new X connection
-          await refreshUser();
-          
+        const error = params.get('error');
+        const errorDescription = params.get('error_description');
+
+        // Check if there's an error from Twitter
+        if (error) {
+          setError(`X authentication error: ${error} - ${errorDescription || 'Unknown error'}`);
           toast({
-            title: "X Account Connected",
-            description: `Successfully connected to X as @${result.username}`,
+            title: 'X Authentication Failed',
+            description: errorDescription || 'Failed to connect X account',
+            variant: 'destructive',
+          });
+          setTimeout(() => navigate('/dashboard'), 3000);
+          return;
+        }
+
+        // Validate code and state
+        if (!code || !state) {
+          setError('Missing required parameters');
+          toast({
+            title: 'X Authentication Failed',
+            description: 'Missing required parameters from X',
+            variant: 'destructive',
+          });
+          setTimeout(() => navigate('/dashboard'), 3000);
+          return;
+        }
+
+        // Process the token
+        const response = await supabase.functions.invoke('twitter-access-token', {
+          body: { code, state }
+        });
+
+        if (response.error) {
+          setError(`Error processing token: ${response.error.message}`);
+          toast({
+            title: 'X Authentication Failed',
+            description: response.error.message || 'Failed to verify X account',
+            variant: 'destructive',
+          });
+          setTimeout(() => navigate('/dashboard'), 3000);
+          return;
+        }
+
+        if (response.data && response.data.username) {
+          toast({
+            title: 'X Account Connected',
+            description: `Successfully linked to @${response.data.username}`,
           });
           
-          // Return to the dashboard or original page
-          navigate(result.returnUrl);
+          // Add query params to indicate success to the dashboard
+          navigate('/dashboard?x_auth_success=true&username=' + response.data.username);
         } else {
-          setError('Failed to complete X authentication');
+          setError('Invalid response from authentication service');
+          toast({
+            title: 'X Authentication Failed',
+            description: 'Invalid response from authentication service',
+            variant: 'destructive',
+          });
+          setTimeout(() => navigate('/dashboard'), 3000);
         }
-      } catch (error) {
-        console.error('Error in X callback processing:', error);
-        setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      } catch (err) {
+        console.error('Error in X callback:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        toast({
+          title: 'X Authentication Failed',
+          description: err instanceof Error ? err.message : 'An unexpected error occurred',
+          variant: 'destructive',
+        });
+        setTimeout(() => navigate('/dashboard'), 3000);
       } finally {
         setIsProcessing(false);
       }
     };
-    
-    handleCallback();
-  }, [location, navigate, toast, refreshUser]);
-  
-  if (isProcessing) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
-          <h1 className="text-2xl font-bold mb-2">Connecting X Account</h1>
-          <p className="text-muted-foreground">Please wait while we complete the connection...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Authentication Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-          
-          <div className="flex justify-center">
-            <Button onClick={() => navigate('/dashboard')}>
-              Return to Dashboard
-            </Button>
+
+    processCallback();
+  }, [navigate, toast]);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      {isProcessing ? (
+        <>
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Connecting Your X Account</h1>
+          <p className="text-muted-foreground text-center">
+            Please wait while we complete the connection with X...
+          </p>
+        </>
+      ) : error ? (
+        <>
+          <div className="text-destructive mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
           </div>
-        </div>
-      </div>
-    );
-  }
-  
-  // If we get here, the XAuthRedirectHandler will take over
-  return <XAuthRedirectHandler />;
+          <h1 className="text-2xl font-bold mb-2">Authentication Error</h1>
+          <p className="text-muted-foreground text-center mb-4">{error}</p>
+          <p className="text-center">Redirecting you back to dashboard...</p>
+        </>
+      ) : (
+        <>
+          <div className="text-green-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold mb-2">X Account Connected</h1>
+          <p className="text-muted-foreground text-center mb-4">
+            Your X account has been successfully connected.
+          </p>
+          <p className="text-center">Redirecting you back to dashboard...</p>
+        </>
+      )}
+    </div>
+  );
 };
 
 export default XCallback;

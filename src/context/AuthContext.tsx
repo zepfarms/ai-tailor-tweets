@@ -109,33 +109,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [navigate]);
 
-  useEffect(() => {
-    const checkForXCallback = () => {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('x_auth_success') === 'true') {
-        const username = params.get('username');
-        if (username && user) {
-          const updatedUser = {
-            ...user,
-            xLinked: true,
-            xUsername: `@${username}`,
-          };
-          setUser(updatedUser);
-          
-          const cleanUrl = window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-          
-          toast({
-            title: "X Account Linked",
-            description: `Successfully linked to @${username}`,
-          });
-        }
-      }
-    };
-    
-    checkForXCallback();
-  }, [user, toast]);
-
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
