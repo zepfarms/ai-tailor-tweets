@@ -1,7 +1,6 @@
 
 import React from 'react';
 import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 
 const CookiePolicy: React.FC = () => {
   return (
@@ -61,7 +60,6 @@ const CookiePolicy: React.FC = () => {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };

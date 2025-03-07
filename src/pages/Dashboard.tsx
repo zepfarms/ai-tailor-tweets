@@ -1,11 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
 import { 
   Calendar, 
@@ -242,7 +240,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 
@@ -256,7 +253,6 @@ const Dashboard: React.FC = () => {
             <p className="text-lg">Loading your dashboard...</p>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -273,7 +269,6 @@ const Dashboard: React.FC = () => {
             </Button>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }

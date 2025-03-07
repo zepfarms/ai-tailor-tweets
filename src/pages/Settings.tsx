@@ -3,14 +3,16 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Twitter, Info } from 'lucide-react';
+import { Twitter, Info, ArrowLeft, Home } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link, useNavigate } from 'react-router-dom';
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("account");
 
   const handleConnectX = async () => {
@@ -35,7 +37,25 @@ const Settings: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 pt-24 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Settings</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <div className="flex gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate(-1)} 
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft size={16} />
+            Back
+          </Button>
+          <Link to="/dashboard">
+            <Button className="flex items-center gap-2">
+              <Home size={16} />
+              Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">

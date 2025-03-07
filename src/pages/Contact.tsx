@@ -92,10 +92,6 @@ const Contact: React.FC = () => {
                   </Link>
                 </div>
               </div>
-              
-              <div className="mt-6 text-center text-xs text-muted-foreground">
-                © {new Date().getFullYear()} Posted Pal. All rights reserved.
-              </div>
             </div>
           </div>
         </div>

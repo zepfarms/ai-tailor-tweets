@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import TopicSelection from '@/components/TopicSelection';
 import PostGenerator from '@/components/PostGenerator';
@@ -171,8 +170,6 @@ const CreatePost: React.FC = () => {
           )}
         </div>
       </main>
-      
-      <Footer />
     </div>
   );
 };
