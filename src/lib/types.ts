@@ -44,6 +44,17 @@ export type Topic =
   | "Gaming"
   | "Music"
   | "Art"
+  | "Cryptocurrency"
+  | "Trending"
+  | "Finance"
+  | "Education"
+  | "Real Estate"
+  | "Marketing"
+  | "Fitness"
+  | "Parenting"
+  | "DIY"
+  | "Environment"
+  | "Startups"
   | string; // Allow custom topics as strings
 
 export interface AuthContextType {

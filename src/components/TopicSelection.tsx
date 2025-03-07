@@ -23,7 +23,18 @@ const availableTopics: Topic[] = [
   "Travel",
   "Gaming",
   "Music",
-  "Art"
+  "Art",
+  "Cryptocurrency",
+  "Trending",
+  "Finance",
+  "Education",
+  "Real Estate",
+  "Marketing",
+  "Fitness",
+  "Parenting",
+  "DIY",
+  "Environment",
+  "Startups"
 ];
 
 export const TopicSelection: React.FC<TopicSelectionProps> = ({ onSelectTopics }) => {
