@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 const XCallback: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { completeXAuth } = useAuth();
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,45 +27,71 @@ const XCallback: React.FC = () => {
 
         // Check if there's an error from Twitter
         if (error) {
+          console.error("X auth error:", error, errorDescription);
           setError(`X authentication error: ${error} - ${errorDescription || 'Unknown error'}`);
           toast({
             title: 'X Authentication Failed',
             description: errorDescription || 'Failed to connect X account',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard'), 3000);
+          setTimeout(() => navigate('/login?error=' + encodeURIComponent(`X authentication failed: ${errorDescription || 'Unknown error'}`)), 3000);
           return;
         }
 
         // Validate code and state
         if (!code || !state) {
+          console.error("Missing code or state params", { code, state });
           setError('Missing required parameters');
           toast({
             title: 'X Authentication Failed',
             description: 'Missing required parameters from X',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard'), 3000);
+          setTimeout(() => navigate('/login?error=' + encodeURIComponent('Missing authentication parameters')), 3000);
           return;
         }
 
+        console.log("Processing X callback with code and state", { codeLength: code.length, state });
+        
         // Process the token
         const response = await supabase.functions.invoke('twitter-access-token', {
           body: { code, state }
         });
 
+        console.log("Access token response:", response);
+
         if (response.error) {
+          console.error("Error processing token:", response.error);
           setError(`Error processing token: ${response.error.message}`);
           toast({
             title: 'X Authentication Failed',
             description: response.error.message || 'Failed to verify X account',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard'), 3000);
+          setTimeout(() => navigate('/login?error=' + encodeURIComponent(response.error.message || 'Failed to verify X account')), 3000);
           return;
         }
 
-        if (response.data && response.data.username) {
+        if (response.data && response.data.token) {
+          // We have a magic link token to complete the auth
+          try {
+            await completeXAuth(response.data.token);
+            toast({
+              title: 'X Account Connected',
+              description: `Successfully linked to @${response.data.username}`,
+            });
+            navigate('/dashboard?x_auth_success=true&username=' + response.data.username);
+          } catch (authError) {
+            console.error("Error completing X auth:", authError);
+            setError(`Failed to complete authentication: ${authError instanceof Error ? authError.message : 'Unknown error'}`);
+            toast({
+              title: 'X Authentication Failed',
+              description: authError instanceof Error ? authError.message : 'Failed to complete authentication',
+              variant: 'destructive',
+            });
+            setTimeout(() => navigate('/login?error=' + encodeURIComponent('Failed to complete authentication')), 3000);
+          }
+        } else if (response.data && response.data.username) {
           toast({
             title: 'X Account Connected',
             description: `Successfully linked to @${response.data.username}`,
@@ -72,13 +100,14 @@ const XCallback: React.FC = () => {
           // Add query params to indicate success to the dashboard
           navigate('/dashboard?x_auth_success=true&username=' + response.data.username);
         } else {
+          console.error("Invalid response from auth service:", response.data);
           setError('Invalid response from authentication service');
           toast({
             title: 'X Authentication Failed',
             description: 'Invalid response from authentication service',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard'), 3000);
+          setTimeout(() => navigate('/login?error=' + encodeURIComponent('Invalid response from authentication service')), 3000);
         }
       } catch (err) {
         console.error('Error in X callback:', err);
@@ -88,14 +117,14 @@ const XCallback: React.FC = () => {
           description: err instanceof Error ? err.message : 'An unexpected error occurred',
           variant: 'destructive',
         });
-        setTimeout(() => navigate('/dashboard'), 3000);
+        setTimeout(() => navigate('/login?error=' + encodeURIComponent(err instanceof Error ? err.message : 'An unexpected error occurred')), 3000);
       } finally {
         setIsProcessing(false);
       }
     };
 
     processCallback();
-  }, [navigate, toast]);
+  }, [navigate, toast, completeXAuth]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -118,7 +147,7 @@ const XCallback: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold mb-2">Authentication Error</h1>
           <p className="text-muted-foreground text-center mb-4">{error}</p>
-          <p className="text-center">Redirecting you back to dashboard...</p>
+          <p className="text-center">Redirecting you back to login...</p>
         </>
       ) : (
         <>
@@ -132,7 +161,7 @@ const XCallback: React.FC = () => {
           <p className="text-muted-foreground text-center mb-4">
             Your X account has been successfully connected.
           </p>
-          <p className="text-center">Redirecting you back to dashboard...</p>
+          <p className="text-center">Redirecting you to dashboard...</p>
         </>
       )}
     </div>

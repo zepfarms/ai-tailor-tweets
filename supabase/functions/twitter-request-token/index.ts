@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
 // Make sure the callback URL matches your actual app setup
-const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://postedpal.com/x-callback";
+const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "http://localhost:3000/x-callback";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -105,38 +105,16 @@ serve(async (req) => {
     // Build the authorization URL - now trying with the X domain first
     try {
       // Try X domain first (newer)
-      const useXDomain = true;
-      let authUrl;
+      let authUrl = new URL("https://x.com/i/oauth2/authorize");
+      authUrl.searchParams.append("response_type", "code");
+      authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
+      authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
+      authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
+      authUrl.searchParams.append("state", state);
+      authUrl.searchParams.append("code_challenge", codeChallenge);
+      authUrl.searchParams.append("code_challenge_method", "S256");
       
-      if (useXDomain) {
-        try {
-          authUrl = new URL("https://x.com/i/oauth2/authorize");
-          authUrl.searchParams.append("response_type", "code");
-          authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-          authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
-          authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
-          authUrl.searchParams.append("state", state);
-          authUrl.searchParams.append("code_challenge", codeChallenge);
-          authUrl.searchParams.append("code_challenge_method", "S256");
-          
-          console.log("Authorization URL created (X domain):", authUrl.toString());
-        } catch (xError) {
-          console.error("Error creating X domain auth URL:", xError);
-          throw xError;
-        }
-      } else {
-        // Fallback to Twitter domain
-        authUrl = new URL("https://twitter.com/i/oauth2/authorize");
-        authUrl.searchParams.append("response_type", "code");
-        authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-        authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
-        authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
-        authUrl.searchParams.append("state", state);
-        authUrl.searchParams.append("code_challenge", codeChallenge);
-        authUrl.searchParams.append("code_challenge_method", "S256");
-        
-        console.log("Authorization URL created (Twitter domain):", authUrl.toString());
-      }
+      console.log("Authorization URL created (X domain):", authUrl.toString());
 
       // Return the authorization URL to the client
       return new Response(

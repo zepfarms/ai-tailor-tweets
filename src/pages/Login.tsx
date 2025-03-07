@@ -11,6 +11,7 @@ import Footer from '@/components/Footer';
 import { Twitter, Loader2, AlertCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/components/ui/use-toast';
 
 const Login: React.FC = () => {
   const { login, loginWithX, isLoading, isLoginingWithX, user } = useAuth();
@@ -18,8 +19,10 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [xLoginAttempted, setXLoginAttempted] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
 
   // Redirect if user is already logged in
   useEffect(() => {
@@ -35,8 +38,13 @@ const Login: React.FC = () => {
     
     if (errorParam) {
       setError(decodeURIComponent(errorParam));
+      toast({
+        variant: "destructive",
+        title: "Login Error",
+        description: decodeURIComponent(errorParam),
+      });
     }
-  }, [location]);
+  }, [location, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,13 +61,38 @@ const Login: React.FC = () => {
   const handleXLogin = async () => {
     setError('');
     setXLoginAttempted(true);
+    setIsRedirecting(true);
     
     try {
+      console.log("Attempting to login with X...");
+      toast({
+        title: "Redirecting to X",
+        description: "You'll be redirected to X for authentication"
+      });
+      
       await loginWithX();
+      
+      // The above function should redirect to X, but in case it doesn't:
+      setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          console.log("No redirection happened after 3 seconds");
+          setError("Failed to redirect to X authentication. Please try again.");
+          setXLoginAttempted(false);
+          setIsRedirecting(false);
+        }
+      }, 3000);
+      
     } catch (err) {
-      console.error('Error during X login:', err);
+      console.error('Detailed X login error:', err);
       setError(err instanceof Error ? err.message : 'Failed to login with X');
       setXLoginAttempted(false);
+      setIsRedirecting(false);
+      
+      toast({
+        variant: "destructive",
+        title: "X Login Failed",
+        description: err instanceof Error ? err.message : "Failed to connect to X authentication"
+      });
     }
   };
 
@@ -90,14 +123,14 @@ const Login: React.FC = () => {
                 variant="outline"
                 className="w-full flex items-center gap-2"
                 onClick={handleXLogin}
-                disabled={isLoginingWithX || xLoginAttempted}
+                disabled={isLoginingWithX || xLoginAttempted || isRedirecting}
               >
-                {isLoginingWithX ? (
+                {isLoginingWithX || isRedirecting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Twitter className="h-4 w-4 text-[#1DA1F2]" />
                 )}
-                {isLoginingWithX ? "Connecting to X..." : 
+                {isLoginingWithX || isRedirecting ? "Connecting to X..." : 
                  xLoginAttempted ? "Redirecting to X..." : "Continue with X"}
               </Button>
               
@@ -151,7 +184,7 @@ const Login: React.FC = () => {
             <CardFooter>
               <div className="text-sm text-center w-full">
                 Don't have an account?{" "}
-                <Link to="/signup" className="text-blue-500 hover:text-blue-600 font-medium">
+                <Link to="/signup" className="text-sm text-blue-500 hover:text-blue-600 font-medium">
                   Sign up
                 </Link>
               </div>
