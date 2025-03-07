@@ -12,15 +12,31 @@ const Settings: React.FC = () => {
   const { toast } = useToast();
   const [isLinking, setIsLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   const handleConnectX = async () => {
     setIsLinking(true);
     setError(null);
+    setDebugInfo(null);
     try {
       await linkXAccount();
     } catch (error) {
       console.error('Error linking X account:', error);
       setError(error instanceof Error ? error.message : "An unknown error occurred");
+      
+      // Collect debug info
+      try {
+        const response = await fetch('/api/debug-x-connection', {
+          method: 'POST',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setDebugInfo(JSON.stringify(data, null, 2));
+        }
+      } catch (debugError) {
+        console.error('Error fetching debug info:', debugError);
+      }
+      
       toast({
         title: "X Integration Error",
         description: "There was an issue connecting your X account. Please check that all required API keys are configured.",
@@ -92,6 +108,15 @@ const Settings: React.FC = () => {
                     </p>
                   </AlertDescription>
                 </Alert>
+              )}
+              
+              {debugInfo && (
+                <div className="p-3 bg-gray-100 rounded-md mt-2 mb-2">
+                  <p className="text-sm font-semibold mb-1">Debug Information:</p>
+                  <pre className="text-xs overflow-x-auto whitespace-pre-wrap">
+                    {debugInfo}
+                  </pre>
+                </div>
               )}
               
               <Button onClick={handleConnectX} disabled={isLinking} className="flex items-center">

@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.twitter-analytics]
 verify_jwt = false
+
+[functions.debug-x-connection]
+verify_jwt = false
