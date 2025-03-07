@@ -155,7 +155,9 @@ const Dashboard: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold mb-2">Welcome, {user.name}</h1>
             <p className="text-muted-foreground">
-              Manage your content and post scheduling
+              {user.xLinked 
+                ? `View your X analytics and manage your content` 
+                : `Manage your content and post scheduling`}
             </p>
           </div>
           <div className="flex items-center gap-4">

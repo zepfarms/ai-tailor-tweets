@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -11,12 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import XAnalyticsSuggestions from '@/components/XAnalyticsSuggestions';
 
 interface XAnalyticsProps {
   className?: string;
 }
 
-interface TopPost {
+export interface TopPost {
   id: string;
   text: string;
   likes: number;
@@ -29,7 +29,7 @@ interface TopPost {
   isVideo: boolean;
 }
 
-interface AnalyticsData {
+export interface AnalyticsData {
   username?: string;
   followerCount: number;
   followingCount: number;
@@ -55,54 +55,52 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
   const { user } = useAuth();
 
   React.useEffect(() => {
-    // If the user has a linked X account, fetch analytics for it
-    const fetchUserLinkedAnalytics = async () => {
-      if (user?.id && user.xLinked && user.xUsername) {
-        try {
-          setLoading(true);
-          setError(null);
-          
-          // Extract username from the format @username
-          const cleanUsername = user.xUsername.startsWith('@') 
-            ? user.xUsername.substring(1) 
-            : user.xUsername;
-            
-          setUsername(cleanUsername);
-          
-          const { data, error: functionError } = await supabase.functions.invoke('twitter-analytics', {
-            body: { userId: user.id }
-          });
-
-          if (functionError) {
-            console.error('Error fetching X analytics:', functionError);
-            throw new Error('Failed to fetch analytics');
-          }
-
-          if (!data || data.error) {
-            throw new Error(data?.error || 'Failed to fetch analytics');
-          }
-
-          setAnalytics(data.data);
-          setDisplayedUsername(data.username);
-          setUsingRealData(data.usingRealData || false);
-          
-        } catch (err) {
-          console.error('Analytics error:', err);
-          setError(err instanceof Error ? err.message : 'Failed to load analytics');
-          
-          toast({
-            title: 'Failed to load analytics',
-            description: err instanceof Error ? err.message : 'Please try again later',
-            variant: 'destructive',
-          });
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchUserLinkedAnalytics();
+    if (user?.id && user.xLinked && user.xUsername) {
+      fetchUserLinkedAnalytics();
+    }
   }, [user, toast]);
+
+  const fetchUserLinkedAnalytics = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const cleanUsername = user.xUsername.startsWith('@') 
+        ? user.xUsername.substring(1) 
+        : user.xUsername;
+      
+      setUsername(cleanUsername);
+      
+      const { data, error: functionError } = await supabase.functions.invoke('twitter-analytics', {
+        body: { userId: user.id }
+      });
+
+      if (functionError) {
+        console.error('Error fetching X analytics:', functionError);
+        throw new Error('Failed to fetch analytics');
+      }
+
+      if (!data || data.error) {
+        throw new Error(data?.error || 'Failed to fetch analytics');
+      }
+
+      setAnalytics(data.data);
+      setDisplayedUsername(data.username);
+      setUsingRealData(data.usingRealData || false);
+      
+    } catch (err) {
+      console.error('Analytics error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load analytics');
+      
+      toast({
+        title: 'Failed to load analytics',
+        description: err instanceof Error ? err.message : 'Please try again later',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchAnalytics = async (xUsername: string) => {
     if (!xUsername) {
@@ -118,7 +116,6 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
       setLoading(true);
       setError(null);
 
-      // Clean the username (remove @ if present)
       const cleanUsername = xUsername.startsWith('@') ? xUsername.substring(1) : xUsername;
       
       const { data, error: functionError } = await supabase.functions.invoke('twitter-analytics', {
@@ -410,6 +407,13 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
           </div>
         </CardContent>
       </Card>
+
+      {analytics && (
+        <XAnalyticsSuggestions 
+          analytics={analytics} 
+          username={displayedUsername || username}
+        />
+      )}
     </div>
   );
 };
