@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
 import XAnalytics from '@/components/XAnalytics';
-import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2, AlertCircle, Twitter } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -19,7 +19,7 @@ const Dashboard: React.FC = () => {
   const [isDebugVisible, setIsDebugVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics'>('overview');
   
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, linkXAccount } = useAuth();
 
   const { data: postsData, isLoading: isPostsLoading } = useQuery({
     queryKey: ['posts', user?.id],
@@ -106,6 +106,19 @@ const Dashboard: React.FC = () => {
 
   const toggleDebugInfo = () => {
     setIsDebugVisible(!isDebugVisible);
+  };
+
+  const handleLinkXAccount = async () => {
+    try {
+      await linkXAccount();
+    } catch (error) {
+      console.error('Error linking X account:', error);
+      toast({
+        title: "X Integration Error",
+        description: "There was an issue connecting your X account. Please try again later.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isPageLoading || isLoading) {
@@ -246,27 +259,41 @@ const Dashboard: React.FC = () => {
                 <CardContent>
                   <div className="flex flex-col items-center space-y-4 p-4">
                     <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                      <LinkIcon className="h-8 w-8 text-blue-500" />
+                      {user.xLinked ? (
+                        <Twitter className="h-8 w-8 text-blue-500" />
+                      ) : (
+                        <LinkIcon className="h-8 w-8 text-blue-500" />
+                      )}
                     </div>
                     <h3 className="text-lg font-medium text-center">
                       {user.xLinked && user.xUsername
                         ? `X Account: ${user.xUsername}`
-                        : "X Analytics Available"
+                        : "Connect Your X Account"
                       }
                     </h3>
                     <p className="text-center text-muted-foreground mb-2">
                       {user.xLinked
                         ? "Your X account is connected"
-                        : "Access X analytics by entering any username"
+                        : "Connect your X account to post and view analytics"
                       }
                     </p>
-                    <Button 
-                      onClick={() => setActiveTab('analytics')} 
-                      className="group"
-                    >
-                      View X Analytics
-                      <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                    </Button>
+                    {user.xLinked ? (
+                      <Button 
+                        onClick={() => setActiveTab('analytics')}
+                        className="group"
+                      >
+                        View X Analytics
+                        <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={handleLinkXAccount}
+                        className="group"
+                      >
+                        <Twitter className="mr-2 h-4 w-4" />
+                        Link X Account
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
