@@ -103,6 +103,14 @@ const CreatePost: React.FC = () => {
     navigate('/video-studio');
   };
 
+  // Determine character limit based on X Premium status
+  const getCharacterLimit = () => {
+    if (user?.isXPremium) {
+      return 4000; // X Premium character limit
+    }
+    return 280; // Standard X character limit
+  };
+
   if (isLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -150,6 +158,8 @@ const CreatePost: React.FC = () => {
               onPost={handlePostNow}
               isPosting={isPosting}
               useWebIntent={true}
+              characterLimit={getCharacterLimit()}
+              useHashtags={user.useHashtags !== false}
             />
           )}
           

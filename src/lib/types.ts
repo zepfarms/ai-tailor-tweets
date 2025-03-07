@@ -6,6 +6,8 @@ export interface User {
   xLinked?: boolean;
   xUsername?: string;
   isDemoAccount?: boolean;
+  isXPremium?: boolean;
+  useHashtags?: boolean;
 }
 
 export interface Post {
@@ -58,6 +60,7 @@ export interface AuthContextType {
   verifyOtp: (email: string, token: string) => Promise<boolean>;
   linkXAccount?: (redirectUri?: string) => Promise<void>;
   postToX?: (data: PostToXData) => Promise<any>;
+  updateUserPreferences?: (preferences: Partial<User>) => Promise<void>;
 }
 
 // Demo data types

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -6,11 +7,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { AnalyticsCard } from '@/components/AnalyticsCard';
-import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Loader2, AlertCircle, Twitter } from 'lucide-react';
+import { 
+  Calendar, 
+  Clock, 
+  Link as LinkIcon, 
+  MessageSquare, 
+  ArrowRight, 
+  Check, 
+  Loader2, 
+  AlertCircle, 
+  Twitter,
+  Settings
+} from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { demoData } from '@/lib/demoData';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -18,9 +32,12 @@ const Dashboard: React.FC = () => {
   const { toast } = useToast();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isDebugVisible, setIsDebugVisible] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   
-  const { user, isLoading, linkXAccount } = useAuth();
+  const { user, isLoading, linkXAccount, updateUserPreferences } = useAuth();
   const [isXLinking, setIsXLinking] = useState(false);
+  const [isXPremium, setIsXPremium] = useState(false);
+  const [useHashtags, setUseHashtags] = useState(true);
 
   const { data: postsData, isLoading: isPostsLoading, error: postsError } = useQuery({
     queryKey: ['posts', user?.id],
@@ -106,6 +123,13 @@ const Dashboard: React.FC = () => {
     }
   }, [location.search, user, toast]);
 
+  useEffect(() => {
+    if (user) {
+      setIsXPremium(user.isXPremium || false);
+      setUseHashtags(user.useHashtags !== false); // Default to true if not set
+    }
+  }, [user]);
+
   const scheduledPostsCount = postsData?.scheduledPosts?.length || 0;
   const publishedPostsCount = postsData?.publishedPosts?.length || 0;
   
@@ -163,6 +187,40 @@ const Dashboard: React.FC = () => {
         description: "There was an issue connecting your X account. Please try again later.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    if (!updateUserPreferences) {
+      toast({
+        title: "Update Not Supported",
+        description: "User preference updates are not supported in demo mode.",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsSavingPreferences(true);
+    try {
+      await updateUserPreferences({
+        isXPremium,
+        useHashtags
+      });
+      
+      toast({
+        title: "Preferences Saved",
+        description: "Your posting preferences have been updated.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      toast({
+        title: "Error Saving Preferences",
+        description: "There was an issue saving your preferences. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingPreferences(false);
     }
   };
 
@@ -277,6 +335,8 @@ const Dashboard: React.FC = () => {
                 <p>User ID: {user.id}</p>
                 <p>X Linked: {user.xLinked ? "Yes" : "No"}</p>
                 <p>X Username: {user.xUsername || "None"}</p>
+                <p>X Premium: {isXPremium ? "Yes" : "No"}</p>
+                <p>Use Hashtags: {useHashtags ? "Yes" : "No"}</p>
                 <p>Demo Account: {user.isDemoAccount ? "Yes" : "No"}</p>
                 <p>Environment: {window.location.origin}</p>
                 <p>Scheduled Posts: {scheduledPostsCount}</p>
@@ -372,40 +432,65 @@ const Dashboard: React.FC = () => {
           
           <Card className="glass-card overflow-hidden">
             <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
+              <CardTitle className="flex items-center">
+                <Settings className="h-5 w-5 mr-2" />
+                Post Preferences
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {isPostsLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : postsData && (postsData.scheduledPosts.length > 0 || postsData.publishedPosts.length > 0) ? (
+              <div className="space-y-6">
                 <div className="space-y-4">
-                  {postsData.scheduledPosts.slice(0, 2).map((post) => (
-                    <div key={post.id} className="border-l-2 border-blue-500 pl-4 py-1">
-                      <p className="text-sm font-medium">Post scheduled for {new Date(post.scheduled_for).toLocaleDateString()} at {new Date(post.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="x-premium" className="font-medium">X Premium Account</Label>
+                      <p className="text-sm text-muted-foreground">Enable to use longer character limits in posts</p>
                     </div>
-                  ))}
-                  {postsData.publishedPosts.slice(0, 2).map((post) => (
-                    <div key={post.id} className="border-l-2 border-green-500 pl-4 py-1">
-                      <p className="text-sm font-medium">Post published successfully</p>
-                      <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()} at {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    <Switch 
+                      id="x-premium" 
+                      checked={isXPremium} 
+                      onCheckedChange={setIsXPremium}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-hashtags" className="font-medium">Use Hashtags</Label>
+                      <p className="text-sm text-muted-foreground">Include hashtags in generated posts</p>
                     </div>
-                  ))}
+                    <Switch 
+                      id="use-hashtags" 
+                      checked={useHashtags} 
+                      onCheckedChange={setUseHashtags}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center py-6">
-                  <p className="text-muted-foreground">No recent activity</p>
+                
+                <div className="pt-2">
                   <Button 
-                    variant="outline" 
-                    className="mt-4"
-                    onClick={() => navigate('/create')}
+                    onClick={handleSavePreferences} 
+                    className="w-full"
+                    disabled={isSavingPreferences}
                   >
-                    Create Your First Post
+                    {isSavingPreferences ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Preferences"
+                    )}
                   </Button>
                 </div>
-              )}
+                
+                <div className="text-sm text-muted-foreground">
+                  <p>These preferences will be applied when generating new posts.</p>
+                  {isXPremium ? (
+                    <p className="mt-1">X Premium: Up to 4,000 characters per post</p>
+                  ) : (
+                    <p className="mt-1">Standard: Up to 280 characters per post</p>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
