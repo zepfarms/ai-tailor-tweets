@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -94,7 +93,7 @@ const Hero: React.FC = () => {
               
               <div className="space-y-4 mb-4">
                 <p className="text-lg">
-                  Just tested this new AI content tool for my X account - it analyzed my posting patterns and created tweets that sound exactly like me! 🤯 #PostedPal #ContentCreation
+                  Just tested this new AI content tool for my X account - it analyzed my posting patterns and created posts that sound exactly like me! 🤯
                 </p>
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>11:42 AM · Mar 5, 2025</span>
