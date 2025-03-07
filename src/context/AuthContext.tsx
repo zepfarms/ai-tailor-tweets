@@ -435,21 +435,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const linkXAccount = async (redirectUri?: string) => {
-    toast({
-      title: "X Integration Disabled",
-      description: "The X integration feature is currently unavailable.",
-      variant: "destructive",
-    });
-    return Promise.reject(new Error("X integration disabled"));
+    try {
+      setIsLinkingX(true);
+      
+      if (!user?.id) {
+        throw new Error("You must be logged in to connect your X account");
+      }
+      
+      const response = await supabase.functions.invoke('twitter-request-token', {
+        body: { userId: user.id }
+      });
+      
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to initialize X authentication");
+      }
+      
+      if (!response.data || !response.data.authUrl) {
+        throw new Error("Invalid response from authentication service");
+      }
+      
+      window.location.href = response.data.authUrl;
+      return true;
+    } catch (error) {
+      console.error('Error linking X account:', error);
+      toast({
+        title: "X Connection Error",
+        description: error instanceof Error ? error.message : "Failed to connect to X",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLinkingX(false);
+    }
   };
 
   const postToX = async (data: PostToXData) => {
-    toast({
-      title: "X Integration Disabled",
-      description: "The X integration feature is currently unavailable.",
-      variant: "destructive",
-    });
-    return Promise.reject(new Error("X integration disabled"));
+    try {
+      if (!user?.id) {
+        throw new Error("You must be logged in to post to X");
+      }
+      
+      if (!user.xLinked) {
+        throw new Error("Please connect your X account first");
+      }
+      
+      const response = await supabase.functions.invoke('twitter-post', {
+        body: {
+          userId: user.id,
+          content: data.content,
+          media: data.media
+        }
+      });
+      
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to post to X");
+      }
+      
+      toast({
+        title: "Posted to X",
+        description: "Your content was successfully posted to X",
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error posting to X:', error);
+      toast({
+        title: "X Posting Error",
+        description: error instanceof Error ? error.message : "Failed to post to X",
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   return (
