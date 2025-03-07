@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useNavigate } from 'react-router-dom';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
@@ -37,6 +38,14 @@ const Settings: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 pt-24 max-w-4xl">
+      <Breadcrumb
+        segments={[
+          { name: "Dashboard", href: "/dashboard" },
+          { name: "Settings", href: "/settings" }
+        ]}
+        className="mb-6"
+      />
+      
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Settings</h1>
         <div className="flex gap-4">
@@ -61,6 +70,7 @@ const Settings: React.FC = () => {
         <TabsList className="mb-6">
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="subscription">Subscription</TabsTrigger>
         </TabsList>
         
         <TabsContent value="account">
@@ -110,6 +120,31 @@ const Settings: React.FC = () => {
                 <p className="text-sm text-amber-700">
                   <strong>Note about images:</strong> When using the web intent approach, you'll need to manually attach images in the Twitter window that opens.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="subscription">
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Subscription Settings</CardTitle>
+              <CardDescription>
+                Manage your Posted Pal Pro subscription
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                  <p className="font-medium">Status: <span className="text-green-600">Active</span></p>
+                  <p className="text-sm text-muted-foreground mt-1">Your Posted Pal Pro subscription is active.</p>
+                </div>
+                
+                <Link to="/subscription">
+                  <Button variant="outline" className="w-full">
+                    Manage Subscription
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>

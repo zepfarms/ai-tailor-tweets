@@ -10,6 +10,7 @@ import Navbar from '@/components/Navbar';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 const Login: React.FC = () => {
   const { login, user, isLoading } = useAuth();
@@ -60,6 +61,13 @@ const Login: React.FC = () => {
       
       <main className="flex-1 flex items-center justify-center py-12 px-4 mt-16">
         <div className="w-full max-w-md">
+          <Breadcrumb
+            segments={[
+              { name: "Login", href: "/login" }
+            ]}
+            className="mb-6"
+          />
+          
           <Card className="glass-card animate-scale-in">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>

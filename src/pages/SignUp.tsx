@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 const SignUp: React.FC = () => {
   const { signup, isLoading, user, isVerifying, verifyOtp } = useAuth();
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,7 +27,7 @@ const SignUp: React.FC = () => {
   // Check if user is already verified and logged in
   useEffect(() => {
     if (user && !isLoading && !isVerifying) {
-      navigate('/dashboard');
+      navigate('/subscription');
     } else if (isVerifying) {
       setShowVerification(true);
     }
@@ -58,6 +59,8 @@ const SignUp: React.FC = () => {
     }
     
     try {
+      // Use email as name for simplified flow
+      const name = email.split('@')[0];
       const result = await signup(email, password, name);
       if (result?.success) {
         setShowVerification(true);
@@ -87,6 +90,7 @@ const SignUp: React.FC = () => {
         title: "Verification successful",
         description: "Your email has been verified successfully!",
       });
+      navigate('/subscription');
     } catch (err) {
       console.error('Verification error:', err);
       setError(err instanceof Error ? err.message : 'Failed to verify code');
@@ -105,6 +109,8 @@ const SignUp: React.FC = () => {
     setResendCountdown(60); // 60 second cooldown
     
     try {
+      // Use email as name for simplified flow
+      const name = email.split('@')[0];
       const result = await signup(email, password, name);
       if (result?.success) {
         toast({
@@ -146,30 +152,25 @@ const SignUp: React.FC = () => {
       
       <main className="flex-1 flex items-center justify-center py-12 px-4 mt-16">
         <div className="w-full max-w-md">
+          <Breadcrumb
+            segments={[
+              { name: "Sign Up", href: "/signup" }
+            ]}
+            className="mb-6"
+          />
+          
           <Card className="glass-card animate-scale-in">
             {!showVerification ? (
               <>
                 <CardHeader className="space-y-1">
                   <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
                   <CardDescription className="text-center">
-                    Enter your information to create your account
+                    Enter your email and create a password
                   </CardDescription>
                 </CardHeader>
                 
                 <CardContent>
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input 
-                        id="name"
-                        type="text"
-                        placeholder="John Doe"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <Input 
@@ -207,11 +208,14 @@ const SignUp: React.FC = () => {
                     </div>
                     
                     {error && (
-                      <div className="text-sm text-destructive">{error}</div>
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
                     )}
                     
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? "Creating account..." : "Create account"}
+                      {isLoading ? "Creating account..." : "Continue to Payment"}
                     </Button>
                   </form>
                 </CardContent>
@@ -249,11 +253,14 @@ const SignUp: React.FC = () => {
                     </div>
                     
                     {error && (
-                      <div className="text-sm text-destructive">{error}</div>
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
                     )}
                     
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? "Verifying..." : "Verify Email"}
+                      {isLoading ? "Verifying..." : "Verify and Continue"}
                     </Button>
                   </form>
                 </CardContent>
@@ -282,8 +289,6 @@ const SignUp: React.FC = () => {
           </Card>
         </div>
       </main>
-      
-      <Footer />
     </div>
   );
 };

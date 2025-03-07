@@ -19,6 +19,8 @@ import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CookiePolicy from './pages/CookiePolicy';
 import XCallback from './pages/XCallback';
+import Subscription from './pages/Subscription';
+import SubscriptionSuccess from './pages/SubscriptionSuccess';
 
 import './App.css';
 
@@ -44,6 +46,8 @@ function App() {
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/cookie-policy" element={<CookiePolicy />} />
             <Route path="/x-callback" element={<XCallback />} />
+            <Route path="/subscription" element={<Subscription />} />
+            <Route path="/subscription-success" element={<SubscriptionSuccess />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />

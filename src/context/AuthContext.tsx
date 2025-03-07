@@ -1,9 +1,9 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType, PostToXData } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
+import { checkSubscriptionStatus } from '@/lib/stripe';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -13,6 +13,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLinkingX, setIsLinkingX] = useState(false);
   const [isLoginingWithX, setIsLoginingWithX] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -38,6 +39,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           
           setUser(appUser);
+
+          // Check subscription status
+          if (authUser.email === 'zepfarms@gmail.com' || appUser.email === 'demo@postedpal.com') {
+            setHasSubscription(true);
+          } else {
+            const subscription = await checkSubscriptionStatus(authUser.id);
+            setHasSubscription(subscription?.hasActiveSubscription || false);
+          }
         }
       } catch (error) {
         console.error('Error checking session:', error);
@@ -128,6 +137,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         
         setUser(demoUser);
+        setHasSubscription(true);
+        
         toast({
           title: "Demo Login successful",
           description: "You're now using a demo account with sample data",
@@ -135,6 +146,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         navigate('/dashboard');
         setIsLoading(false);
         return;
+      }
+      
+      // Check for master user
+      if (email === 'zepfarms@gmail.com') {
+        setHasSubscription(true);
       }
       
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -145,6 +161,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       
       if (data.user) {
+        // Check subscription status for non-demo users
+        if (email !== 'zepfarms@gmail.com') {
+          const subscription = await checkSubscriptionStatus(data.user.id);
+          setHasSubscription(subscription?.hasActiveSubscription || false);
+          
+          // Redirect to subscription page if no active subscription
+          if (!subscription?.hasActiveSubscription) {
+            toast({
+              title: "Subscription required",
+              description: "Please subscribe to access dashboard features",
+            });
+            navigate('/subscription');
+            setIsLoading(false);
+            return;
+          }
+        }
+        
         toast({
           title: "Login successful",
           description: "Welcome back!",
@@ -565,6 +598,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateSubscriptionStatus = async () => {
+    if (user?.id) {
+      try {
+        // Check for master user or demo account
+        if (user.email === 'zepfarms@gmail.com' || user.email === 'demo@postedpal.com' || user.isDemoAccount) {
+          setHasSubscription(true);
+          return;
+        }
+        
+        const subscription = await checkSubscriptionStatus(user.id);
+        setHasSubscription(subscription?.hasActiveSubscription || false);
+        
+        return subscription?.hasActiveSubscription || false;
+      } catch (error) {
+        console.error('Error updating subscription status:', error);
+        return false;
+      }
+    }
+    return false;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -572,6 +626,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLinkingX,
       isLoginingWithX,
       isVerifying,
+      hasSubscription,
+      updateSubscriptionStatus,
       login, 
       loginWithX,
       completeXAuth,

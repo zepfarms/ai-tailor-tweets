@@ -63,6 +63,8 @@ export interface AuthContextType {
   isVerifying: boolean;
   isLinkingX?: boolean;
   isLoginingWithX?: boolean;
+  hasSubscription?: boolean | null;
+  updateSubscriptionStatus?: () => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
   loginWithX?: () => Promise<void>;
   completeXAuth?: (magicLink: string) => Promise<boolean>;
@@ -89,4 +91,15 @@ export interface DemoPost {
   published: boolean;
   created_at: string;
   user_id: string;
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  status: 'active' | 'canceled' | 'past_due' | 'trialing';
+  stripe_customer_id: string;
+  stripe_subscription_id: string;
+  created_at: string;
+  updated_at: string;
+  canceled_at?: string;
 }
