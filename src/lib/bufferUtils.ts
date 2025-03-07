@@ -52,12 +52,11 @@ export const uploadAndGetMediaUrls = async (mediaFiles: File[]): Promise<string[
   if (!mediaFiles.length) return [];
   
   try {
-    // For now, we're creating temporary URLs that can be publicly accessed
-    // In a real-world scenario, you would upload these to a CDN or storage service
+    // For testing and development, we'll use blob URLs to display images in the preview
+    // In production, we would upload these files to a storage service
     const urls = mediaFiles.map(file => URL.createObjectURL(file));
     
-    // This is a placeholder for actual file uploading logic
-    // TODO: Replace with actual file upload implementation
+    // Log the files that would be uploaded
     console.log("Media files would be uploaded here:", mediaFiles);
     
     return urls;

@@ -11,7 +11,6 @@ import PostScheduler from '@/components/PostScheduler';
 import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
-import { postToSocialMedia } from '@/lib/bufferUtils';
 
 type Stage = "topics" | "create" | "schedule";
 
@@ -54,57 +53,36 @@ const CreatePost: React.FC = () => {
     setIsPosting(true);
     
     try {
-      // First try posting via Buffer
-      await postToSocialMedia({
-        content,
-        mediaUrls: mediaPreviews,
-        platforms: ["twitter"]
-      });
-      
-      toast({
-        title: "Posted to X",
-        description: "Your post has been shared to X via Buffer",
-      });
-      
-      // Navigate back to dashboard
-      navigate('/dashboard?status=shared');
-    } catch (error) {
-      console.error("Error posting to X:", error);
-      
-      // Fallback to web intent if Buffer fails
-      // Open Twitter web intent in a new window
+      // Open Twitter web intent in a new window (free option)
       let intentUrl = "https://twitter.com/intent/tweet?";
       intentUrl += "text=" + encodeURIComponent(content);
       
-      // Add media URLs if available
+      // Add media URLs if available (note: Twitter web intent doesn't directly support image uploads)
       if (mediaPreviews && mediaPreviews.length > 0) {
-        // For the web intent, we can only include one URL in the text
-        // X will automatically expand this into a card with the image
-        const firstImageUrl = mediaPreviews[0];
-        
-        // Add the image URL at the end of the text
-        // Only add if it's a real URL (not a blob URL)
-        if (firstImageUrl && !firstImageUrl.startsWith('blob:')) {
-          intentUrl += "%20" + encodeURIComponent(firstImageUrl);
-        } else {
-          // Alert the user that local images can't be shared directly
-          toast({
-            title: "Media Sharing Limitation",
-            description: "Local images can't be shared directly via X. Please connect your X account to Buffer to enable image posting.",
-            variant: "default",
-          });
-        }
+        // Alert the user about the limitations of the free approach
+        toast({
+          title: "Media Sharing Note",
+          description: "The free web intent approach doesn't support direct image uploads. Consider Zapier or IFTTT for more features.",
+          variant: "default",
+        });
       }
       
       window.open(intentUrl, "_blank", "width=550,height=420");
       
       toast({
         title: "X Post Window Opened",
-        description: "Complete your post in the X window. To enable direct posting with images, connect your X account in Settings.",
+        description: "Complete your post in the X window. For direct posting with images, consider Zapier (free tier) or IFTTT ($5/month).",
       });
       
       // Navigate back to dashboard
       navigate('/dashboard?status=shared');
+    } catch (error) {
+      console.error("Error posting to X:", error);
+      toast({
+        title: "Error",
+        description: "Could not open X web intent. Please try again.",
+        variant: "destructive", 
+      });
     } finally {
       setIsPosting(false);
     }
@@ -172,7 +150,7 @@ const CreatePost: React.FC = () => {
               onSchedule={handleSchedulePost}
               onPost={handlePostNow}
               isPosting={isPosting}
-              useWebIntent={false}
+              useWebIntent={true}
             />
           )}
           
