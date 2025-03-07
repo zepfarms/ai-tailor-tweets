@@ -35,7 +35,20 @@ serve(async (req) => {
       throw new Error("Supabase credentials are not properly configured");
     }
     
-    const { code, state } = await req.json();
+    // Log the callback URL we're using
+    console.log("Using callback URL:", TWITTER_CALLBACK_URL);
+    
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request:", parseError);
+      throw new Error("Invalid request format - could not parse JSON");
+    }
+    
+    const { code, state } = requestData;
+    
+    console.log("Request data:", { codeProvided: !!code, state });
     
     if (!code) {
       throw new Error("Authorization code is required");
@@ -45,11 +58,15 @@ serve(async (req) => {
       throw new Error("State parameter is required");
     }
     
-    console.log("Code provided:", !!code);
-    console.log("State:", state);
-    
     // Create Supabase client
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    let supabase;
+    try {
+      supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      console.log("Supabase client created");
+    } catch (supabaseError) {
+      console.error("Error creating Supabase client:", supabaseError);
+      throw new Error("Failed to connect to Supabase");
+    }
     
     // Retrieve the stored OAuth state
     const { data: oauthData, error: oauthError } = await supabase
@@ -70,53 +87,83 @@ serve(async (req) => {
     console.log("Retrieved user ID:", userId);
     console.log("Code verifier found:", !!codeVerifier);
     
-    // Exchange the authorization code for an access token - still using api.twitter.com as this is still the correct domain
-    const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": `Basic ${btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`)}`,
-      },
-      body: new URLSearchParams({
-        code,
-        grant_type: "authorization_code",
-        client_id: TWITTER_CLIENT_ID,
-        redirect_uri: TWITTER_CALLBACK_URL,
-        code_verifier: codeVerifier,
-      }),
-    });
-    
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      console.error("Token response error:", errorData);
-      throw new Error(`Failed to exchange code for token: ${errorData}`);
+    // Exchange the authorization code for an access token
+    console.log("Attempting to exchange code for token");
+    let tokenResponse;
+    try {
+      tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": `Basic ${btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`)}`,
+        },
+        body: new URLSearchParams({
+          code,
+          grant_type: "authorization_code",
+          client_id: TWITTER_CLIENT_ID,
+          redirect_uri: TWITTER_CALLBACK_URL,
+          code_verifier: codeVerifier,
+        }),
+      });
+      
+      console.log("Token response status:", tokenResponse.status);
+      
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error("Token response error:", errorText);
+        throw new Error(`Failed to exchange code for token: HTTP ${tokenResponse.status} - ${errorText}`);
+      }
+    } catch (fetchError) {
+      console.error("Fetch error when exchanging token:", fetchError);
+      throw new Error(`Network error when exchanging token: ${fetchError.message}`);
     }
     
-    const tokenData = await tokenResponse.json();
-    
-    console.log("Token response:", !!tokenData);
-    console.log("Access token obtained:", !!tokenData.access_token);
-    console.log("Refresh token:", !!tokenData.refresh_token);
+    let tokenData;
+    try {
+      tokenData = await tokenResponse.json();
+      console.log("Token response received:", !!tokenData);
+      console.log("Access token obtained:", !!tokenData.access_token);
+      console.log("Refresh token:", !!tokenData.refresh_token);
+    } catch (parseError) {
+      console.error("Error parsing token response:", parseError);
+      throw new Error("Invalid response from Twitter token endpoint");
+    }
     
     // Get Twitter user info
-    const userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-      },
-    });
-
-    if (!userResponse.ok) {
-      const errorData = await userResponse.text();
-      console.error("User info response error:", errorData);
-      throw new Error(`Failed to fetch user info: ${errorData}`);
+    console.log("Fetching user info");
+    let userResponse;
+    try {
+      userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
+        headers: {
+          "Authorization": `Bearer ${tokenData.access_token}`
+        }
+      });
+      
+      console.log("User info response status:", userResponse.status);
+      
+      if (!userResponse.ok) {
+        const errorText = await userResponse.text();
+        console.error("User info response error:", errorText);
+        throw new Error(`Failed to fetch user info: HTTP ${userResponse.status} - ${errorText}`);
+      }
+    } catch (fetchError) {
+      console.error("Fetch error when getting user info:", fetchError);
+      throw new Error(`Network error when fetching user info: ${fetchError.message}`);
     }
 
-    const userData = await userResponse.json();
-    console.log("User data:", userData);
+    let userData;
+    try {
+      userData = await userResponse.json();
+      console.log("User data received:", !!userData);
+    } catch (parseError) {
+      console.error("Error parsing user response:", parseError);
+      throw new Error("Invalid response from Twitter user endpoint");
+    }
 
     if (userData.data) {
       // Store the Twitter account information in the database
-      const { error } = await supabase.from("x_accounts").upsert({
+      console.log("Storing X account information");
+      const { error: upsertError } = await supabase.from("x_accounts").upsert({
         user_id: userId,
         x_user_id: userData.data.id,
         x_username: userData.data.username,
@@ -125,12 +172,13 @@ serve(async (req) => {
         access_token_secret: tokenData.refresh_token || "",
       });
 
-      if (error) {
-        console.error("Error storing Twitter account:", error);
+      if (upsertError) {
+        console.error("Error storing Twitter account:", upsertError);
         throw new Error("Failed to store Twitter account");
       }
       
       // Clean up the OAuth state
+      console.log("Cleaning up OAuth state");
       await supabase
         .from('oauth_states')
         .delete()

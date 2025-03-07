@@ -41,6 +41,8 @@ serve(async (req) => {
     
     console.log("Environment variables are properly set");
     console.log("Callback URL:", TWITTER_CALLBACK_URL);
+    console.log("Client ID first chars:", TWITTER_CLIENT_ID.substring(0, 4) + "...");
+    console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     
     // Get the userId from the request body
     let userId;
@@ -92,18 +94,41 @@ serve(async (req) => {
       throw new Error(`Database operation failed: ${error.message}`);
     }
     
-    // Build the authorization URL - still using twitter.com as this is still the correct domain for OAuth
+    // Build the authorization URL - now trying with the X domain first
     try {
-      const authUrl = new URL("https://twitter.com/i/oauth2/authorize");
-      authUrl.searchParams.append("response_type", "code");
-      authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-      authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
-      authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
-      authUrl.searchParams.append("state", state);
-      authUrl.searchParams.append("code_challenge", codeChallenge);
-      authUrl.searchParams.append("code_challenge_method", "S256");
+      // Try X domain first (newer)
+      const useXDomain = true;
+      let authUrl;
       
-      console.log("Authorization URL created:", authUrl.toString());
+      if (useXDomain) {
+        try {
+          authUrl = new URL("https://x.com/i/oauth2/authorize");
+          authUrl.searchParams.append("response_type", "code");
+          authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
+          authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
+          authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
+          authUrl.searchParams.append("state", state);
+          authUrl.searchParams.append("code_challenge", codeChallenge);
+          authUrl.searchParams.append("code_challenge_method", "S256");
+          
+          console.log("Authorization URL created (X domain):", authUrl.toString());
+        } catch (xError) {
+          console.error("Error creating X domain auth URL:", xError);
+          throw xError;
+        }
+      } else {
+        // Fallback to Twitter domain
+        authUrl = new URL("https://twitter.com/i/oauth2/authorize");
+        authUrl.searchParams.append("response_type", "code");
+        authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
+        authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
+        authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
+        authUrl.searchParams.append("state", state);
+        authUrl.searchParams.append("code_challenge", codeChallenge);
+        authUrl.searchParams.append("code_challenge_method", "S256");
+        
+        console.log("Authorization URL created (Twitter domain):", authUrl.toString());
+      }
 
       // Return the authorization URL to the client
       return new Response(
