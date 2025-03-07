@@ -15,6 +15,7 @@ export type Database = {
           created_at: string | null
           expires_at: string | null
           id: string
+          is_login: boolean | null
           provider: string
           state: string
           user_id: string
@@ -24,6 +25,7 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           id?: string
+          is_login?: boolean | null
           provider: string
           state: string
           user_id: string
@@ -33,6 +35,7 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           id?: string
+          is_login?: boolean | null
           provider?: string
           state?: string
           user_id?: string

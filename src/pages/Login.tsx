@@ -30,10 +30,9 @@ const Login: React.FC = () => {
 
   const handleXLogin = async () => {
     try {
-      if (loginWithX) {
-        await loginWithX();
-      }
+      await loginWithX();
     } catch (err) {
+      console.error('Error during X login:', err);
       setError(err instanceof Error ? err.message : 'Failed to login with X');
     }
   };
