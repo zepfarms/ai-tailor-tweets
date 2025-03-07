@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -34,14 +35,34 @@ const Hero: React.FC = () => {
             
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
               <div className="flex -space-x-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <div 
-                    key={i} 
-                    className="w-8 h-8 rounded-full bg-blue-500 border-2 border-background flex items-center justify-center text-white text-xs font-bold"
-                  >
-                    {String.fromCharCode(64 + i)}
-                  </div>
-                ))}
+                <div className="w-8 h-8 rounded-full border-2 border-background overflow-hidden">
+                  <img 
+                    src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158" 
+                    alt="User profile" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="w-8 h-8 rounded-full border-2 border-background overflow-hidden">
+                  <img 
+                    src="https://images.unsplash.com/photo-1581092795360-fd1ca04f0952" 
+                    alt="User profile" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="w-8 h-8 rounded-full border-2 border-background overflow-hidden">
+                  <img 
+                    src="https://images.unsplash.com/photo-1649972904349-6e44c42644a7" 
+                    alt="User profile" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="w-8 h-8 rounded-full border-2 border-background overflow-hidden">
+                  <img 
+                    src="https://images.unsplash.com/photo-1605810230434-7631ac76ec81" 
+                    alt="User profile" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               </div>
               <p>Trusted by thousands of content creators</p>
             </div>
