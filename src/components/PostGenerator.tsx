@@ -14,6 +14,8 @@ interface PostGeneratorProps {
   onPost: (content: string, mediaPreviews?: string[]) => void;
   useWebIntent?: boolean;
   isPosting?: boolean;
+  characterLimit?: number;
+  useHashtags?: boolean;
 }
 
 export const PostGenerator: React.FC<PostGeneratorProps> = ({ 
@@ -21,7 +23,9 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   onSchedule,
   onPost,
   useWebIntent = false,
-  isPosting = false
+  isPosting = false,
+  characterLimit = 280,
+  useHashtags = true
 }) => {
   const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -190,18 +194,32 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         "Writing": "The blank page can be intimidating, but showing up daily to write is half the battle. Today's writing session reminded me that perfection is the enemy of progress. Fellow writers, what keeps you motivated? #WritingCommunity #CreativeProcess",
       };
       
-      const customPostTemplates = [
-        `Just dove deep into the world of ${topic} today. The innovations and discussions happening in this space are truly eye-opening. Anyone else passionate about ${topic}? Let's connect and share insights! #${topic.replace(/\s+/g, '')} #Trends`,
-        `Fascinating developments in ${topic} this week that might reshape how we think about this field. The possibilities are endless when you consider the long-term implications. What aspects of ${topic} excite you the most? #${topic.replace(/\s+/g, '')}`,
-        `The ${topic} community is growing in remarkable ways. Just discovered some groundbreaking work that's happening behind the scenes. This could be a game-changer for everyone involved in ${topic}! #${topic.replace(/\s+/g, '')} #Innovation`
-      ];
+      let postTemplate = useHashtags 
+        ? `Just dove deep into the world of ${topic} today. The innovations and discussions happening in this space are truly eye-opening. Anyone else passionate about ${topic}? Let's connect and share insights! #${topic.replace(/\s+/g, '')} #Trends`
+        : `Just dove deep into the world of ${topic} today. The innovations and discussions happening in this space are truly eye-opening. Anyone else passionate about ${topic}? Let's connect and share insights!`;
+        
+      const customPostTemplates = useHashtags 
+        ? [
+            `Just dove deep into the world of ${topic} today. The innovations and discussions happening in this space are truly eye-opening. Anyone else passionate about ${topic}? Let's connect and share insights! #${topic.replace(/\s+/g, '')} #Trends`,
+            `Fascinating developments in ${topic} this week that might reshape how we think about this field. The possibilities are endless when you consider the long-term implications. What aspects of ${topic} excite you the most? #${topic.replace(/\s+/g, '')}`,
+            `The ${topic} community is growing in remarkable ways. Just discovered some groundbreaking work that's happening behind the scenes. This could be a game-changer for everyone involved in ${topic}! #${topic.replace(/\s+/g, '')} #Innovation`
+          ]
+        : [
+            `Just dove deep into the world of ${topic} today. The innovations and discussions happening in this space are truly eye-opening. Anyone else passionate about ${topic}? Let's connect and share insights!`,
+            `Fascinating developments in ${topic} this week that might reshape how we think about this field. The possibilities are endless when you consider the long-term implications. What aspects of ${topic} excite you the most?`,
+            `The ${topic} community is growing in remarkable ways. Just discovered some groundbreaking work that's happening behind the scenes. This could be a game-changer for everyone involved in ${topic}!`
+          ];
       
       let generatedContent;
       if (mockContents[topic]) {
-        generatedContent = mockContents[topic];
+        generatedContent = useHashtags ? mockContents[topic] : mockContents[topic].replace(/#\w+\s?/g, '').trim();
       } else {
         const randomTemplate = customPostTemplates[Math.floor(Math.random() * customPostTemplates.length)];
         generatedContent = randomTemplate;
+      }
+      
+      if (generatedContent.length > characterLimit) {
+        generatedContent = generatedContent.substring(0, characterLimit - 3) + "...";
       }
       
       setContent(generatedContent);
@@ -425,7 +443,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
               Post Content
             </label>
             <span className="text-xs text-muted-foreground">
-              {content.length}/280 characters
+              {content.length}/{characterLimit} characters
             </span>
           </div>
           <Textarea
@@ -434,7 +452,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
             onChange={(e) => setContent(e.target.value)}
             placeholder="What's happening?"
             className="min-h-[120px] resize-none focus:ring-blue-500"
-            maxLength={280}
+            maxLength={characterLimit}
           />
         </div>
         
