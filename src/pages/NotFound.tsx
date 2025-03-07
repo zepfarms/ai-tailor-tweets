@@ -2,6 +2,7 @@
 import React, { useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { HomeIcon, ArrowLeft } from "lucide-react";
 
 const NotFound: React.FC = () => {
   const location = useLocation();
@@ -43,6 +44,10 @@ const NotFound: React.FC = () => {
            (window.innerWidth <= 768);
   };
 
+  const goBack = () => {
+    navigate(-1);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4">
       <div className="text-center max-w-md mx-auto space-y-6 animate-fade-in">
@@ -59,9 +64,14 @@ const NotFound: React.FC = () => {
           The page you're looking for doesn't exist or has been moved.
         </p>
         
-        <div className="pt-6">
+        <div className="pt-6 flex flex-col sm:flex-row gap-4 justify-center">
+          <Button variant="outline" onClick={goBack} className="flex items-center gap-2">
+            <ArrowLeft size={16} />
+            Go Back
+          </Button>
           <Link to="/">
-            <Button className="button-glow">
+            <Button className="button-glow flex items-center gap-2 w-full sm:w-auto">
+              <HomeIcon size={16} />
               Return Home
             </Button>
           </Link>
