@@ -19,7 +19,6 @@ const Footer: React.FC = () => {
           <div>
             <h3 className="font-medium text-lg mb-4">Product</h3>
             <ul className="space-y-3">
-              <li><Link to="/features" className="text-muted-foreground hover:text-foreground transition-colors">Features</Link></li>
               <li><Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link></li>
               <li><Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">Changelog</Link></li>
               <li><Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">Documentation</Link></li>
@@ -39,9 +38,9 @@ const Footer: React.FC = () => {
           <div>
             <h3 className="font-medium text-lg mb-4">Legal</h3>
             <ul className="space-y-3">
-              <li><Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">Terms of Service</Link></li>
-              <li><Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link></li>
-              <li><Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">Cookie Policy</Link></li>
+              <li><Link to="/terms-of-service" className="text-muted-foreground hover:text-foreground transition-colors">Terms of Service</Link></li>
+              <li><Link to="/privacy-policy" className="text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/cookie-policy" className="text-muted-foreground hover:text-foreground transition-colors">Cookie Policy</Link></li>
             </ul>
           </div>
         </div>
