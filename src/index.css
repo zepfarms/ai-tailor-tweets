@@ -53,18 +53,19 @@
       @apply touch-manipulation;
     }
     
-    /* Enhanced safe area insets for iPhone */
+    /* Safe area adjustments for mobile devices including iPhone */
     header {
-      padding-left: env(safe-area-inset-left, 0px);
-      padding-right: env(safe-area-inset-right, 0px);
+      padding-top: max(16px, env(safe-area-inset-top, 16px));
+      padding-left: max(16px, env(safe-area-inset-left, 16px));
+      padding-right: max(16px, env(safe-area-inset-right, 16px));
     }
     
-    /* Fix menu button visibility on iPhone */
+    /* Ensure menu button is visible on all devices */
     .container {
       max-width: 100%;
       width: 100%;
-      padding-left: max(1rem, env(safe-area-inset-left, 1rem));
-      padding-right: max(0.5rem, env(safe-area-inset-right, 0.5rem));
+      padding-left: max(16px, env(safe-area-inset-left, 16px));
+      padding-right: max(16px, env(safe-area-inset-right, 16px));
     }
   }
   

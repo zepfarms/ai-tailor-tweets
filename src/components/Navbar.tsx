@@ -71,12 +71,11 @@ const Navbar: React.FC = () => {
           )}
         </nav>
 
-        {/* Mobile Menu Button - Fixed positioning for iPhone */}
+        {/* Mobile Menu Button - Improved visible positioning */}
         <button 
-          className="md:hidden p-3 mr-0 touch-manipulation focus:outline-none"
+          className="md:hidden p-3 touch-manipulation focus:outline-none"
           onClick={toggleMobileMenu}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-          style={{ marginRight: 'env(safe-area-inset-right, 0px)' }}
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
