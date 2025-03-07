@@ -49,4 +49,4 @@ export async function checkSubscriptionStatus(userId: string) {
   }
 }
 
-export const SUBSCRIPTION_PRICE_ID = 'price_1OeKk4CPVIPyYMX1F7Mu9qYF';
+export const SUBSCRIPTION_PRICE_ID = 'price_1R03pDGKh91akIxXo1XPV5s0';
