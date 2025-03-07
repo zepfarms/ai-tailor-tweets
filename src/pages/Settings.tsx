@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Link as LinkIcon, AlertCircle, Twitter, Loader2, RefreshCcw, ExternalLink, Info } from 'lucide-react';
+import { Link as LinkIcon, AlertCircle, Twitter, Loader2, RefreshCcw, ExternalLink, Info, CheckCircle, Code } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,6 +22,7 @@ const Settings: React.FC = () => {
   const [detailedError, setDetailedError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState("account");
+  const [showRawResponses, setShowRawResponses] = useState(false);
 
   const handleConnectX = async () => {
     setIsLinking(true);
@@ -155,20 +156,31 @@ const Settings: React.FC = () => {
                     <div className="p-4 bg-gray-100 rounded-md mt-2 mb-2">
                       <div className="flex justify-between items-center mb-2">
                         <p className="text-sm font-semibold">Debug Information:</p>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={fetchDebugInfo} 
-                          disabled={isLoadingDebug}
-                          className="h-8"
-                        >
-                          {isLoadingDebug ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                          ) : (
-                            <RefreshCcw className="h-4 w-4 mr-1" />
-                          )}
-                          Refresh
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setShowRawResponses(!showRawResponses)}
+                            className="h-8"
+                          >
+                            <Code className="h-4 w-4 mr-1" />
+                            {showRawResponses ? "Hide Raw Responses" : "Show Raw Responses"}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={fetchDebugInfo} 
+                            disabled={isLoadingDebug}
+                            className="h-8"
+                          >
+                            {isLoadingDebug ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                            ) : (
+                              <RefreshCcw className="h-4 w-4 mr-1" />
+                            )}
+                            Refresh
+                          </Button>
+                        </div>
                       </div>
                       
                       <Accordion type="single" collapsible className="w-full">
@@ -256,6 +268,23 @@ const Settings: React.FC = () => {
                                 </li>
                               </ul>
                               
+                              {showRawResponses && debugInfo.fullErrorResponses && (
+                                <div className="mt-3 space-y-3">
+                                  <div>
+                                    <p className="font-semibold mb-1">OAuth Endpoint Response:</p>
+                                    <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto max-h-40">
+                                      {debugInfo.fullErrorResponses.oauthEndpoint || "No response"}
+                                    </pre>
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold mb-1">API Endpoint Response:</p>
+                                    <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto max-h-40">
+                                      {debugInfo.fullErrorResponses.apiEndpoint || "No response"}
+                                    </pre>
+                                  </div>
+                                </div>
+                              )}
+                              
                               <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
                                 <p className="font-semibold mb-1">Common Error Codes:</p>
                                 <ul className="list-disc list-inside space-y-1">
@@ -265,6 +294,26 @@ const Settings: React.FC = () => {
                                 </ul>
                               </div>
                             </div>
+                            
+                            {debugInfo.clientCredentialsTest && (
+                              <div className="mt-3 p-3 bg-white rounded border border-gray-200 text-xs">
+                                <p className="font-semibold mb-1">Client Credentials Flow Test:</p>
+                                <p>Status: {debugInfo.clientCredentialsTest.success ? 
+                                  <span className="text-green-600 flex items-center">
+                                    <CheckCircle className="h-3 w-3 mr-1" /> Success
+                                  </span> : 
+                                  <span className="text-red-600">Failed - {debugInfo.clientCredentialsTest.error}</span>}
+                                </p>
+                                {showRawResponses && debugInfo.clientCredentialsTest.response && (
+                                  <div className="mt-1">
+                                    <p className="font-semibold mb-1">Response:</p>
+                                    <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto max-h-40">
+                                      {debugInfo.clientCredentialsTest.response}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             
                             {debugInfo.authUrlTest && (
                               <div className="mt-3 p-3 bg-white rounded border border-gray-200 text-xs">
@@ -343,12 +392,13 @@ const Settings: React.FC = () => {
                   </div>
                   
                   <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                    <p className="font-medium">Developer Portal Configuration Requirements:</p>
+                    <p className="font-medium">Twitter Developer Portal Configuration Requirements:</p>
                     <ul className="list-disc list-inside ml-2 space-y-1">
-                      <li>Make sure your X Developer Portal app has <strong>OAuth 2.0</strong> enabled</li>
+                      <li><strong>OAuth 2.0 (Not OAuth 1.0a)</strong> must be enabled in your app</li>
                       <li>Set Type of App to <strong>Web App, Automated App or Bot</strong></li>
                       <li>App permissions must include <strong>Read and Write</strong></li>
                       <li>Callback URL must be set to <strong>https://postedpal.com/x-callback</strong> exactly</li>
+                      <li>Ensure you copy the <strong>OAuth 2.0 Client ID and Client Secret</strong>, not the API Key/Secret</li>
                       <li>Website URL should be <strong>https://postedpal.com</strong></li>
                     </ul>
                     
