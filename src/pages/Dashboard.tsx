@@ -10,6 +10,7 @@ import { Calendar, Clock, Link as LinkIcon, MessageSquare, ArrowRight, Check, Lo
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { demoData } from '@/lib/demoData';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -25,6 +26,14 @@ const Dashboard: React.FC = () => {
     queryKey: ['posts', user?.id],
     queryFn: async () => {
       if (!user?.id) return { scheduledPosts: [], publishedPosts: [] };
+      
+      if (user.isDemoAccount) {
+        console.log('Using demo data for demo account');
+        return {
+          scheduledPosts: demoData.posts.scheduledPosts,
+          publishedPosts: demoData.posts.publishedPosts,
+        };
+      }
       
       try {
         const { data: scheduledPosts, error: scheduledError } = await supabase
@@ -268,6 +277,7 @@ const Dashboard: React.FC = () => {
                 <p>User ID: {user.id}</p>
                 <p>X Linked: {user.xLinked ? "Yes" : "No"}</p>
                 <p>X Username: {user.xUsername || "None"}</p>
+                <p>Demo Account: {user.isDemoAccount ? "Yes" : "No"}</p>
                 <p>Environment: {window.location.origin}</p>
                 <p>Scheduled Posts: {scheduledPostsCount}</p>
                 <p>Published Posts: {publishedPostsCount}</p>

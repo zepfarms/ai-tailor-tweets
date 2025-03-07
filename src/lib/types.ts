@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -57,4 +58,21 @@ export interface AuthContextType {
   verifyOtp: (email: string, token: string) => Promise<boolean>;
   linkXAccount?: (redirectUri?: string) => Promise<void>;
   postToX?: (data: PostToXData) => Promise<any>;
+}
+
+// Demo data types
+export interface DemoData {
+  posts: {
+    scheduledPosts: DemoPost[];
+    publishedPosts: DemoPost[];
+  }
+}
+
+export interface DemoPost {
+  id: string;
+  content: string;
+  scheduled_for?: string;
+  published: boolean;
+  created_at: string;
+  user_id: string;
 }

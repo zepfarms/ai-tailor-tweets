@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Hero from '@/components/Hero';
@@ -22,57 +23,31 @@ const pricingTiers = [
       'Preview scheduling tools',
       'No credit card required',
     ],
-    limitations: [
-      'Uses demo data only',
-      'Limited to demo environment',
-      'No actual social posting',
-    ],
-    ctaText: 'Try Demo Account',
+    ctaText: 'Try Demo Now',
     popular: false,
     color: 'from-blue-400 to-blue-500',
     isDemoAccount: true,
   },
   {
-    name: 'Pro',
-    price: '$19',
+    name: 'Posted Pal Pro',
+    price: '$29',
     period: 'per month',
-    description: 'For content creators who post regularly',
+    description: 'Everything you need for content creation and scheduling',
     features: [
-      'Up to 200 posts per month',
+      'Unlimited posts per month',
       'Advanced analytics',
-      'Priority AI generation',
+      'AI-powered content generation',
       'Custom posting schedules',
-      'Priority email support',
-      'Content performance insights',
+      'Video creator tools',
+      'Team collaboration features',
+      'Priority support',
+      'Custom branding',
     ],
-    limitations: [
-      'No video creation tools',
-    ],
-    ctaText: 'Upgrade to Pro',
+    ctaText: 'Get Started',
     popular: true,
     color: 'from-purple-500 to-blue-500',
     isDemoAccount: false,
-  },
-  {
-    name: 'Ultimate',
-    price: '$49',
-    period: 'per month',
-    description: 'For professional content creators and teams',
-    features: [
-      'Up to 500 posts per month',
-      'Comprehensive analytics',
-      'Advanced AI models',
-      'Video creator tools',
-      'Team collaboration features',
-      'Dedicated support',
-      'Custom branding',
-    ],
-    limitations: [],
-    ctaText: 'Upgrade to Ultimate',
-    popular: false,
-    color: 'from-purple-600 to-blue-600',
-    isDemoAccount: false,
-  },
+  }
 ];
 
 const PricingCard: React.FC<{
@@ -106,7 +81,7 @@ const PricingCard: React.FC<{
         {tier.popular && (
           <div className="absolute top-0 inset-x-0 -mt-4 flex justify-center">
             <span className="bg-gradient-to-r from-purple-500 to-blue-500 text-white text-xs px-3 py-1 rounded-full font-medium">
-              MOST POPULAR
+              FULL FEATURED
             </span>
           </div>
         )}
@@ -123,12 +98,6 @@ const PricingCard: React.FC<{
             <li key={index} className="flex items-start">
               <Check className="h-5 w-5 mr-2 text-green-500 flex-shrink-0 mt-0.5" />
               <span>{feature}</span>
-            </li>
-          ))}
-          {tier.limitations.map((limitation, index) => (
-            <li key={index} className="flex items-start text-muted-foreground">
-              <Check className="h-5 w-5 mr-2 text-muted-foreground flex-shrink-0 mt-0.5" />
-              <span>{limitation}</span>
             </li>
           ))}
         </ul>
@@ -175,7 +144,7 @@ const Index: React.FC = () => {
               </p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12 mt-8 px-4 md:px-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 mt-8 px-4 md:px-0 max-w-4xl mx-auto">
               {pricingTiers.map((tier, index) => (
                 <PricingCard key={index} tier={tier} />
               ))}
@@ -190,12 +159,8 @@ const Index: React.FC = () => {
                   <p className="text-muted-foreground mt-1">Yes, you can change your plan at any time. When you upgrade, you'll be charged the prorated amount for the remainder of your billing cycle.</p>
                 </div>
                 <div>
-                  <h3 className="font-medium text-lg">Do unused posts roll over to the next month?</h3>
-                  <p className="text-muted-foreground mt-1">No, your post limit refreshes at the beginning of each billing cycle.</p>
-                </div>
-                <div>
                   <h3 className="font-medium text-lg">Is there a free trial?</h3>
-                  <p className="text-muted-foreground mt-1">Yes! Our Free plan serves as an unlimited trial with limited features. You can upgrade whenever you're ready.</p>
+                  <p className="text-muted-foreground mt-1">Yes! Our demo account serves as an unlimited trial with sample data so you can test all the features.</p>
                 </div>
                 <div>
                   <h3 className="font-medium text-lg">How do I cancel my subscription?</h3>
