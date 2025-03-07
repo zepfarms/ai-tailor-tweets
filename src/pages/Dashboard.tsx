@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -18,7 +19,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { DemoData, DemoPost } from '@/lib/types';
-import demoData from '@/lib/demoData';
+import { demoData } from '@/lib/demoData';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 const PostItem: React.FC<{ post: DemoPost }> = ({ post }) => {
@@ -158,25 +159,25 @@ const Dashboard: React.FC = () => {
           <AnalyticsCard 
             title="Total Posts" 
             value={publishedPosts.length.toString()} 
-            icon={MessageSquare} 
+            icon={<MessageSquare size={20} />} 
             description="Number of posts created"
           />
           <AnalyticsCard 
             title="Scheduled Posts" 
             value={scheduledPosts.length.toString()} 
-            icon={Calendar} 
+            icon={<Calendar size={20} />} 
             description="Number of posts scheduled"
           />
           <AnalyticsCard 
             title="Engagement Rate" 
             value="3.2%" 
-            icon={LineChart} 
+            icon={<LineChart size={20} />} 
             description="Average engagement rate"
           />
           <AnalyticsCard 
             title="Total Shares" 
             value="1,234" 
-            icon={Share2} 
+            icon={<Share2 size={20} />} 
             description="Number of shares"
           />
         </div>
