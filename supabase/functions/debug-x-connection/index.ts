@@ -35,19 +35,75 @@ serve(async (req) => {
       supabaseServiceRoleKeyLength: SUPABASE_SERVICE_ROLE_KEY ? SUPABASE_SERVICE_ROLE_KEY.length : 0,
     };
     
-    // Test if we can reach the Twitter APIs
-    let twitterApiStatus = "unknown";
+    // Test Twitter API connectivity - try multiple endpoints
+    let twitterApiStatus = { 
+      openapi: "unknown",
+      authEndpoint: "unknown",
+      apiEndpoint: "unknown"
+    };
+    
+    // Test OpenAPI endpoint
     try {
-      const response = await fetch("https://api.twitter.com/2/openapi.json");
-      twitterApiStatus = response.ok ? "reachable" : `unreachable: ${response.status}`;
+      const openApiResponse = await fetch("https://api.twitter.com/2/openapi.json");
+      twitterApiStatus.openapi = openApiResponse.ok ? 
+        `reachable: ${openApiResponse.status}` : 
+        `unreachable: ${openApiResponse.status}`;
     } catch (error) {
-      twitterApiStatus = `error: ${error.message}`;
+      twitterApiStatus.openapi = `error: ${error.message}`;
+    }
+    
+    // Test auth endpoint
+    try {
+      const authResponse = await fetch("https://twitter.com/i/oauth2/authorize", {
+        method: "HEAD"
+      });
+      twitterApiStatus.authEndpoint = authResponse.ok ? 
+        `reachable: ${authResponse.status}` : 
+        `unreachable: ${authResponse.status}`;
+    } catch (error) {
+      twitterApiStatus.authEndpoint = `error: ${error.message}`;
+    }
+    
+    // Test API endpoint
+    try {
+      const apiResponse = await fetch("https://api.twitter.com/2/tweets", {
+        method: "HEAD"
+      });
+      twitterApiStatus.apiEndpoint = apiResponse.ok ? 
+        `reachable: ${apiResponse.status}` : 
+        `unreachable: ${apiResponse.status}`;
+    } catch (error) {
+      twitterApiStatus.apiEndpoint = `error: ${error.message}`;
+    }
+    
+    // Test DNS resolution for Twitter domains
+    let dnsStatus = {
+      twitter: "unknown",
+      api: "unknown"
+    };
+    
+    try {
+      // Using a DNS over HTTPS service to check resolution
+      const twitterDnsResponse = await fetch("https://dns.google/resolve?name=twitter.com");
+      const twitterDnsData = await twitterDnsResponse.json();
+      dnsStatus.twitter = twitterDnsData.Answer ? "resolves" : "does not resolve";
+    } catch (error) {
+      dnsStatus.twitter = `error: ${error.message}`;
+    }
+    
+    try {
+      const apiDnsResponse = await fetch("https://dns.google/resolve?name=api.twitter.com");
+      const apiDnsData = await apiDnsResponse.json();
+      dnsStatus.api = apiDnsData.Answer ? "resolves" : "does not resolve";
+    } catch (error) {
+      dnsStatus.api = `error: ${error.message}`;
     }
 
     return new Response(
       JSON.stringify({
         environmentInfo,
         twitterApiStatus,
+        dnsStatus,
         timestamp: new Date().toISOString()
       }),
       {

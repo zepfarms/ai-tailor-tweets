@@ -31,12 +31,26 @@ serve(async (req) => {
       throw new Error("TWITTER_CLIENT_SECRET environment variable is not set");
     }
     
+    if (!TWITTER_CALLBACK_URL) {
+      throw new Error("TWITTER_CALLBACK_URL environment variable is not set");
+    }
+    
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Supabase credentials are not properly configured");
     }
     
+    console.log("Environment variables are properly set");
+    console.log("Callback URL:", TWITTER_CALLBACK_URL);
+    
     // Get the userId from the request body
-    const { userId } = await req.json();
+    let userId;
+    try {
+      const requestBody = await req.json();
+      userId = requestBody.userId;
+    } catch (error) {
+      console.error("Error parsing request JSON:", error);
+      throw new Error("Invalid request format. Please provide valid JSON with a userId field.");
+    }
     
     if (!userId) {
       throw new Error("User ID is required");
@@ -50,53 +64,71 @@ serve(async (req) => {
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     
     // Store the code verifier in Supabase for later use
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { error: storeError } = await supabase
-      .from('oauth_states')
-      .upsert({
-        user_id: userId,
-        state: state,
-        code_verifier: codeVerifier,
-        provider: 'twitter',
-        created_at: new Date().toISOString()
-      });
+    let supabase;
+    try {
+      supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    } catch (error) {
+      console.error("Error creating Supabase client:", error);
+      throw new Error("Failed to connect to Supabase. Check the SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.");
+    }
     
-    if (storeError) {
-      console.error("Error storing OAuth state:", storeError);
-      throw new Error("Failed to store OAuth state");
+    try {
+      const { error: storeError } = await supabase
+        .from('oauth_states')
+        .upsert({
+          user_id: userId,
+          state: state,
+          code_verifier: codeVerifier,
+          provider: 'twitter',
+          created_at: new Date().toISOString()
+        });
+      
+      if (storeError) {
+        console.error("Error storing OAuth state:", storeError);
+        throw new Error(`Failed to store OAuth state: ${storeError.message}`);
+      }
+    } catch (error) {
+      console.error("Error upserting into oauth_states table:", error);
+      throw new Error(`Database operation failed: ${error.message}`);
     }
     
     // Build the authorization URL - still using twitter.com as this is still the correct domain for OAuth
-    const authUrl = new URL("https://twitter.com/i/oauth2/authorize");
-    authUrl.searchParams.append("response_type", "code");
-    authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-    authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
-    authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
-    authUrl.searchParams.append("state", state);
-    authUrl.searchParams.append("code_challenge", codeChallenge);
-    authUrl.searchParams.append("code_challenge_method", "S256");
-    
-    console.log("Authorization URL:", authUrl.toString());
+    try {
+      const authUrl = new URL("https://twitter.com/i/oauth2/authorize");
+      authUrl.searchParams.append("response_type", "code");
+      authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
+      authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
+      authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
+      authUrl.searchParams.append("state", state);
+      authUrl.searchParams.append("code_challenge", codeChallenge);
+      authUrl.searchParams.append("code_challenge_method", "S256");
+      
+      console.log("Authorization URL created:", authUrl.toString());
 
-    // Return the authorization URL to the client
-    return new Response(
-      JSON.stringify({
-        authUrl: authUrl.toString(),
-        state,
-      }),
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
-    );
+      // Return the authorization URL to the client
+      return new Response(
+        JSON.stringify({
+          authUrl: authUrl.toString(),
+          state,
+        }),
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error creating authorization URL:", error);
+      throw new Error(`Failed to create authorization URL: ${error.message}`);
+    }
   } catch (error) {
     console.error("Error:", error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        details: "There was an error initiating X authentication. Please check that all required environment variables are properly configured."
+        details: "There was an error initiating X authentication. Please check that all required environment variables are properly configured and that network connectivity to Twitter services is available.",
+        timestamp: new Date().toISOString()
       }),
       {
         status: 500,
