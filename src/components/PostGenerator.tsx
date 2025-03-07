@@ -7,25 +7,26 @@ import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link } from 'react-router-dom';
-import { postToSocialMedia } from '@/lib/ayrshareUtils';
 
 interface PostGeneratorProps {
   selectedTopics: Topic[];
   onSchedule: (content: string) => void;
   onPost: (content: string, mediaPreviews?: string[]) => void;
   useWebIntent?: boolean;
+  isPosting?: boolean;
 }
 
 export const PostGenerator: React.FC<PostGeneratorProps> = ({ 
   selectedTopics, 
   onSchedule,
   onPost,
-  useWebIntent = false
+  useWebIntent = false,
+  isPosting = false
 }) => {
   const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isPosting, setIsPosting] = useState(false);
+  const [isPostingInternal, setIsPostingInternal] = useState(false);
   const [suggestedPosts, setSuggestedPosts] = useState<string[]>([]);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
@@ -320,29 +321,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
-    setIsPosting(true);
+    setIsPostingInternal(true);
     
     try {
-      const postData = {
-        content,
-        mediaUrls: mediaPreviews,
-        platforms: ["twitter"]
-      };
-      
-      await postToSocialMedia(postData);
-      
-      toast({
-        title: "Success",
-        description: "Your post has been published to X via Ayrshare",
-      });
-      
-      setContent('');
-      mediaFiles.forEach((_, index) => {
-        URL.revokeObjectURL(mediaPreviews[index]);
-      });
-      setMediaFiles([]);
-      setMediaPreviews([]);
-      
+      onPost(content, mediaPreviews);
     } catch (error) {
       console.error("Error posting to X:", error);
       toast({
@@ -351,7 +333,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         variant: "destructive",
       });
     } finally {
-      setIsPosting(false);
+      setIsPostingInternal(false);
     }
   };
 
@@ -549,7 +531,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
                   <div className="inline-block">
                     <Button 
                       onClick={postDirectlyToX}
-                      disabled={isPosting || (!content.trim() && mediaFiles.length === 0)}
+                      disabled={isPosting || isPostingInternal || (!content.trim() && mediaFiles.length === 0)}
                       className="flex items-center gap-2 button-glow"
                       style={{ 
                         backgroundColor: "#1DA1F2", 
@@ -557,14 +539,14 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
                         border: "none"
                       }}
                     >
-                      {isPosting ? (
+                      {isPosting || isPostingInternal ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
                       ) : useWebIntent ? (
                         <ExternalLink className="w-4 h-4" />
                       ) : (
                         <Share className="w-4 h-4" />
                       )}
-                      {useWebIntent ? "Share to X" : "Post to X via Ayrshare"}
+                      {useWebIntent ? "Share to X" : "Post to X"}
                     </Button>
                   </div>
                 </TooltipTrigger>

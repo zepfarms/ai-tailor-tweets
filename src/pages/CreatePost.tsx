@@ -11,7 +11,7 @@ import PostScheduler from '@/components/PostScheduler';
 import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
-import { postToSocialMedia } from '@/lib/ayrshareUtils';
+import { postToSocialMedia } from '@/lib/bufferUtils';
 
 type Stage = "topics" | "create" | "schedule";
 
@@ -54,7 +54,7 @@ const CreatePost: React.FC = () => {
     setIsPosting(true);
     
     try {
-      // First try posting via Ayrshare
+      // First try posting via Buffer
       await postToSocialMedia({
         content,
         mediaUrls: mediaPreviews,
@@ -63,7 +63,7 @@ const CreatePost: React.FC = () => {
       
       toast({
         title: "Posted to X",
-        description: "Your post has been shared to X via Ayrshare",
+        description: "Your post has been shared to X via Buffer",
       });
       
       // Navigate back to dashboard
@@ -71,7 +71,7 @@ const CreatePost: React.FC = () => {
     } catch (error) {
       console.error("Error posting to X:", error);
       
-      // Fallback to web intent if Ayrshare fails
+      // Fallback to web intent if Buffer fails
       // Open Twitter web intent in a new window
       let intentUrl = "https://twitter.com/intent/tweet?";
       intentUrl += "text=" + encodeURIComponent(content);
@@ -90,7 +90,7 @@ const CreatePost: React.FC = () => {
           // Alert the user that local images can't be shared directly
           toast({
             title: "Media Sharing Limitation",
-            description: "Local images can't be shared directly via X. Please connect your X account to Ayrshare to enable image posting.",
+            description: "Local images can't be shared directly via X. Please connect your X account to Buffer to enable image posting.",
             variant: "default",
           });
         }
