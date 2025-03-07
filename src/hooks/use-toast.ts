@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import {
   Toast,
@@ -14,7 +13,7 @@ export type ToasterToast = ToastProps & {
 }
 
 const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 3000
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
