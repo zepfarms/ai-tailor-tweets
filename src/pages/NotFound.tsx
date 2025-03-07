@@ -1,18 +1,47 @@
 
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "react-router-dom";
 
 const NotFound: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  React.useEffect(() => {
+  useEffect(() => {
+    // Log the error for debugging
     console.error(
       "404 Error: User attempted to access non-existent route:",
       location.pathname
     );
-  }, [location.pathname]);
+
+    // For deep links on mobile, try to redirect to the closest parent route
+    // that might exist if the current path doesn't exist
+    const pathSegments = location.pathname.split('/').filter(Boolean);
+    
+    // If we're on mobile and this is a deep path, try redirecting to a parent route
+    if (pathSegments.length > 1 && isMobileDevice()) {
+      const mainRoute = `/${pathSegments[0]}`;
+      
+      // List of valid routes (should match routes in App.tsx)
+      const validRoutes = ['/', '/login', '/signup', '/dashboard', '/create', '/video-studio', 
+                          '/verify-email', '/settings', '/pricing', '/contact',
+                          '/terms-of-service', '/privacy-policy', '/cookie-policy', '/x-callback'];
+      
+      if (validRoutes.includes(mainRoute)) {
+        // If the main route exists, navigate to it
+        setTimeout(() => navigate(mainRoute), 100);
+      } else {
+        // If we can't determine a valid parent route, just go home
+        setTimeout(() => navigate('/'), 100);
+      }
+    }
+  }, [location.pathname, navigate]);
+
+  // Helper function to detect mobile devices
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+           (window.innerWidth <= 768);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4">
