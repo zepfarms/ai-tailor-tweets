@@ -43,12 +43,20 @@ export const PostScheduler: React.FC<PostSchedulerProps> = ({ content, onSchedul
     }, 1000);
   };
 
-  const timeOptions = [
-    "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", 
-    "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", 
-    "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", 
-    "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"
-  ];
+  // Generate time options in 15-minute increments
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const formattedHour = hour.toString().padStart(2, '0');
+        const formattedMinute = minute.toString().padStart(2, '0');
+        options.push(`${formattedHour}:${formattedMinute}`);
+      }
+    }
+    return options;
+  };
+
+  const timeOptions = generateTimeOptions();
 
   return (
     <div className="space-y-6 animate-fade-in p-4">
@@ -103,7 +111,7 @@ export const PostScheduler: React.FC<PostSchedulerProps> = ({ content, onSchedul
                   </div>
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[200px]">
                 {timeOptions.map((timeOption) => (
                   <SelectItem key={timeOption} value={timeOption}>
                     {timeOption}
