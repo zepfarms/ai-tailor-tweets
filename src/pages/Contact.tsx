@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { Mail, X } from 'lucide-react';
 
 const Contact: React.FC = () => {
   const { toast } = useToast();
@@ -155,14 +155,35 @@ const Contact: React.FC = () => {
               </div>
               
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Email</h3>
-                  <a href="mailto:help@postedpal.com" className="text-blue-600 hover:underline">
-                    help@postedpal.com
-                  </a>
+                <div className="flex items-start space-x-3">
+                  <Mail className="h-5 w-5 mt-0.5 text-blue-600" />
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Email</h3>
+                    <a href="mailto:help@postedpal.com" className="text-blue-600 hover:underline">
+                      help@postedpal.com
+                    </a>
+                  </div>
                 </div>
                 
-                <div>
+                <div className="flex items-start space-x-3">
+                  <X className="h-5 w-5 mt-0.5 text-blue-600" />
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Reach out on X</h3>
+                    <p className="text-muted-foreground mb-2">
+                      Connect with us directly on X for quick responses and updates
+                    </p>
+                    <a 
+                      href="https://www.x.com/postedpal" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="inline-flex items-center space-x-2 text-blue-600 hover:underline"
+                    >
+                      <span>@postedpal</span>
+                    </a>
+                  </div>
+                </div>
+                
+                <div className="bg-neutral-50 p-6 rounded-lg border border-neutral-200">
                   <h3 className="text-lg font-medium mb-2">Connect with us</h3>
                   <div className="flex space-x-4">
                     <a 
@@ -177,14 +198,6 @@ const Contact: React.FC = () => {
                       </svg>
                     </a>
                   </div>
-                </div>
-                
-                <div className="bg-neutral-50 p-6 rounded-lg border border-neutral-200">
-                  <h3 className="text-lg font-medium mb-2">Office Hours</h3>
-                  <p className="text-muted-foreground">
-                    Monday - Friday<br />
-                    9:00 AM - 5:00 PM EST
-                  </p>
                 </div>
               </div>
             </div>
