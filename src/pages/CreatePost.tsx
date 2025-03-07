@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -59,10 +58,30 @@ const CreatePost: React.FC = () => {
     setStage("schedule");
   };
 
-  const handlePostNow = (content: string) => {
+  const handlePostNow = (content: string, mediaPreviews?: string[]) => {
     // Open Twitter web intent in a new window
     let intentUrl = "https://twitter.com/intent/tweet?";
     intentUrl += "text=" + encodeURIComponent(content);
+    
+    // Add media URLs if available
+    if (mediaPreviews && mediaPreviews.length > 0) {
+      // For the web intent, we can only include one URL in the text
+      // X will automatically expand this into a card with the image
+      const firstImageUrl = mediaPreviews[0];
+      
+      // Add the image URL at the end of the text
+      // Only add if it's a real URL (not a blob URL)
+      if (firstImageUrl && !firstImageUrl.startsWith('blob:')) {
+        intentUrl += "%20" + encodeURIComponent(firstImageUrl);
+      } else {
+        // Alert the user that local images can't be shared directly
+        toast({
+          title: "Media Sharing Limitation",
+          description: "Local images can't be shared directly via X. Consider posting to X directly after linking your account.",
+          variant: "default",
+        });
+      }
+    }
     
     window.open(intentUrl, "_blank", "width=550,height=420");
     

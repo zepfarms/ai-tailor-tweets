@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +11,7 @@ import { Link } from 'react-router-dom';
 interface PostGeneratorProps {
   selectedTopics: Topic[];
   onSchedule: (content: string) => void;
-  onPost: (content: string) => void;
+  onPost: (content: string, mediaPreviews?: string[]) => void;
   useWebIntent?: boolean;
 }
 
@@ -375,7 +374,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
-    onPost(content);
+    onPost(content, mediaPreviews);
   };
 
   const selectSuggestedPost = (post: string) => {
