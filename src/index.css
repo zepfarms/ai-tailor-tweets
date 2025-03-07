@@ -53,18 +53,18 @@
       @apply touch-manipulation;
     }
     
-    /* Safe area insets for iPhone */
+    /* Enhanced safe area insets for iPhone */
     header {
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
     }
     
     /* Fix menu button visibility on iPhone */
     .container {
       max-width: 100%;
       width: 100%;
-      padding-left: max(1rem, env(safe-area-inset-left));
-      padding-right: max(1rem, env(safe-area-inset-right));
+      padding-left: max(1rem, env(safe-area-inset-left, 1rem));
+      padding-right: max(0.5rem, env(safe-area-inset-right, 0.5rem));
     }
   }
   
