@@ -33,9 +33,6 @@ const Navbar: React.FC = () => {
           <Link to="/" className="text-foreground/80 hover:text-foreground transition-colors">
             Home
           </Link>
-          <Link to="/features" className="text-foreground/80 hover:text-foreground transition-colors">
-            Features
-          </Link>
           <Link to="/pricing" className="text-foreground/80 hover:text-foreground transition-colors">
             Pricing
           </Link>
@@ -91,13 +88,6 @@ const Navbar: React.FC = () => {
               onClick={() => setMobileMenuOpen(false)}
             >
               Home
-            </Link>
-            <Link 
-              to="/features" 
-              className="text-foreground/80 hover:text-foreground transition-colors py-2" 
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Features
             </Link>
             <Link 
               to="/pricing" 
