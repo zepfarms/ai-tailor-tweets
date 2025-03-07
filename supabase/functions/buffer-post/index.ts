@@ -1,8 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
-// Instead of using an expensive API, we'll use free alternatives and web intents
-// This function will return appropriate information for web intents or other free posting methods
+// This function will return appropriate information for web intents
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,28 +55,18 @@ async function handlePosting(data) {
   console.log("Media URLs:", mediaUrls);
   console.log("Platforms:", platforms);
   
-  // Instead of using an API that costs $5000/month, we'll provide
-  // data that can be used with web intents or other free methods
-  const platformUrls = {
-    twitter: {
-      webIntent: `https://twitter.com/intent/tweet?text=${encodeURIComponent(content)}`,
-      hasMedia: mediaUrls && mediaUrls.length > 0
-    },
-    facebook: {
-      webIntent: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(content)}`,
-      hasMedia: mediaUrls && mediaUrls.length > 0
-    },
-    linkedin: {
-      webIntent: `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(window.location.href)}&title=${encodeURIComponent(content)}`,
-      hasMedia: mediaUrls && mediaUrls.length > 0
-    }
-  };
+  // For web intent only approach
+  const twitterWebIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(content)}`;
+  
+  // If there are media URLs, we need to note that images will need to be manually uploaded
+  const hasMedia = mediaUrls && mediaUrls.length > 0;
 
   return new Response(
     JSON.stringify({
       success: true,
-      webIntents: platformUrls,
-      message: "Use web intents for free posting. Direct API posting requires paid services."
+      webIntent: twitterWebIntent,
+      hasMedia: hasMedia,
+      message: "Use web intent for posting. Note that you'll need to manually attach images in the Twitter window."
     }),
     {
       headers: {
@@ -88,7 +77,7 @@ async function handlePosting(data) {
   );
 }
 
-// Handle profile linking
+// Handle profile linking - kept simple for now
 async function handleProfileLinking(data) {
   const { profileType } = data;
   
@@ -98,28 +87,12 @@ async function handleProfileLinking(data) {
   
   console.log("Profile linking requested for:", profileType);
   
-  // For free alternatives, we'll direct users to the platforms' own OAuth flows
-  // or web intents which don't require API keys
-  const authInfo = {
-    twitter: {
-      message: "X/Twitter doesn't offer free API posting. Use web intents instead for free posting.",
-      webIntent: true
-    },
-    facebook: {
-      message: "Facebook requires a business account for API posting. Use web intents for free posting.",
-      webIntent: true
-    },
-    linkedin: {
-      message: "LinkedIn requires a business account for API posting. Use web intents for free posting.",
-      webIntent: true
-    }
-  };
-
+  // Just provide the web intent URL for now
   return new Response(
     JSON.stringify({
       success: true,
-      info: authInfo[profileType] || { message: "Platform not supported for direct posting. Use web intents." },
-      suggestion: "For more advanced posting needs, consider affordable services like IFTTT ($5/month) or Zapier (free tier available)"
+      message: "For X/Twitter posting, we use the web intent approach which doesn't require account linking.",
+      webIntent: "https://twitter.com/intent/tweet"
     }),
     {
       headers: {

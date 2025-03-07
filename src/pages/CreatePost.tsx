@@ -53,16 +53,15 @@ const CreatePost: React.FC = () => {
     setIsPosting(true);
     
     try {
-      // Open Twitter web intent in a new window (free option)
+      // Open Twitter web intent in a new window
       let intentUrl = "https://twitter.com/intent/tweet?";
       intentUrl += "text=" + encodeURIComponent(content);
       
-      // Add media URLs if available (note: Twitter web intent doesn't directly support image uploads)
+      // Add note about images if they are included
       if (mediaPreviews && mediaPreviews.length > 0) {
-        // Alert the user about the limitations of the free approach
         toast({
           title: "Media Sharing Note",
-          description: "The free web intent approach doesn't support direct image uploads. Consider Zapier or IFTTT for more features.",
+          description: "Please manually attach your images in the Twitter window that opens.",
           variant: "default",
         });
       }
@@ -71,7 +70,7 @@ const CreatePost: React.FC = () => {
       
       toast({
         title: "X Post Window Opened",
-        description: "Complete your post in the X window. For direct posting with images, consider Zapier (free tier) or IFTTT ($5/month).",
+        description: "Complete your post in the X window.",
       });
       
       // Navigate back to dashboard
