@@ -67,9 +67,10 @@ const CreatePost: React.FC = () => {
         // Alert the user that local images can't be shared directly
         toast({
           title: "Media Sharing Limitation",
-          description: "Local images can't be shared directly via X. Consider posting to X directly after linking your account.",
+          description: "Local images can't be shared directly via X. Your post will be published via Ayrshare instead.",
           variant: "default",
         });
+        return;
       }
     }
     
@@ -145,7 +146,7 @@ const CreatePost: React.FC = () => {
               selectedTopics={selectedTopics} 
               onSchedule={handleSchedulePost}
               onPost={handlePostNow}
-              useWebIntent={true}
+              useWebIntent={false}
             />
           )}
           

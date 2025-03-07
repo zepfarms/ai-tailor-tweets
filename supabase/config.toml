@@ -15,3 +15,6 @@ verify_jwt = false
 
 [functions.debug-x-connection]
 verify_jwt = false
+
+[functions.ayrshare-post]
+verify_jwt = false

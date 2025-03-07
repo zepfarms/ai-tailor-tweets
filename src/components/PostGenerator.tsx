@@ -7,6 +7,7 @@ import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link } from 'react-router-dom';
+import { postToSocialMedia } from '@/lib/ayrshareUtils';
 
 interface PostGeneratorProps {
   selectedTopics: Topic[];
@@ -31,7 +32,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user, postToX } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (selectedTopics.length > 0) {
@@ -319,39 +320,29 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
-    if (!user?.xLinked || !postToX) {
-      toast({
-        title: "X Integration Disabled",
-        description: "The X integration feature is currently unavailable.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsPosting(true);
     
     try {
       const postData = {
         content,
-        media: mediaFiles.length > 0 ? 
-          await Promise.all(
-            mediaFiles.map(async (file) => {
-              const arrayBuffer = await file.arrayBuffer();
-              return {
-                data: arrayBuffer,
-                type: file.type,
-                size: file.size
-              };
-            })
-          ) : undefined
+        mediaUrls: mediaPreviews,
+        platforms: ["twitter"]
       };
       
-      await postToX(postData);
+      await postToSocialMedia(postData);
       
       toast({
         title: "Success",
-        description: "Your post has been published to X",
+        description: "Your post has been published to X via Ayrshare",
       });
+      
+      setContent('');
+      mediaFiles.forEach((_, index) => {
+        URL.revokeObjectURL(mediaPreviews[index]);
+      });
+      setMediaFiles([]);
+      setMediaPreviews([]);
+      
     } catch (error) {
       console.error("Error posting to X:", error);
       toast({
@@ -393,9 +384,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return null;
     }
     
-    if (!user?.xLinked || !postToX) {
-      return "X integration is currently unavailable";
-    }
     if (!content.trim() && mediaFiles.length === 0) {
       return "Please add content or media before posting";
     }
@@ -576,8 +564,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
                       ) : (
                         <Share className="w-4 h-4" />
                       )}
-                      {!useWebIntent && !user?.xLinked && <AlertCircle className="w-4 h-4 ml-1" />}
-                      {useWebIntent ? "Share to X" : "Post to X"}
+                      {useWebIntent ? "Share to X" : "Post to X via Ayrshare"}
                     </Button>
                   </div>
                 </TooltipTrigger>
@@ -594,16 +581,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       
       <div className="text-sm text-muted-foreground text-center">
         <p>Selected topics: {selectedTopics.join(", ")}</p>
-        {!useWebIntent && !user?.xLinked && (
-          <p className="mt-2 text-amber-500 flex items-center justify-center gap-1">
-            <AlertCircle className="w-4 h-4" />
-            Your X account is not linked. 
-            <Link to="/settings" className="text-blue-500 hover:text-blue-700 underline ml-1">
-              Go to Settings
-            </Link> 
-            to link your account.
-          </p>
-        )}
       </div>
     </div>
   );
