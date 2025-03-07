@@ -59,8 +59,8 @@ const Contact: React.FC = () => {
                       <p className="text-muted-foreground mb-4">
                         If you prefer email, you can reach our support team at:
                       </p>
-                      <a href="mailto:help@postedpal.com" className="text-blue-600 hover:underline text-lg">
-                        help@postedpal.com
+                      <a href="mailto:support@automatere.com" className="text-blue-600 hover:underline text-lg">
+                        support@automatere.com
                       </a>
                     </div>
                   </div>
