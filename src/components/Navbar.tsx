@@ -29,7 +29,7 @@ const Navbar: React.FC = () => {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center space-x-8">
+        <nav className="hidden md:flex items-center space-x-8 pr-4">
           <Link to="/" className="text-foreground/80 hover:text-foreground transition-colors">
             Home
           </Link>
