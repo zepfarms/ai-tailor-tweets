@@ -71,9 +71,9 @@ const Navbar: React.FC = () => {
           )}
         </nav>
 
-        {/* Mobile Menu Button */}
+        {/* Mobile Menu Button - Improved touch target */}
         <button 
-          className="md:hidden focus:outline-none" 
+          className="md:hidden p-3 -mr-3 touch-manipulation focus:outline-none" 
           onClick={toggleMobileMenu}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >
@@ -81,27 +81,27 @@ const Navbar: React.FC = () => {
         </button>
       </div>
       
-      {/* Mobile Navigation */}
+      {/* Mobile Navigation - Improved touch targets */}
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 bg-background border-b border-border animate-slide-down">
-          <nav className="container mx-auto px-4 py-4 flex flex-col space-y-4">
+          <nav className="container mx-auto px-4 py-4 flex flex-col space-y-5">
             <Link 
               to="/" 
-              className="text-foreground/80 hover:text-foreground transition-colors py-2" 
+              className="text-foreground/80 hover:text-foreground transition-colors py-3" 
               onClick={() => setMobileMenuOpen(false)}
             >
               Home
             </Link>
             <Link 
               to="/pricing" 
-              className="text-foreground/80 hover:text-foreground transition-colors py-2" 
+              className="text-foreground/80 hover:text-foreground transition-colors py-3" 
               onClick={() => setMobileMenuOpen(false)}
             >
               Pricing
             </Link>
             <Link 
               to="/contact" 
-              className="text-foreground/80 hover:text-foreground transition-colors py-2" 
+              className="text-foreground/80 hover:text-foreground transition-colors py-3" 
               onClick={() => setMobileMenuOpen(false)}
             >
               Contact
@@ -120,14 +120,14 @@ const Navbar: React.FC = () => {
                   className="block" 
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Button variant="ghost" className="w-full justify-start">Dashboard</Button>
+                  <Button variant="ghost" className="w-full justify-start py-3">Dashboard</Button>
                 </Link>
                 <Link 
                   to="/settings" 
                   className="block" 
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Button variant="ghost" className="w-full justify-start flex items-center gap-2">
+                  <Button variant="ghost" className="w-full justify-start flex items-center gap-2 py-3">
                     <Settings size={16} />
                     Settings
                   </Button>
@@ -138,7 +138,7 @@ const Navbar: React.FC = () => {
                     setMobileMenuOpen(false);
                   }} 
                   variant="outline" 
-                  className="w-full justify-start"
+                  className="w-full justify-start py-3"
                 >
                   Logout
                 </Button>
@@ -150,14 +150,14 @@ const Navbar: React.FC = () => {
                   className="block" 
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Button variant="ghost" className="w-full justify-start">Login</Button>
+                  <Button variant="ghost" className="w-full justify-start py-3">Login</Button>
                 </Link>
                 <Link 
                   to="/signup" 
                   className="block" 
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Button className="w-full justify-start">Sign Up</Button>
+                  <Button className="w-full justify-start py-3">Sign Up</Button>
                 </Link>
               </>
             )}

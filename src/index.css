@@ -46,6 +46,20 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  
+  /* Improve touch interaction on mobile */
+  @media (max-width: 768px) {
+    a, button {
+      @apply touch-manipulation;
+    }
+  }
+  
+  /* Specific improvements for landscape mode */
+  @media (max-width: 768px) and (orientation: landscape) {
+    a, button {
+      @apply min-h-[44px] py-2;
+    }
+  }
 }
 
 /* Custom classes */
