@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -96,7 +97,7 @@ const Hero: React.FC = () => {
                   Just tested this new AI content tool for my X account - it analyzed my posting patterns and created tweets that sound exactly like me! 🤯 #PostedPal #ContentCreation
                 </p>
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>11:42 AM · Oct 21, 2023</span>
+                  <span>11:42 AM · Mar 5, 2025</span>
                   <div className="flex space-x-4">
                     <span>293 Reposts</span>
                     <span>1,482 Likes</span>
