@@ -4,8 +4,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import { X, Mail } from 'lucide-react';
+import { X, Mail, FileText } from 'lucide-react';
 
 const Contact: React.FC = () => {
   return (
@@ -74,17 +73,34 @@ const Contact: React.FC = () => {
                     <p className="text-muted-foreground mb-4">
                       Follow us on X for the latest updates, tips, and announcements.
                     </p>
-                    <a 
-                      href="https://www.x.com/postedpal" 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="inline-block"
-                    >
-                      <Button variant="outline" className="flex items-center gap-2">
-                        <X size={18} />
-                        <span>Follow @postedpal</span>
-                      </Button>
-                    </a>
+                    <div className="flex flex-col sm:flex-row justify-between items-center">
+                      <a 
+                        href="https://www.x.com/postedpal" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="inline-block mb-4 sm:mb-0"
+                      >
+                        <Button variant="outline" className="flex items-center gap-2">
+                          <X size={18} />
+                          <span>Follow @postedpal</span>
+                        </Button>
+                      </a>
+                      
+                      <div className="flex items-center space-x-6">
+                        <Link to="/terms-of-service" className="text-muted-foreground hover:text-foreground text-sm flex items-center gap-1">
+                          <FileText size={14} />
+                          <span>Terms of Service</span>
+                        </Link>
+                        <Link to="/privacy-policy" className="text-muted-foreground hover:text-foreground text-sm flex items-center gap-1">
+                          <FileText size={14} />
+                          <span>Privacy Policy</span>
+                        </Link>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 pt-4 border-t border-neutral-200 text-center text-xs text-muted-foreground">
+                      © {new Date().getFullYear()} Posted Pal. All rights reserved.
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -92,7 +108,6 @@ const Contact: React.FC = () => {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };
