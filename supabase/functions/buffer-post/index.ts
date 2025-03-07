@@ -45,60 +45,70 @@ serve(async (req) => {
 
 // Handle posting content to social media
 async function handlePosting(data) {
-  const { content, mediaUrls, platforms } = data;
-  
-  if (!content && (!mediaUrls || mediaUrls.length === 0)) {
-    throw new Error("Post content or media is required");
-  }
-  
-  console.log("Content:", content);
-  console.log("Media URLs:", mediaUrls);
-  console.log("Platforms:", platforms);
-  
-  // For web intent only approach
-  const twitterWebIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(content)}`;
-  
-  // If there are media URLs, we need to note that images will need to be manually uploaded
-  const hasMedia = mediaUrls && mediaUrls.length > 0;
-
-  return new Response(
-    JSON.stringify({
-      success: true,
-      webIntent: twitterWebIntent,
-      hasMedia: hasMedia,
-      message: "Use web intent for posting. Note that you'll need to manually attach images in the Twitter window."
-    }),
-    {
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
+  try {
+    const { content, mediaUrls, platforms } = data;
+    
+    if (!content && (!mediaUrls || mediaUrls.length === 0)) {
+      throw new Error("Post content or media is required");
     }
-  );
+    
+    console.log("Content:", content);
+    console.log("Media URLs:", mediaUrls);
+    console.log("Platforms:", platforms);
+    
+    // For web intent only approach
+    const twitterWebIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(content)}`;
+    
+    // If there are media URLs, we need to note that images will need to be manually uploaded
+    const hasMedia = mediaUrls && mediaUrls.length > 0;
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        webIntent: twitterWebIntent,
+        hasMedia: hasMedia,
+        message: "Use web intent for posting. Note that you'll need to manually attach images in the Twitter window."
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      }
+    );
+  } catch (error) {
+    console.error("Error in handlePosting:", error);
+    throw error;
+  }
 }
 
 // Handle profile linking - kept simple for now
 async function handleProfileLinking(data) {
-  const { profileType } = data;
-  
-  if (!profileType) {
-    throw new Error("Profile type is required");
-  }
-  
-  console.log("Profile linking requested for:", profileType);
-  
-  // Just provide the web intent URL for now
-  return new Response(
-    JSON.stringify({
-      success: true,
-      message: "For X/Twitter posting, we use the web intent approach which doesn't require account linking.",
-      webIntent: "https://twitter.com/intent/tweet"
-    }),
-    {
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
+  try {
+    const { profileType } = data;
+    
+    if (!profileType) {
+      throw new Error("Profile type is required");
     }
-  );
+    
+    console.log("Profile linking requested for:", profileType);
+    
+    // Just provide the web intent URL for now
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "For X/Twitter posting, we use the web intent approach which doesn't require account linking.",
+        webIntent: "https://twitter.com/intent/tweet"
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      }
+    );
+  } catch (error) {
+    console.error("Error in handleProfileLinking:", error);
+    throw error;
+  }
 }

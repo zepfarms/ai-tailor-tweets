@@ -20,49 +20,59 @@ const Dashboard: React.FC = () => {
   const [isDebugVisible, setIsDebugVisible] = useState(false);
   
   const { user, isLoading, linkXAccount } = useAuth();
+  const [isXLinking, setIsXLinking] = useState(false);
 
-  const { data: postsData, isLoading: isPostsLoading } = useQuery({
+  // Add error handling for posts query
+  const { data: postsData, isLoading: isPostsLoading, error: postsError } = useQuery({
     queryKey: ['posts', user?.id],
     queryFn: async () => {
-      if (!user?.id) return null;
+      if (!user?.id) return { scheduledPosts: [], publishedPosts: [] };
       
-      const { data: scheduledPosts, error: scheduledError } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('published', false)
-        .not('scheduled_for', 'is', null);
-      
-      const { data: publishedPosts, error: publishedError } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('published', true);
-      
-      if (scheduledError) {
-        console.error('Error fetching scheduled posts:', scheduledError);
+      try {
+        const { data: scheduledPosts, error: scheduledError } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('published', false)
+          .not('scheduled_for', 'is', null);
+        
+        if (scheduledError) throw scheduledError;
+        
+        const { data: publishedPosts, error: publishedError } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('published', true);
+        
+        if (publishedError) throw publishedError;
+        
+        return {
+          scheduledPosts: scheduledPosts || [],
+          publishedPosts: publishedPosts || [],
+        };
+      } catch (error) {
+        console.error('Error fetching posts:', error);
         toast({
-          title: 'Error',
-          description: 'Failed to fetch scheduled posts',
-          variant: 'destructive',
+          title: "Data loading error",
+          description: "Dashboard data could not be loaded. Displaying default view.",
+          variant: "destructive",
         });
+        
+        // Return empty arrays to prevent UI from breaking
+        return {
+          scheduledPosts: [],
+          publishedPosts: [],
+        };
       }
-      
-      if (publishedError) {
-        console.error('Error fetching published posts:', publishedError);
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch published posts',
-          variant: 'destructive',
-        });
-      }
-      
-      return {
-        scheduledPosts: scheduledPosts || [],
-        publishedPosts: publishedPosts || [],
-      };
     },
     enabled: !!user?.id,
+    // Add better error handling
+    onError: (error) => {
+      console.error('Query error:', error);
+    },
+    // Add reasonable retry settings
+    retry: 2,
+    retryDelay: 1000,
   });
 
   useEffect(() => {
@@ -71,23 +81,27 @@ const Dashboard: React.FC = () => {
     const username = params.get('username');
     
     if (xAuthSuccess === 'true' && username && user) {
-      const updatedUser = {
-        ...user,
-        xLinked: true,
-        xUsername: `@${username}`,
-      };
-      
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-      
-      toast({
-        title: "X Account Linked",
-        description: `Successfully linked to @${username}`,
-      });
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      try {
+        const updatedUser = {
+          ...user,
+          xLinked: true,
+          xUsername: `@${username}`,
+        };
+        
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        
+        toast({
+          title: "X Account Linked",
+          description: `Successfully linked to @${username}`,
+        });
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } catch (error) {
+        console.error('Error handling X auth callback:', error);
+      }
     }
   }, [location.search, user, toast]);
 
@@ -136,11 +150,13 @@ const Dashboard: React.FC = () => {
 
   const handleLinkXAccount = async () => {
     try {
+      setIsXLinking(true);
       setIsPageLoading(true);
       await linkXAccount();
     } catch (error) {
       console.error('Error linking X account:', error);
       setIsPageLoading(false);
+      setIsXLinking(false);
       toast({
         title: "X Integration Error",
         description: "There was an issue connecting your X account. Please try again later.",
@@ -149,26 +165,65 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Add error boundary rendering
+  const renderErrorState = () => (
+    <div className="min-h-screen flex flex-col page-transition">
+      <Navbar />
+      <main className="flex-1 container mx-auto px-4 md:px-6 py-12 mt-16">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
+          <p className="mb-4">We encountered an error loading your dashboard.</p>
+          <div className="flex justify-center gap-4">
+            <Button onClick={() => window.location.reload()}>
+              Reload Page
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/')}>
+              Go to Home
+            </Button>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+
   if (isPageLoading || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
-        <span>Loading dashboard...</span>
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-lg">Loading your dashboard...</p>
+          </div>
+        </div>
+        <Footer />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="mb-4">Please log in to access your dashboard</p>
-          <Button onClick={() => navigate('/login')}>
-            Log In
-          </Button>
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="mb-4">Please log in to access your dashboard</p>
+            <Button onClick={() => navigate('/login')}>
+              Log In
+            </Button>
+          </div>
         </div>
+        <Footer />
       </div>
     );
+  }
+
+  // Check for critical errors and use error boundary if needed
+  if (postsError) {
+    console.error('Posts data error:', postsError);
+    return renderErrorState();
   }
 
   const getScheduledPostsTrend = () => {
@@ -295,10 +350,10 @@ const Dashboard: React.FC = () => {
                 ) : (
                   <Button 
                     onClick={handleLinkXAccount}
-                    disabled={isPageLoading}
+                    disabled={isXLinking}
                     className="group"
                   >
-                    {isPageLoading ? (
+                    {isXLinking ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Connecting...
