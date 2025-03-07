@@ -8,9 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { Twitter, Loader2 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 const Login: React.FC = () => {
-  const { login, isLoading } = useAuth();
+  const { login, loginWithX, isLoading, isLoginingWithX } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -23,6 +25,16 @@ const Login: React.FC = () => {
       await login(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to login');
+    }
+  };
+
+  const handleXLogin = async () => {
+    try {
+      if (loginWithX) {
+        await loginWithX();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to login with X');
     }
   };
 
@@ -40,7 +52,33 @@ const Login: React.FC = () => {
               </CardDescription>
             </CardHeader>
             
-            <CardContent>
+            <CardContent className="space-y-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full flex items-center gap-2"
+                onClick={handleXLogin}
+                disabled={isLoginingWithX}
+              >
+                {isLoginingWithX ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Twitter className="h-4 w-4 text-[#1DA1F2]" />
+                )}
+                {isLoginingWithX ? "Connecting to X..." : "Continue with X"}
+              </Button>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or continue with email
+                  </span>
+                </div>
+              </div>
+              
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>

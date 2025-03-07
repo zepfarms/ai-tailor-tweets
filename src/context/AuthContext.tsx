@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType, PostToXData } from '@/lib/types';
@@ -10,6 +11,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLinkingX, setIsLinkingX] = useState(false);
+  const [isLoginingWithX, setIsLoginingWithX] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -131,6 +133,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Login error:', error);
       toast({
         title: "Login failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithX = async () => {
+    try {
+      setIsLoginingWithX(true);
+      
+      const response = await supabase.functions.invoke('twitter-request-token', {
+        body: { isLogin: true }
+      });
+      
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to initialize X authentication");
+      }
+      
+      if (!response.data || !response.data.authUrl) {
+        throw new Error("Invalid response from authentication service");
+      }
+      
+      window.location.href = response.data.authUrl;
+    } catch (error) {
+      console.error('Error logging in with X account:', error);
+      toast({
+        title: "X Login Error",
+        description: error instanceof Error ? error.message : "Failed to login with X",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoginingWithX(false);
+    }
+  };
+
+  const completeXAuth = async (magicLink: string) => {
+    try {
+      setIsLoading(true);
+      
+      // Handle magiclink auth
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email: magicLink
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Login successful",
+        description: "You've been logged in with your X account!",
+      });
+      
+      navigate('/dashboard');
+      return true;
+    } catch (error) {
+      console.error('X auth completion error:', error);
+      toast({
+        title: "X Login Failed",
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
@@ -485,8 +548,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, 
       isLoading, 
       isLinkingX,
+      isLoginingWithX,
       isVerifying,
       login, 
+      loginWithX,
+      completeXAuth,
       signup, 
       logout, 
       linkXAccount,

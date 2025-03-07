@@ -44,21 +44,26 @@ serve(async (req) => {
     console.log("Client ID first chars:", TWITTER_CLIENT_ID.substring(0, 4) + "...");
     console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     
-    // Get the userId from the request body
+    // Get the userId from the request body and determine if this is for login
     let userId;
+    let isLogin = false;
     try {
       const requestBody = await req.json();
       userId = requestBody.userId;
+      isLogin = requestBody.isLogin === true;
+      
+      console.log("Request parameters:", { userId, isLogin });
     } catch (error) {
       console.error("Error parsing request JSON:", error);
       throw new Error("Invalid request format. Please provide valid JSON with a userId field.");
     }
     
-    if (!userId) {
-      throw new Error("User ID is required");
+    if (!userId && !isLogin) {
+      throw new Error("User ID is required for account linking");
     }
     
-    console.log("User ID:", userId);
+    console.log("User ID:", userId || "Not provided (login flow)");
+    console.log("Is login flow:", isLogin);
     
     // Generate the Twitter OAuth URL
     const state = crypto.randomUUID();
@@ -78,11 +83,12 @@ serve(async (req) => {
       const { error: storeError } = await supabase
         .from('oauth_states')
         .upsert({
-          user_id: userId,
+          user_id: userId || null,
           state: state,
           code_verifier: codeVerifier,
           provider: 'twitter',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          is_login: isLogin
         });
       
       if (storeError) {
@@ -135,6 +141,7 @@ serve(async (req) => {
         JSON.stringify({
           authUrl: authUrl.toString(),
           state,
+          isLogin
         }),
         {
           headers: {

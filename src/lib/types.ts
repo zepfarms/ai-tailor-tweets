@@ -48,7 +48,10 @@ export interface AuthContextType {
   isLoading: boolean;
   isVerifying: boolean;
   isLinkingX?: boolean;
+  isLoginingWithX?: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithX?: () => Promise<void>;
+  completeXAuth?: (magicLink: string) => Promise<boolean>;
   signup: (email: string, password: string, name: string) => Promise<any>;
   logout: () => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<boolean>;
