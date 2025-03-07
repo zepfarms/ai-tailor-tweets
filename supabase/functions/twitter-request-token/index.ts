@@ -45,7 +45,7 @@ serve(async (req) => {
     console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     
     // Get the userId from the request body and determine if this is for login
-    let userId;
+    let userId = null;
     let isLogin = false;
     try {
       const requestBody = await req.json();
@@ -58,7 +58,8 @@ serve(async (req) => {
       throw new Error("Invalid request format. Please provide valid JSON with a userId field.");
     }
     
-    if (!userId && !isLogin) {
+    // For account linking, we need a user ID
+    if (!isLogin && !userId) {
       throw new Error("User ID is required for account linking");
     }
     
@@ -83,7 +84,7 @@ serve(async (req) => {
       const { error: storeError } = await supabase
         .from('oauth_states')
         .upsert({
-          user_id: userId || null,
+          user_id: userId || state, // Use the state value as a temporary user_id for login flows
           state: state,
           code_verifier: codeVerifier,
           provider: 'twitter',
