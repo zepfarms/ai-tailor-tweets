@@ -24,7 +24,9 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Checking subscription endpoint called");
     const { userId, sessionId } = await req.json();
+    console.log(`Received request with userId: ${userId}, sessionId: ${sessionId || 'none'}`);
 
     if (!userId) {
       return new Response(
@@ -38,6 +40,7 @@ serve(async (req) => {
 
     // Special case for master user
     if (userId === "master_user_id" || userId === "demo-user-id") {
+      console.log("Special case for master/demo user, returning active subscription");
       return new Response(
         JSON.stringify({ 
           hasActiveSubscription: true,
@@ -57,10 +60,12 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
     
     if (userError) {
+      console.error("Error getting user data:", userError);
       throw userError;
     }
     
-    if (userData?.user?.email === "zepfarms@gmail.com") {
+    if (userData?.user?.email === "zepfarms@gmail.com" || userData?.user?.email === "demo@postedpal.com") {
+      console.log("Master user email detected, returning active subscription");
       return new Response(
         JSON.stringify({ 
           hasActiveSubscription: true,
@@ -76,6 +81,20 @@ serve(async (req) => {
       );
     }
     
+    // Check if 'subscriptions' table exists
+    const { data: tableExists, error: tableError } = await supabase.rpc(
+      'check_table_exists',
+      { table_name: 'subscriptions' }
+    );
+    
+    console.log("Table exists check:", tableExists, tableError);
+    
+    // If table doesn't exist, we'll create it
+    if (tableError || !tableExists) {
+      console.log("Subscriptions table doesn't exist, creating it");
+      await supabase.rpc('create_subscriptions_table');
+    }
+    
     // If we have a session ID from redirect, verify it directly with Stripe
     if (sessionId) {
       try {
@@ -86,32 +105,16 @@ serve(async (req) => {
           const subscriptionId = session.subscription as string;
           const customerId = session.customer as string;
           
-          // Verify if there's an existing subscription record
-          const { data: existingSubscription } = await supabase
-            .from("subscriptions")
-            .select("*")
-            .eq("stripe_subscription_id", subscriptionId)
-            .maybeSingle();
-            
-          if (!existingSubscription) {
-            // Create subscription record if it doesn't exist yet
-            // This handles cases where the webhook might not have processed yet
-            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            
-            await supabase
-              .from("subscriptions")
-              .upsert({
-                user_id: userId,
-                stripe_customer_id: customerId,
-                stripe_subscription_id: subscriptionId,
-                status: subscription.status,
-                price_id: subscription.items.data[0]?.price.id,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              });
-              
-            console.log(`Created subscription record for ${subscriptionId}`);
-          }
+          // Create or update the subscription in the database
+          await supabase.rpc('upsert_subscription', {
+            user_id_param: userId,
+            customer_id_param: customerId,
+            subscription_id_param: subscriptionId,
+            status_param: 'active',
+            price_id_param: session.metadata?.price_id || ''
+          });
+          
+          console.log(`Created/updated subscription for ${subscriptionId}`);
           
           return new Response(
             JSON.stringify({ 
@@ -137,52 +140,73 @@ serve(async (req) => {
     }
 
     // Check subscription status in database
-    const { data: subscription, error } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (error) {
-      throw error;
+    try {
+      const { data: subscription, error: subError } = await supabase.rpc(
+        'get_user_subscription',
+        { user_id_param: userId }
+      );
+      
+      console.log("Database subscription check:", subscription, subError);
+      
+      if (!subError && subscription && subscription.status === 'active') {
+        return new Response(
+          JSON.stringify({ 
+            hasActiveSubscription: true,
+            subscription: subscription
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, "Content-Type": "application/json" } 
+          }
+        );
+      }
+    } catch (dbError) {
+      console.error("Error checking subscription in DB:", dbError);
     }
 
-    // If no active subscription is found in database, check directly with Stripe
-    if (!subscription && userId) {
-      try {
-        // Find customer by user ID using metadata
-        const { data: customerData, error: customerError } = await supabase
-          .from("subscriptions")
-          .select("stripe_customer_id, stripe_subscription_id")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (customerData?.stripe_subscription_id) {
-          // Verify subscription status directly with Stripe
-          const stripeSubscription = await stripe.subscriptions.retrieve(
-            customerData.stripe_subscription_id
-          );
-
-          if (stripeSubscription.status === 'active') {
-            // Update our database to match Stripe's data
-            await supabase
-              .from("subscriptions")
-              .update({ 
-                status: 'active',
-                updated_at: new Date().toISOString() 
-              })
-              .eq("stripe_subscription_id", customerData.stripe_subscription_id);
-
-            // Return active subscription
+    // If no active subscription found yet, check with Stripe directly
+    try {
+      // Find customers by email
+      if (userData?.user?.email) {
+        console.log(`Looking up Stripe customer by email: ${userData.user.email}`);
+        const customers = await stripe.customers.list({
+          email: userData.user.email,
+          limit: 1
+        });
+        
+        if (customers.data.length > 0) {
+          const customerId = customers.data[0].id;
+          console.log(`Found Stripe customer: ${customerId}`);
+          
+          // Check for active subscriptions
+          const subscriptions = await stripe.subscriptions.list({
+            customer: customerId,
+            status: 'active',
+            limit: 1
+          });
+          
+          if (subscriptions.data.length > 0) {
+            const stripeSubscription = subscriptions.data[0];
+            console.log(`Found active Stripe subscription: ${stripeSubscription.id}`);
+            
+            // Save this subscription to our database
+            await supabase.rpc('upsert_subscription', {
+              user_id_param: userId,
+              customer_id_param: customerId,
+              subscription_id_param: stripeSubscription.id,
+              status_param: 'active',
+              price_id_param: stripeSubscription.items.data[0]?.price.id || ''
+            });
+            
             return new Response(
               JSON.stringify({ 
                 hasActiveSubscription: true,
                 subscription: {
                   status: 'active',
-                  stripe_subscription_id: customerData.stripe_subscription_id,
-                  stripe_customer_id: customerData.stripe_customer_id,
-                  user_id: userId
+                  stripe_subscription_id: stripeSubscription.id,
+                  stripe_customer_id: customerId,
+                  user_id: userId,
+                  verified_by_stripe_api: true
                 }
               }),
               { 
@@ -192,16 +216,16 @@ serve(async (req) => {
             );
           }
         }
-      } catch (stripeError) {
-        console.error("Error checking with Stripe:", stripeError);
-        // Continue with normal flow, just log the error
       }
+    } catch (stripeError) {
+      console.error("Error checking with Stripe API:", stripeError);
     }
 
+    console.log("No active subscription found for user");
     return new Response(
       JSON.stringify({ 
-        hasActiveSubscription: !!subscription,
-        subscription: subscription || null
+        hasActiveSubscription: false,
+        subscription: null
       }),
       { 
         status: 200, 

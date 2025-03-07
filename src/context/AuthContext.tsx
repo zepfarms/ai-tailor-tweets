@@ -40,12 +40,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           setUser(appUser);
 
-          // Check subscription status
+          // Check subscription status with multiple fallbacks
           if (authUser.email === 'zepfarms@gmail.com' || appUser.email === 'demo@postedpal.com') {
+            console.log('Master/demo user detected, setting subscription to true');
             setHasSubscription(true);
           } else {
-            const subscription = await checkSubscriptionStatus(authUser.id);
-            setHasSubscription(subscription?.hasActiveSubscription || false);
+            try {
+              // First try database lookup (faster)
+              const dbResult = await getSubscriptionFromDatabase(authUser.id);
+              if (dbResult.hasActiveSubscription) {
+                console.log('Found active subscription in database');
+                setHasSubscription(true);
+              } else {
+                // If no subscription in database, check with the edge function
+                try {
+                  const subscription = await checkSubscriptionStatus(authUser.id);
+                  console.log('Subscription check result:', subscription);
+                  setHasSubscription(subscription?.hasActiveSubscription || false);
+                } catch (subError) {
+                  console.error('Error checking subscription with edge function:', subError);
+                  setHasSubscription(false);
+                }
+              }
+            } catch (error) {
+              console.error('Error during subscription check:', error);
+              setHasSubscription(false);
+            }
           }
         }
       } catch (error) {
@@ -161,20 +181,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       
       if (data.user) {
-        // Check subscription status for non-demo users
-        if (email !== 'zepfarms@gmail.com') {
-          const subscription = await checkSubscriptionStatus(data.user.id);
-          setHasSubscription(subscription?.hasActiveSubscription || false);
-          
-          // Redirect to subscription page if no active subscription
-          if (!subscription?.hasActiveSubscription) {
-            toast({
-              title: "Subscription required",
-              description: "Please subscribe to access dashboard features",
-            });
-            navigate('/subscription');
-            setIsLoading(false);
-            return;
+        let hasActive = false;
+        
+        // Special case for specific accounts
+        if (email === 'zepfarms@gmail.com' || email === 'demo@postedpal.com') {
+          setHasSubscription(true);
+          hasActive = true;
+        } else {
+          // First try database lookup (faster)
+          const dbResult = await getSubscriptionFromDatabase(data.user.id);
+          if (dbResult.hasActiveSubscription) {
+            console.log('Found active subscription in database during login');
+            setHasSubscription(true);
+            hasActive = true;
+          } else {
+            // If no subscription in database, check with the edge function
+            try {
+              const subscription = await checkSubscriptionStatus(data.user.id);
+              console.log('Login subscription check result:', subscription);
+              setHasSubscription(subscription?.hasActiveSubscription || false);
+              hasActive = subscription?.hasActiveSubscription || false;
+            } catch (subError) {
+              console.error('Error checking subscription during login:', subError);
+              setHasSubscription(false);
+              hasActive = false;
+            }
           }
         }
         
@@ -182,7 +213,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           title: "Login successful",
           description: "Welcome back!",
         });
-        navigate('/dashboard');
+        
+        if (hasActive) {
+          navigate('/dashboard');
+        } else {
+          navigate('/subscription');
+        }
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -604,13 +640,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Check for master user or demo account
         if (user.email === 'zepfarms@gmail.com' || user.email === 'demo@postedpal.com' || user.isDemoAccount) {
           setHasSubscription(true);
-          return;
+          return true;
         }
         
-        const subscription = await checkSubscriptionStatus(user.id);
-        setHasSubscription(subscription?.hasActiveSubscription || false);
+        // First try database lookup (faster)
+        const dbResult = await getSubscriptionFromDatabase(user.id);
+        if (dbResult.hasActiveSubscription) {
+          console.log('Found active subscription in database');
+          setHasSubscription(true);
+          return true;
+        }
         
-        return subscription?.hasActiveSubscription || false;
+        // If no subscription in database, check with the edge function
+        try {
+          const subscription = await checkSubscriptionStatus(user.id);
+          console.log('Subscription update check result:', subscription);
+          const hasActive = subscription?.hasActiveSubscription || false;
+          setHasSubscription(hasActive);
+          return hasActive;
+        } catch (subError) {
+          console.error('Error checking subscription with edge function:', subError);
+          setHasSubscription(false);
+          return false;
+        }
       } catch (error) {
         console.error('Error updating subscription status:', error);
         return false;

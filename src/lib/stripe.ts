@@ -59,16 +59,20 @@ export async function checkSubscriptionStatus(userId: string, sessionId?: string
 export async function getSubscriptionFromDatabase(userId: string) {
   try {
     console.log(`Directly checking database subscription for user ${userId}`);
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .maybeSingle();
     
-    if (error) throw error;
+    // Use a direct RPC call instead of table access to avoid type issues
+    const { data, error } = await supabase.rpc('get_user_subscription', { user_id_param: userId });
+    
+    if (error) {
+      console.error('Error in RPC call:', error);
+      return { hasActiveSubscription: false, subscription: null };
+    }
+    
     console.log('Database subscription result:', data);
-    return { hasActiveSubscription: !!data, subscription: data };
+    return { 
+      hasActiveSubscription: !!data && data.status === 'active', 
+      subscription: data 
+    };
   } catch (error) {
     console.error('Error checking database subscription:', error);
     return { hasActiveSubscription: false, subscription: null };
