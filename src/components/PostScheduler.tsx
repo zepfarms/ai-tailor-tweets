@@ -16,7 +16,9 @@ interface PostSchedulerProps {
 
 export const PostScheduler: React.FC<PostSchedulerProps> = ({ content, onScheduleComplete }) => {
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [time, setTime] = useState("12:00");
+  const [hour, setHour] = useState("12");
+  const [minute, setMinute] = useState("00");
+  const [period, setPeriod] = useState<"AM" | "PM">("PM");
   const [isScheduling, setIsScheduling] = useState(false);
   const { toast } = useToast();
 
@@ -32,31 +34,44 @@ export const PostScheduler: React.FC<PostSchedulerProps> = ({ content, onSchedul
 
     setIsScheduling(true);
     
+    // Convert to 24-hour format for backend
+    const hour24 = period === "AM" 
+      ? (hour === "12" ? "00" : hour) 
+      : (hour === "12" ? "12" : String(Number(hour) + 12));
+    
+    const formattedTime = `${hour24}:${minute}`;
+    
     // Simulate API call
     setTimeout(() => {
       setIsScheduling(false);
       toast({
         title: "Post Scheduled",
-        description: `Your post will be published on ${format(date, 'PP')} at ${time}`,
+        description: `Your post will be published on ${format(date, 'PP')} at ${hour}:${minute} ${period}`,
       });
       onScheduleComplete();
     }, 1000);
   };
 
-  // Generate time options in 15-minute increments
-  const generateTimeOptions = () => {
+  // Generate hour options (1-12)
+  const generateHourOptions = () => {
     const options = [];
-    for (let hour = 0; hour < 24; hour++) {
-      for (let minute = 0; minute < 60; minute += 15) {
-        const formattedHour = hour.toString().padStart(2, '0');
-        const formattedMinute = minute.toString().padStart(2, '0');
-        options.push(`${formattedHour}:${formattedMinute}`);
-      }
+    for (let i = 1; i <= 12; i++) {
+      options.push(i.toString().padStart(2, '0'));
     }
     return options;
   };
 
-  const timeOptions = generateTimeOptions();
+  // Generate minute options in 15-minute increments (00, 15, 30, 45)
+  const generateMinuteOptions = () => {
+    const options = [];
+    for (let i = 0; i < 60; i += 15) {
+      options.push(i.toString().padStart(2, '0'));
+    }
+    return options;
+  };
+
+  const hourOptions = generateHourOptions();
+  const minuteOptions = generateMinuteOptions();
 
   return (
     <div className="space-y-6 animate-fade-in p-4">
@@ -102,23 +117,54 @@ export const PostScheduler: React.FC<PostSchedulerProps> = ({ content, onSchedul
           
           <div className="space-y-2">
             <label className="text-sm font-medium">Time</label>
-            <Select value={time} onValueChange={setTime}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select time">
-                  <div className="flex items-center">
-                    <Clock className="mr-2 h-4 w-4" />
-                    {time}
-                  </div>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-[200px]">
-                {timeOptions.map((timeOption) => (
-                  <SelectItem key={timeOption} value={timeOption}>
-                    {timeOption}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex space-x-2">
+              <Select value={hour} onValueChange={setHour}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Hour">
+                    <div className="flex items-center">
+                      <Clock className="mr-2 h-4 w-4" />
+                      {hour}
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  {hourOptions.map((hourOption) => (
+                    <SelectItem key={hourOption} value={hourOption}>
+                      {hourOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <span className="flex items-center">:</span>
+              
+              <Select value={minute} onValueChange={setMinute}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Minute">
+                    {minute}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  {minuteOptions.map((minuteOption) => (
+                    <SelectItem key={minuteOption} value={minuteOption}>
+                      {minuteOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={period} onValueChange={(value) => setPeriod(value as "AM" | "PM")}>
+                <SelectTrigger className="w-[80px]">
+                  <SelectValue placeholder="AM/PM">
+                    {period}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AM">AM</SelectItem>
+                  <SelectItem value="PM">PM</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
         
