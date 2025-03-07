@@ -8,7 +8,7 @@ import Navbar from '@/components/Navbar';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { CheckCircle, Loader } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { checkSubscriptionStatus } from '@/lib/stripe';
+import { checkSubscriptionStatus, getSubscriptionFromDatabase } from '@/lib/stripe';
 
 const SubscriptionSuccess: React.FC = () => {
   const { user, updateSubscriptionStatus } = useAuth();
@@ -33,56 +33,85 @@ const SubscriptionSuccess: React.FC = () => {
     const verifyPayment = async () => {
       try {
         setIsLoading(true);
+        console.log('Starting payment verification process...');
         
-        // If we have a session ID, verify directly with Stripe
-        if (sessionId) {
-          console.log(`Verifying payment with session ID: ${sessionId}`);
-          const result = await checkSubscriptionStatus(user.id, sessionId);
-
-          if (result?.hasActiveSubscription) {
-            setSubscriptionStatus('active');
-            setVerificationMethod('stripe_session');
-            toast({
-              title: "Subscription Activated",
-              description: "Thank you for subscribing to Posted Pal Pro!",
-            });
-            
-            // Also update auth context subscription status
-            await updateSubscriptionStatus();
-            
-            setIsLoading(false);
-            return;
-          }
-        }
+        // First, try direct database lookup for faster response
+        const dbResult = await getSubscriptionFromDatabase(user.id);
         
-        // If session verification failed or no session ID, check subscription status normally
-        const hasActiveSubscription = await updateSubscriptionStatus();
-        
-        if (hasActiveSubscription) {
+        if (dbResult.hasActiveSubscription) {
+          console.log('Found active subscription in database:', dbResult.subscription);
           setSubscriptionStatus('active');
           setVerificationMethod('database');
           toast({
             title: "Subscription Activated",
             description: "Thank you for subscribing to Posted Pal Pro!",
           });
+          
+          await updateSubscriptionStatus();
           setIsLoading(false);
-        } else {
-          // If subscription is not active yet, retry a few times
-          if (retryCount < 8) {
-            console.log(`Subscription not active yet, retrying... (${retryCount + 1}/8)`);
-            setTimeout(() => {
-              setRetryCount(prev => prev + 1);
-            }, 2000); // Wait 2 seconds before retrying
-          } else {
-            // After several retries, just show the success message anyway
-            // The subscription might still be processing on Stripe's end
-            setSubscriptionStatus('processing');
+          return;
+        }
+        
+        // If no active subscription in database, try using the session ID
+        if (sessionId) {
+          console.log(`Verifying payment with session ID: ${sessionId}`);
+          try {
+            const result = await checkSubscriptionStatus(user.id, sessionId);
+            
+            if (result?.hasActiveSubscription) {
+              console.log('Session verification confirmed subscription:', result);
+              setSubscriptionStatus('active');
+              setVerificationMethod('stripe_session');
+              toast({
+                title: "Subscription Activated",
+                description: "Thank you for subscribing to Posted Pal Pro!",
+              });
+              
+              await updateSubscriptionStatus();
+              setIsLoading(false);
+              return;
+            }
+          } catch (sessionError) {
+            console.error('Error during session verification:', sessionError);
+            // Continue with other methods if session verification fails
+          }
+        }
+        
+        // If still not found, use the standard subscription check
+        try {
+          console.log('Attempting standard subscription check');
+          const hasActiveSubscription = await updateSubscriptionStatus();
+          
+          if (hasActiveSubscription) {
+            console.log('Standard check found active subscription');
+            setSubscriptionStatus('active');
+            setVerificationMethod('auth_context');
             toast({
-              title: "Subscription Processing",
-              description: "Your payment was successful! Your subscription is being processed and should be active soon.",
+              title: "Subscription Activated",
+              description: "Thank you for subscribing to Posted Pal Pro!",
             });
             setIsLoading(false);
+            return;
           }
+        } catch (updateError) {
+          console.error('Error during standard subscription check:', updateError);
+        }
+        
+        // If subscription is still not active, retry a few times
+        if (retryCount < 4) {
+          console.log(`Subscription not found yet, retrying... (${retryCount + 1}/4)`);
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+          }, 3000); // Wait 3 seconds before retrying
+        } else {
+          // After retries, show processing message
+          console.log('Max retries reached, showing processing message');
+          setSubscriptionStatus('processing');
+          toast({
+            title: "Subscription Processing",
+            description: "Your payment was successful! Your subscription is being processed and should be active soon.",
+          });
+          setIsLoading(false);
         }
       } catch (error) {
         console.error('Error verifying payment:', error);
