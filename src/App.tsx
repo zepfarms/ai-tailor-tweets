@@ -14,6 +14,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import NotFound from './pages/NotFound';
 import Settings from './pages/Settings';
 import Pricing from './pages/Pricing';
+import Contact from './pages/Contact';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CookiePolicy from './pages/CookiePolicy';
@@ -34,6 +35,7 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/contact" element={<Contact />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/cookie-policy" element={<CookiePolicy />} />
