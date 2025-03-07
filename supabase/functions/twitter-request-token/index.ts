@@ -82,10 +82,15 @@ serve(async (req) => {
     }
     
     try {
+      // For login flows, use the state as the temp user ID to avoid null constraint issues
+      const userIdToStore = isLogin ? state : userId;
+      
+      console.log("Storing OAuth state with user_id:", userIdToStore);
+      
       const { error: storeError } = await supabase
         .from('oauth_states')
         .upsert({
-          user_id: userId || state, // Use the state value as a temporary user_id for login flows
+          user_id: userIdToStore, // Use the state value as a temporary user_id for login flows
           state: state,
           code_verifier: codeVerifier,
           provider: 'twitter',
@@ -97,6 +102,8 @@ serve(async (req) => {
         console.error("Error storing OAuth state:", storeError);
         throw new Error(`Failed to store OAuth state: ${storeError.message}`);
       }
+      
+      console.log("Successfully stored OAuth state in database");
     } catch (error) {
       console.error("Error upserting into oauth_states table:", error);
       throw new Error(`Database operation failed: ${error.message}`);
