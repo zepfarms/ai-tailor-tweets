@@ -36,6 +36,9 @@ const Navbar: React.FC = () => {
           <Link to="/pricing" className="text-foreground/80 hover:text-foreground transition-colors">
             Pricing
           </Link>
+          <Link to="/contact" className="text-foreground/80 hover:text-foreground transition-colors">
+            Contact
+          </Link>
           
           {user ? (
             <div className="flex items-center space-x-4">
@@ -95,6 +98,13 @@ const Navbar: React.FC = () => {
               onClick={() => setMobileMenuOpen(false)}
             >
               Pricing
+            </Link>
+            <Link 
+              to="/contact" 
+              className="text-foreground/80 hover:text-foreground transition-colors py-2" 
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Contact
             </Link>
             
             {user ? (
