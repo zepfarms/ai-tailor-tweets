@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Hero from '@/components/Hero';
@@ -66,7 +65,6 @@ const pricingTiers = [
       'Video creator tools',
       'Team collaboration features',
       'Dedicated support',
-      'API access',
       'Custom branding',
     ],
     limitations: [],
