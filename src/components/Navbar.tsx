@@ -71,9 +71,9 @@ const Navbar: React.FC = () => {
           )}
         </nav>
 
-        {/* Mobile Menu Button - Improved touch target */}
+        {/* Mobile Menu Button - Improved touch target and positioning */}
         <button 
-          className="md:hidden p-3 -mr-3 touch-manipulation focus:outline-none" 
+          className="md:hidden p-3 -mr-1 touch-manipulation focus:outline-none" 
           onClick={toggleMobileMenu}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >

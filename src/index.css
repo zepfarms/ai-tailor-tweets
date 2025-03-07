@@ -52,6 +52,20 @@
     a, button {
       @apply touch-manipulation;
     }
+    
+    /* Safe area insets for iPhone */
+    header {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    
+    /* Fix menu button visibility on iPhone */
+    .container {
+      max-width: 100%;
+      width: 100%;
+      padding-left: max(1rem, env(safe-area-inset-left));
+      padding-right: max(1rem, env(safe-area-inset-right));
+    }
   }
   
   /* Specific improvements for landscape mode */
