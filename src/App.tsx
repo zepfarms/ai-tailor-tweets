@@ -19,6 +19,7 @@ import Contact from './pages/Contact';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CookiePolicy from './pages/CookiePolicy';
+import XCallback from './pages/XCallback';
 
 import './App.css';
 
@@ -44,6 +45,7 @@ function App() {
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/cookie-policy" element={<CookiePolicy />} />
+            <Route path="/x-callback" element={<XCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />

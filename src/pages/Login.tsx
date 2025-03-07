@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,14 +8,35 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { Twitter, Loader2 } from 'lucide-react';
+import { Twitter, Loader2, AlertCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Login: React.FC = () => {
-  const { login, loginWithX, isLoading, isLoginingWithX } = useAuth();
+  const { login, loginWithX, isLoading, isLoginingWithX, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [xLoginAttempted, setXLoginAttempted] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
+  // Check for error in URL parameters (could be from X login redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const errorParam = params.get('error');
+    
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+    }
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,15 +46,20 @@ const Login: React.FC = () => {
       await login(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to login');
+      console.error('Error during standard login:', err);
     }
   };
 
   const handleXLogin = async () => {
+    setError('');
+    setXLoginAttempted(true);
+    
     try {
       await loginWithX();
     } catch (err) {
       console.error('Error during X login:', err);
       setError(err instanceof Error ? err.message : 'Failed to login with X');
+      setXLoginAttempted(false);
     }
   };
 
@@ -52,19 +78,27 @@ const Login: React.FC = () => {
             </CardHeader>
             
             <CardContent className="space-y-4">
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
               <Button
                 type="button"
                 variant="outline"
                 className="w-full flex items-center gap-2"
                 onClick={handleXLogin}
-                disabled={isLoginingWithX}
+                disabled={isLoginingWithX || xLoginAttempted}
               >
                 {isLoginingWithX ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Twitter className="h-4 w-4 text-[#1DA1F2]" />
                 )}
-                {isLoginingWithX ? "Connecting to X..." : "Continue with X"}
+                {isLoginingWithX ? "Connecting to X..." : 
+                 xLoginAttempted ? "Redirecting to X..." : "Continue with X"}
               </Button>
               
               <div className="relative">
@@ -107,10 +141,6 @@ const Login: React.FC = () => {
                     required
                   />
                 </div>
-                
-                {error && (
-                  <div className="text-sm text-destructive">{error}</div>
-                )}
                 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Logging in..." : "Log in"}
