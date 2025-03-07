@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Mail, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const Contact: React.FC = () => {
   const { toast } = useToast();
@@ -30,34 +32,32 @@ const Contact: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('https://rsbzrlvezpcejzyvkmpx.supabase.co/functions/v1/send-contact-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Use supabase.functions.invoke instead of direct fetch
+      const { data, error } = await supabase.functions.invoke("send-contact-email", {
+        body: {
           name: formData.name,
           email: formData.email,
           subject: formData.subject,
           message: formData.message
-        }),
+        },
       });
 
-      if (response.ok) {
-        toast({
-          title: "Message sent!",
-          description: "We've received your message and will get back to you soon.",
-          variant: "default",
-        });
-        setFormData({
-          name: '',
-          email: '',
-          subject: '',
-          message: ''
-        });
-      } else {
-        throw new Error('Failed to send message');
+      if (error) {
+        throw error;
       }
+
+      toast({
+        title: "Message sent!",
+        description: "We've received your message and will get back to you soon.",
+        variant: "default",
+      });
+      
+      setFormData({
+        name: '',
+        email: '',
+        subject: '',
+        message: ''
+      });
     } catch (error) {
       toast({
         title: "Something went wrong",
