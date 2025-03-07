@@ -434,7 +434,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const linkXAccount = async (redirectUri?: string) => {
+  const linkXAccount = async (redirectUri?: string): Promise<void> => {
     try {
       setIsLinkingX(true);
       
@@ -455,7 +455,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       window.location.href = response.data.authUrl;
-      return true;
     } catch (error) {
       console.error('Error linking X account:', error);
       toast({
