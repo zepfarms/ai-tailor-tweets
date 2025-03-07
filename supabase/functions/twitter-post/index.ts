@@ -17,7 +17,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log("Twitter post function called");
+    console.log("X post function called");
     
     const { userId, content, media } = await req.json();
     
@@ -38,7 +38,7 @@ serve(async (req) => {
     // Create Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Get the user's Twitter account
+    // Get the user's X account
     const { data: accountData, error: accountError } = await supabase
       .from('x_accounts')
       .select('*')
@@ -56,7 +56,7 @@ serve(async (req) => {
     let mediaIds = [];
     if (media && media.length > 0) {
       for (const mediaItem of media) {
-        console.log("Uploading media to Twitter");
+        console.log("Uploading media to X");
         
         // First, we need to initialize the media upload
         const initResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json?command=INIT", {
@@ -123,36 +123,36 @@ serve(async (req) => {
       }
     }
     
-    // Build the tweet payload
-    const tweetPayload = {
+    // Build the post payload
+    const postPayload = {
       text: content || ""
     };
     
     // Add media if we have IDs
     if (mediaIds.length > 0) {
-      tweetPayload.media = { media_ids: mediaIds };
+      postPayload.media = { media_ids: mediaIds };
     }
     
-    // Post to Twitter
-    const tweetResponse = await fetch("https://api.twitter.com/2/tweets", {
+    // Post to X
+    const postResponse = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${accountData.access_token}`,
       },
-      body: JSON.stringify(tweetPayload),
+      body: JSON.stringify(postPayload),
     });
     
-    const tweetData = await tweetResponse.json();
+    const postData = await postResponse.json();
     
-    if (!tweetResponse.ok) {
-      console.error("Tweet response error:", tweetData);
-      throw new Error(tweetData.detail || "Failed to post tweet");
+    if (!postResponse.ok) {
+      console.error("Post response error:", postData);
+      throw new Error(postData.detail || "Failed to publish post");
     }
     
-    console.log("Tweet posted successfully:", tweetData);
+    console.log("Post published successfully:", postData);
     
-    // Store the tweet in our database
+    // Store the post in our database
     const { error: postError } = await supabase
       .from('posts')
       .insert({
@@ -160,7 +160,7 @@ serve(async (req) => {
         content: content,
         published: true,
         created_at: new Date().toISOString(),
-        tweet_id: tweetData.data?.id,
+        tweet_id: postData.data?.id,
         has_media: mediaIds.length > 0
       });
     
@@ -172,7 +172,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        tweet: tweetData.data
+        post: postData.data
       }),
       {
         headers: {

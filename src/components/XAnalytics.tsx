@@ -2,34 +2,42 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Loader2, Users, MessageSquare, TrendingUp, Eye, Twitter } from 'lucide-react';
+import { Loader2, Users, MessageSquare, TrendingUp, Eye, ImageIcon, Video, Calendar, Heart, Share2, MessageCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import AnalyticsCard from '@/components/AnalyticsCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 interface XAnalyticsProps {
   className?: string;
+}
+
+interface TopPost {
+  id: string;
+  text: string;
+  likes: number;
+  shares: number;
+  comments: number;
+  impressions: number;
+  engagementRate: string;
+  date: string;
+  isImage: boolean;
+  isVideo: boolean;
 }
 
 interface AnalyticsData {
   username?: string;
   followerCount: number;
   followingCount: number;
-  tweetsCount: number;
+  postsCount: number;
   impressions: number;
   profileVisits: number;
   mentionsCount: number;
-  tweetEngagementRate: string;
-  topTweet: {
-    text: string;
-    likes: number;
-    retweets: number;
-    replies: number;
-    impressions: number;
-  };
+  engagementRate: string;
+  topPosts: TopPost[];
   engagementTrend: Array<{ date: string; value: number }>;
   followersTrend: Array<{ date: string; value: number }>;
 }
@@ -217,6 +225,15 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
     );
   }
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+
   return (
     <div className={`space-y-6 ${className}`}>
       <div className="flex items-center justify-between">
@@ -244,9 +261,9 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
           trend={{ value: 8, isPositive: true }}
         />
         <AnalyticsCard
-          title="Tweets"
-          value={analytics.tweetsCount.toLocaleString()}
-          icon={<Twitter className="h-4 w-4 text-muted-foreground" />}
+          title="Posts"
+          value={analytics.postsCount.toLocaleString()}
+          icon={<MessageSquare className="h-4 w-4 text-muted-foreground" />}
           trend={{ value: 12, isPositive: true }}
         />
         <AnalyticsCard
@@ -257,7 +274,7 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
         />
         <AnalyticsCard
           title="Engagement Rate"
-          value={analytics.tweetEngagementRate}
+          value={analytics.engagementRate}
           icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
           trend={{ value: 4, isPositive: true }}
         />
@@ -307,29 +324,65 @@ const XAnalytics: React.FC<XAnalyticsProps> = ({ className }) => {
 
       <Card className="glass-card">
         <CardHeader>
-          <CardTitle>Top Tweet</CardTitle>
+          <CardTitle>Top Performing Posts</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-lg p-4">
-            <p className="text-base mb-4">{analytics.topTweet.text}</p>
-            <div className="grid grid-cols-4 gap-2 text-center text-sm">
-              <div>
-                <p className="font-bold">{analytics.topTweet.impressions.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Impressions</p>
+          <div className="space-y-6">
+            {analytics.topPosts.map((post, index) => (
+              <div key={post.id} className="border rounded-lg p-4 transition-all hover:border-blue-200">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center space-x-2">
+                    <Badge variant={index === 0 ? "default" : index === 1 ? "secondary" : "outline"}>
+                      #{index + 1}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">{formatDate(post.date)}</span>
+                    <div className="flex space-x-1">
+                      {post.isImage && <ImageIcon size={16} className="text-blue-500" />}
+                      {post.isVideo && <Video size={16} className="text-red-500" />}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="bg-blue-50">
+                    {post.engagementRate} Engagement
+                  </Badge>
+                </div>
+                
+                <p className="text-base mb-4">{post.text}</p>
+                
+                <div className="grid grid-cols-4 gap-2 text-sm">
+                  <div className="flex flex-col items-center p-2 bg-gray-50 rounded-md">
+                    <div className="flex items-center mb-1">
+                      <Eye size={14} className="mr-1 text-gray-500" />
+                      <span className="font-medium">{post.impressions.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Impressions</p>
+                  </div>
+                  
+                  <div className="flex flex-col items-center p-2 bg-gray-50 rounded-md">
+                    <div className="flex items-center mb-1">
+                      <Heart size={14} className="mr-1 text-red-500" />
+                      <span className="font-medium">{post.likes.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Likes</p>
+                  </div>
+                  
+                  <div className="flex flex-col items-center p-2 bg-gray-50 rounded-md">
+                    <div className="flex items-center mb-1">
+                      <Share2 size={14} className="mr-1 text-green-500" />
+                      <span className="font-medium">{post.shares.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Shares</p>
+                  </div>
+                  
+                  <div className="flex flex-col items-center p-2 bg-gray-50 rounded-md">
+                    <div className="flex items-center mb-1">
+                      <MessageCircle size={14} className="mr-1 text-blue-500" />
+                      <span className="font-medium">{post.comments.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Comments</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="font-bold">{analytics.topTweet.likes.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Likes</p>
-              </div>
-              <div>
-                <p className="font-bold">{analytics.topTweet.retweets.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Retweets</p>
-              </div>
-              <div>
-                <p className="font-bold">{analytics.topTweet.replies.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Replies</p>
-              </div>
-            </div>
+            ))}
           </div>
         </CardContent>
       </Card>

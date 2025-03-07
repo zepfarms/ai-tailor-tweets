@@ -50,24 +50,66 @@ serve(async (req) => {
       console.log("X username found for user:", xUsername);
     }
     
+    // Generate realistic sample data for top posts
+    const generateTopPost = (index: number) => {
+      const engagement = Math.floor(Math.random() * 1000) + (1000 - index * 200);
+      const likes = Math.floor(engagement * (0.4 + Math.random() * 0.2));
+      const shares = Math.floor(engagement * (0.15 + Math.random() * 0.1));
+      const comments = Math.floor(engagement * (0.1 + Math.random() * 0.05));
+      const impressions = engagement * (8 + Math.random() * 4);
+      
+      const topics = [
+        "product updates", "industry news", "helpful tips", 
+        "case studies", "thought leadership", "community highlights"
+      ];
+      
+      const postTypes = [
+        "I just published an article about", 
+        "Excited to announce our new", 
+        "Here's my thoughts on", 
+        "Check out this insight about",
+        "Just shared my experience with"
+      ];
+      
+      const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+      const randomPostType = postTypes[Math.floor(Math.random() * postTypes.length)];
+      
+      const date = new Date();
+      date.setDate(date.getDate() - Math.floor(Math.random() * 30));
+      
+      return {
+        id: `post-${Date.now()}-${index}`,
+        text: `${randomPostType} ${randomTopic}. #social #engagement`,
+        likes: likes,
+        shares: shares,
+        comments: comments,
+        impressions: impressions,
+        engagementRate: ((likes + shares + comments) / impressions * 100).toFixed(2) + "%",
+        date: date.toISOString(),
+        isImage: Math.random() > 0.5,
+        isVideo: Math.random() > 0.7
+      };
+    };
+    
+    // Generate top posts
+    const topPosts = [
+      generateTopPost(0),  // Top performer
+      generateTopPost(1),  // Second best
+      generateTopPost(2)   // Third best
+    ];
+    
     // For demo purposes, we'll return mock data
     // In a real implementation, you would use the X/Twitter API with the provided username to fetch real metrics
     const mockAnalytics = {
       username: xUsername,
       followerCount: Math.floor(Math.random() * 2000) + 500,
       followingCount: Math.floor(Math.random() * 500) + 100,
-      tweetsCount: Math.floor(Math.random() * 300) + 50,
+      postsCount: Math.floor(Math.random() * 300) + 50,
       impressions: Math.floor(Math.random() * 50000) + 10000,
       profileVisits: Math.floor(Math.random() * 1000) + 200,
       mentionsCount: Math.floor(Math.random() * 100) + 10,
-      tweetEngagementRate: (Math.random() * 5 + 1).toFixed(2) + "%",
-      topTweet: {
-        text: "Just shared my thoughts on the latest tech developments! #tech #innovation",
-        likes: Math.floor(Math.random() * 500) + 50,
-        retweets: Math.floor(Math.random() * 100) + 10,
-        replies: Math.floor(Math.random() * 50) + 5,
-        impressions: Math.floor(Math.random() * 10000) + 1000
-      },
+      engagementRate: (Math.random() * 5 + 1).toFixed(2) + "%",
+      topPosts: topPosts,
       engagementTrend: [
         { date: "Jan", value: Math.floor(Math.random() * 100) },
         { date: "Feb", value: Math.floor(Math.random() * 100) },
