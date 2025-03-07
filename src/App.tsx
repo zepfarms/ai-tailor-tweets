@@ -14,7 +14,6 @@ import VideoStudio from './pages/VideoStudio';
 import VerifyEmail from './pages/VerifyEmail';
 import NotFound from './pages/NotFound';
 import Settings from './pages/Settings';
-import Pricing from './pages/Pricing';
 import Contact from './pages/Contact';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -40,7 +39,6 @@ function App() {
             <Route path="/video-studio" element={<VideoStudio />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/pricing" element={<Pricing />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />

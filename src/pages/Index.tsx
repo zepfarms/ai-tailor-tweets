@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import Hero from '@/components/Hero';
 import Features from '@/components/Features';
 import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 import { FileText, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -200,7 +199,6 @@ const Index: React.FC = () => {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };
