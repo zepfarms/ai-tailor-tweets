@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Hero from '@/components/Hero';
 import Features from '@/components/Features';
 import Navbar from '@/components/Navbar';
-import { FileText, Check, X } from 'lucide-react';
+import { FileText, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
@@ -14,7 +14,7 @@ const pricingTiers = [
   {
     name: 'Demo',
     price: 'Free',
-    period: 'trial',
+    period: '',
     description: 'Try the platform with demo data',
     features: [
       'Explore the full dashboard',
@@ -115,7 +115,7 @@ const PricingCard: React.FC<{
         <CardTitle className="text-2xl font-bold">{tier.name}</CardTitle>
         <div className="mt-2 flex items-baseline">
           <span className="text-4xl font-extrabold tracking-tight">{tier.price}</span>
-          <span className="ml-1 text-muted-foreground">/{tier.period}</span>
+          <span className="ml-1 text-muted-foreground">{tier.period}</span>
         </div>
         <CardDescription className="mt-2">{tier.description}</CardDescription>
       </CardHeader>
@@ -129,7 +129,7 @@ const PricingCard: React.FC<{
           ))}
           {tier.limitations.map((limitation, index) => (
             <li key={index} className="flex items-start text-muted-foreground">
-              <X className="h-5 w-5 mr-2 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 mr-2 text-muted-foreground flex-shrink-0 mt-0.5" />
               <span>{limitation}</span>
             </li>
           ))}
