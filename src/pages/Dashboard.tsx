@@ -16,7 +16,8 @@ import {
   Video,
   ClipboardList,
   Users,
-  RefreshCw
+  RefreshCw,
+  CheckCircle
 } from 'lucide-react';
 import { DemoData, DemoPost } from '@/lib/types';
 import { demoData } from '@/lib/demoData';
@@ -56,10 +57,8 @@ const PostItem: React.FC<{ post: DemoPost }> = ({ post }) => {
   );
 };
 
-import { CheckCircle } from 'lucide-react';
-
 const Dashboard: React.FC = () => {
-  const { user, isLoading, hasSubscription } = useAuth();
+  const { user, isLoading, hasSubscription, updateSubscriptionStatus } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [scheduledPosts, setScheduledPosts] = useState<DemoPost[]>([]);
@@ -73,27 +72,39 @@ const Dashboard: React.FC = () => {
     day: 'numeric',
   });
 
+  // Check subscription status whenever dashboard loads
   useEffect(() => {
-    if (!isLoading) {
-      if (!user) {
-        navigate('/login', { state: { from: location } });
-      } else if (user && !hasSubscription) {
-        navigate('/subscription');
-      } else {
-        setLoading(false);
+    const checkAccess = async () => {
+      if (!isLoading) {
+        if (!user) {
+          navigate('/login', { state: { from: location } });
+        } else {
+          // Force a subscription status check
+          const hasActive = await updateSubscriptionStatus();
+          
+          if (!hasActive) {
+            navigate('/subscription');
+          } else {
+            setLoading(false);
+          }
+        }
       }
-    }
-  }, [user, isLoading, navigate, location, hasSubscription]);
+    };
+    
+    checkAccess();
+  }, [user, isLoading, navigate, location, updateSubscriptionStatus]);
 
   useEffect(() => {
     if (user?.isDemoAccount) {
       setScheduledPosts(demoData.posts.scheduledPosts);
       setPublishedPosts(demoData.posts.publishedPosts);
-    } else {
+      setLoading(false);
+    } else if (user) {
       // Fetch real data here in a real application
       // For now, just setting empty arrays
       setScheduledPosts([]);
       setPublishedPosts([]);
+      setLoading(false);
     }
   }, [user]);
 
@@ -106,14 +117,13 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <span className="loading loading-dots loading-lg"></span>
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin"></div>
+        </div>
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   return (

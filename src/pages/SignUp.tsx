@@ -13,7 +13,7 @@ import { toast } from '@/components/ui/use-toast';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 const SignUp: React.FC = () => {
-  const { signup, isLoading, user, isVerifying, verifyOtp } = useAuth();
+  const { signup, isLoading, user, isVerifying, verifyOtp, hasSubscription, updateSubscriptionStatus } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,11 +27,18 @@ const SignUp: React.FC = () => {
   // Check if user is already verified and logged in
   useEffect(() => {
     if (user && !isLoading && !isVerifying) {
-      navigate('/subscription');
+      // Force a subscription status check
+      updateSubscriptionStatus().then(hasActive => {
+        if (hasActive) {
+          navigate('/dashboard');
+        } else {
+          navigate('/subscription');
+        }
+      });
     } else if (isVerifying) {
       setShowVerification(true);
     }
-  }, [user, isLoading, isVerifying, navigate]);
+  }, [user, isLoading, isVerifying, navigate, updateSubscriptionStatus]);
 
   // Handle resend cooldown timer
   useEffect(() => {
@@ -90,6 +97,8 @@ const SignUp: React.FC = () => {
         title: "Verification successful",
         description: "Your email has been verified successfully!",
       });
+      
+      // After verification, direct to subscription page
       navigate('/subscription');
     } catch (err) {
       console.error('Verification error:', err);
