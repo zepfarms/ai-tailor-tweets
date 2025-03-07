@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -22,7 +21,6 @@ const Dashboard: React.FC = () => {
   const { user, isLoading, linkXAccount } = useAuth();
   const [isXLinking, setIsXLinking] = useState(false);
 
-  // Add error handling for posts query
   const { data: postsData, isLoading: isPostsLoading, error: postsError } = useQuery({
     queryKey: ['posts', user?.id],
     queryFn: async () => {
@@ -58,7 +56,6 @@ const Dashboard: React.FC = () => {
           variant: "destructive",
         });
         
-        // Return empty arrays to prevent UI from breaking
         return {
           scheduledPosts: [],
           publishedPosts: [],
@@ -66,11 +63,6 @@ const Dashboard: React.FC = () => {
       }
     },
     enabled: !!user?.id,
-    // Add better error handling
-    onError: (error) => {
-      console.error('Query error:', error);
-    },
-    // Add reasonable retry settings
     retry: 2,
     retryDelay: 1000,
   });
@@ -165,7 +157,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Add error boundary rendering
   const renderErrorState = () => (
     <div className="min-h-screen flex flex-col page-transition">
       <Navbar />
@@ -220,7 +211,6 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // Check for critical errors and use error boundary if needed
   if (postsError) {
     console.error('Posts data error:', postsError);
     return renderErrorState();
