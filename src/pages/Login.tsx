@@ -26,12 +26,6 @@ const Login: React.FC = () => {
     }
   };
 
-  // Pre-fill with demo account for easy testing
-  const fillDemoAccount = () => {
-    setEmail('demo@example.com');
-    setPassword('password');
-  };
-
   return (
     <div className="min-h-screen flex flex-col page-transition">
       <Navbar />
@@ -85,17 +79,6 @@ const Login: React.FC = () => {
                   {isLoading ? "Logging in..." : "Log in"}
                 </Button>
               </form>
-              
-              <div className="mt-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full text-sm" 
-                  onClick={fillDemoAccount}
-                >
-                  Use demo account
-                </Button>
-              </div>
             </CardContent>
             
             <CardFooter>
