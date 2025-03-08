@@ -12,6 +12,7 @@ const XCallback: React.FC = () => {
   const { completeXAuth } = useAuth();
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   useEffect(() => {
     const processCallback = async () => {
@@ -34,7 +35,7 @@ const XCallback: React.FC = () => {
             description: errorDescription || 'Failed to connect X account',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/login?error=' + encodeURIComponent(`X authentication failed: ${errorDescription || 'Unknown error'}`)), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(`X authentication failed: ${errorDescription || 'Unknown error'}`)), 3000);
           return;
         }
 
@@ -47,11 +48,22 @@ const XCallback: React.FC = () => {
             description: 'Missing required parameters from X',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/login?error=' + encodeURIComponent('Missing authentication parameters')), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Missing authentication parameters')), 3000);
           return;
         }
 
         console.log("Processing X callback with code and state", { codeLength: code.length, state });
+        
+        // Get debug info if there's an issue
+        try {
+          const debugResponse = await supabase.functions.invoke('debug-x-connection');
+          if (debugResponse.data) {
+            setDebugInfo(debugResponse.data);
+            console.log("Debug info:", debugResponse.data);
+          }
+        } catch (debugError) {
+          console.error("Error getting debug info:", debugError);
+        }
         
         // Process the token
         const response = await supabase.functions.invoke('twitter-access-token', {
@@ -68,7 +80,7 @@ const XCallback: React.FC = () => {
             description: response.error.message || 'Failed to verify X account',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/login?error=' + encodeURIComponent(response.error.message || 'Failed to verify X account')), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(response.error.message || 'Failed to verify X account')), 3000);
           return;
         }
 
@@ -89,7 +101,7 @@ const XCallback: React.FC = () => {
               description: authError instanceof Error ? authError.message : 'Failed to complete authentication',
               variant: 'destructive',
             });
-            setTimeout(() => navigate('/login?error=' + encodeURIComponent('Failed to complete authentication')), 3000);
+            setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Failed to complete authentication')), 3000);
           }
         } else if (response.data && response.data.username) {
           toast({
@@ -107,7 +119,7 @@ const XCallback: React.FC = () => {
             description: 'Invalid response from authentication service',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/login?error=' + encodeURIComponent('Invalid response from authentication service')), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Invalid response from authentication service')), 3000);
         }
       } catch (err) {
         console.error('Error in X callback:', err);
@@ -117,7 +129,7 @@ const XCallback: React.FC = () => {
           description: err instanceof Error ? err.message : 'An unexpected error occurred',
           variant: 'destructive',
         });
-        setTimeout(() => navigate('/login?error=' + encodeURIComponent(err instanceof Error ? err.message : 'An unexpected error occurred')), 3000);
+        setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(err instanceof Error ? err.message : 'An unexpected error occurred')), 3000);
       } finally {
         setIsProcessing(false);
       }
@@ -147,7 +159,12 @@ const XCallback: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold mb-2">Authentication Error</h1>
           <p className="text-muted-foreground text-center mb-4">{error}</p>
-          <p className="text-center">Redirecting you back to login...</p>
+          {debugInfo && (
+            <div className="text-xs text-muted-foreground bg-muted p-2 rounded mb-4 max-w-md overflow-auto">
+              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
+          )}
+          <p className="text-center">Redirecting you back to dashboard...</p>
         </>
       ) : (
         <>

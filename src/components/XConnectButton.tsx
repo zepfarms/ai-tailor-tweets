@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { X, Link } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 interface XConnectButtonProps {
   className?: string;
@@ -17,15 +18,29 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
 }) => {
   const { user, linkXAccount, isLinkingX } = useAuth();
   const [isConnecting, setIsConnecting] = useState(false);
+  const { toast } = useToast();
 
   const handleConnect = async () => {
-    if (!linkXAccount) return;
+    if (!linkXAccount) {
+      toast({
+        title: "Error",
+        description: "Authentication context not initialized",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsConnecting(true);
     try {
       await linkXAccount();
+      // Don't need to reset isConnecting as we're redirecting away
     } catch (error) {
       console.error('Error connecting to X:', error);
+      toast({
+        title: "Connection Error",
+        description: error instanceof Error ? error.message : "Failed to connect to X",
+        variant: "destructive"
+      });
       setIsConnecting(false);
     }
   };
