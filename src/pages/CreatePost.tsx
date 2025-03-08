@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +11,7 @@ import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
 import TopPerformingPosts from '@/components/TopPerformingPosts';
+import { supabase } from '@/integrations/supabase/client';
 
 type Stage = "topics" | "create" | "schedule";
 
