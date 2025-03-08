@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -30,17 +29,15 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         description: "You'll be redirected to X for authorization...",
       });
       
-      // Get the current origin for dynamic callback URL
       const origin = window.location.origin;
       console.log('Current origin:', origin);
       
-      // Generate a fresh auth URL from the edge function each time
       console.log('Requesting authorization URL from server...');
       const { data, error } = await supabase.functions.invoke('twitter-request-token', {
         body: {
           userId: user?.id,
           isLogin: false,
-          origin: origin // Send the current origin for sandbox testing
+          origin: origin
         }
       });
       
@@ -57,7 +54,6 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
       console.log('Received auth URL:', data.authUrl.substring(0, 100) + '...');
       console.log('State from response:', data.state);
       
-      // Store the state in localStorage so we can verify it on return
       if (data.state) {
         localStorage.setItem('x_auth_state', data.state);
         console.log('Stored state in localStorage for verification:', data.state);
@@ -66,7 +62,6 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         throw new Error('Authentication failed: No state returned from service');
       }
       
-      // Redirect to Twitter/X for authorization
       window.location.href = data.authUrl;
       
     } catch (error) {
@@ -80,7 +75,6 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
     }
   };
 
-  // Determine if button is in loading state (either from context or local state)
   const isLoading = isLinkingX || localLoading;
 
   if (user?.xLinked) {

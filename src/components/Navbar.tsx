@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Menu, Twitter, Settings } from 'lucide-react';
+import { X, Menu, Settings } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -41,7 +40,7 @@ const Navbar: React.FC = () => {
             <div className="flex items-center space-x-4">
               {user.xLinked && user.xUsername && (
                 <div className="flex items-center gap-1 text-sm text-foreground/70">
-                  <Twitter size={14} className="text-blue-400" />
+                  <X size={14} className="text-black" />
                   <span>{user.xUsername}</span>
                 </div>
               )}
@@ -101,7 +100,7 @@ const Navbar: React.FC = () => {
               <>
                 {user.xLinked && user.xUsername && (
                   <div className="flex items-center gap-1 text-sm text-foreground/70 py-2">
-                    <Twitter size={14} className="text-blue-400" />
+                    <X size={14} className="text-black" />
                     <span>{user.xUsername}</span>
                   </div>
                 )}
