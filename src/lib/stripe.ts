@@ -72,9 +72,9 @@ export async function getSubscriptionFromDatabase(userId: string) {
     console.log(`Directly checking database subscription for user ${userId}`);
     
     // Use a direct RPC call with proper typing
-    const { data, error } = await supabase.rpc<SubscriptionData>(
+    const { data, error } = await supabase.rpc<SubscriptionData, GetUserSubscriptionParams>(
       'get_user_subscription', 
-      { user_id_param: userId } as GetUserSubscriptionParams
+      { user_id_param: userId }
     );
     
     if (error) {

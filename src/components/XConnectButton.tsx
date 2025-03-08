@@ -32,8 +32,26 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
     
     setIsConnecting(true);
     try {
-      await linkXAccount();
-      // Don't need to reset isConnecting as we're redirecting away
+      toast({
+        title: "Connecting to X",
+        description: "You'll be redirected to X for authorization...",
+      });
+      
+      // Add a small delay to allow the toast to show before redirect
+      setTimeout(async () => {
+        try {
+          await linkXAccount();
+          // Don't need to reset isConnecting as we're redirecting away
+        } catch (delayedError) {
+          console.error('Error connecting to X after delay:', delayedError);
+          toast({
+            title: "Connection Error",
+            description: delayedError instanceof Error ? delayedError.message : "Failed to connect to X",
+            variant: "destructive"
+          });
+          setIsConnecting(false);
+        }
+      }, 1000);
     } catch (error) {
       console.error('Error connecting to X:', error);
       toast({

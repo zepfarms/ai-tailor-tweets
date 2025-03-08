@@ -56,6 +56,7 @@ const XCallback: React.FC = () => {
         
         // Get debug info if there's an issue
         try {
+          console.log("Fetching debug info for X connection");
           const debugResponse = await supabase.functions.invoke('debug-x-connection');
           if (debugResponse.data) {
             setDebugInfo(debugResponse.data);
@@ -66,6 +67,7 @@ const XCallback: React.FC = () => {
         }
         
         // Process the token
+        console.log("Calling twitter-access-token function with code and state");
         const response = await supabase.functions.invoke('twitter-access-token', {
           body: { code, state }
         });

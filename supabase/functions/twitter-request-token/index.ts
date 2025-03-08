@@ -4,8 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
-// Make sure the callback URL matches your actual app setup
-const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "http://localhost:3000/x-callback";
+// Use TWITTER_CALLBACK_URL as configured or fallback to a default
+const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://postedpal.com/x-callback";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -109,7 +109,7 @@ serve(async (req) => {
       throw new Error(`Database operation failed: ${error.message}`);
     }
     
-    // Build the authorization URL - now trying with the X domain first
+    // Try both domains for X authentication
     try {
       // Try X domain first (newer)
       let authUrl = new URL("https://x.com/i/oauth2/authorize");
@@ -139,7 +139,36 @@ serve(async (req) => {
       );
     } catch (error) {
       console.error("Error creating authorization URL:", error);
-      throw new Error(`Failed to create authorization URL: ${error.message}`);
+      
+      // Try Twitter domain as fallback
+      try {
+        let authUrl = new URL("https://twitter.com/i/oauth2/authorize");
+        authUrl.searchParams.append("response_type", "code");
+        authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
+        authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
+        authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
+        authUrl.searchParams.append("state", state);
+        authUrl.searchParams.append("code_challenge", codeChallenge);
+        authUrl.searchParams.append("code_challenge_method", "S256");
+        
+        console.log("Authorization URL created (Twitter domain fallback):", authUrl.toString());
+
+        return new Response(
+          JSON.stringify({
+            authUrl: authUrl.toString(),
+            state,
+            isLogin
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders,
+            },
+          }
+        );
+      } catch (secondError) {
+        throw new Error(`Failed to create authorization URL with both domains: ${error.message}, ${secondError.message}`);
+      }
     }
   } catch (error) {
     console.error("Error:", error);
