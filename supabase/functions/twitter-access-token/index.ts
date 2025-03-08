@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
@@ -96,33 +95,34 @@ serve(async (req) => {
     // Exchange the authorization code for an access token
     console.log("Attempting to exchange code for token");
     
-    // Prepare the authorization string - use Buffer for encoding instead of btoa
-    const credentialsString = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
-    const authString = Buffer.from(credentialsString).toString('base64');
-    console.log("Authorization credentials prepared (first 5 chars):", authString.substring(0, 5) + "...");
-
-    // Prepare request body - simplified to avoid redundancy
-    const tokenParams = new URLSearchParams({
+    // Build the form data for the token request
+    const tokenRequestBody = new URLSearchParams({
       code,
       grant_type: "authorization_code",
       redirect_uri: TWITTER_CALLBACK_URL,
       code_verifier: codeVerifier,
     });
+
+    console.log("Token request parameters:", tokenRequestBody.toString());
     
-    // Log request details
-    console.log("Token request URL:", "https://api.twitter.com/2/oauth2/token");
-    console.log("Token request method:", "POST");
-    console.log("Token request params:", tokenParams.toString());
+    // Create the authorization string using Buffer instead of btoa
+    const credentials = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
+    const encodedCredentials = Buffer.from(credentials).toString('base64');
+    
+    console.log("Authorization credentials prepared");
+    console.log("Encoded credentials length:", encodedCredentials.length);
     
     let tokenResponse;
     try {
+      console.log("Sending token request to https://api.twitter.com/2/oauth2/token");
+      
       tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "Authorization": `Basic ${authString}`,
+          "Authorization": `Basic ${encodedCredentials}`,
         },
-        body: tokenParams,
+        body: tokenRequestBody,
       });
       
       console.log("Token response status:", tokenResponse.status);
@@ -131,7 +131,34 @@ serve(async (req) => {
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
         console.error("Token response error text:", errorText);
-        throw new Error(`Failed to exchange code for token: HTTP ${tokenResponse.status} - ${errorText}`);
+        
+        // Try alternative method with client_id and client_secret in body
+        console.log("Trying alternative method with credentials in body");
+        
+        const alternativeRequestBody = new URLSearchParams({
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: TWITTER_CALLBACK_URL,
+          code_verifier: codeVerifier,
+          client_id: TWITTER_CLIENT_ID,
+          client_secret: TWITTER_CLIENT_SECRET,
+        });
+        
+        tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: alternativeRequestBody,
+        });
+        
+        console.log("Alternative token response status:", tokenResponse.status);
+        
+        if (!tokenResponse.ok) {
+          const altErrorText = await tokenResponse.text();
+          console.error("Alternative token response error text:", altErrorText);
+          throw new Error(`Failed to exchange code for token: HTTP ${tokenResponse.status} - ${altErrorText}`);
+        }
       }
     } catch (fetchError) {
       console.error("Fetch error when exchanging token:", fetchError);
