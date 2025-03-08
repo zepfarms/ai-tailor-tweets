@@ -1,5 +1,7 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { encode } from "https://deno.land/std@0.190.0/encoding/base64.ts";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
@@ -105,14 +107,15 @@ serve(async (req) => {
 
     console.log("Token request parameters:", tokenRequestBody.toString());
     
-    // Create the authorization string using Buffer instead of btoa
+    // Create the authorization string using btoa instead of Buffer
     const credentials = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
-    const encodedCredentials = Buffer.from(credentials).toString('base64');
+    const encodedCredentials = btoa(credentials);
     
     console.log("Authorization credentials prepared");
     console.log("Encoded credentials length:", encodedCredentials.length);
     
     let tokenResponse;
+    let tokenData;
     try {
       console.log("Sending token request to https://api.twitter.com/2/oauth2/token");
       
@@ -126,11 +129,12 @@ serve(async (req) => {
       });
       
       console.log("Token response status:", tokenResponse.status);
-      console.log("Token response headers:", Object.fromEntries(tokenResponse.headers.entries()));
+      
+      const responseText = await tokenResponse.text();
+      console.log("Token response body:", responseText);
       
       if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error("Token response error text:", errorText);
+        console.error("Token response error text:", responseText);
         
         // Try alternative method with client_id and client_secret in body
         console.log("Trying alternative method with credentials in body");
@@ -154,26 +158,34 @@ serve(async (req) => {
         
         console.log("Alternative token response status:", tokenResponse.status);
         
+        const altResponseText = await tokenResponse.text();
+        console.log("Alternative token response body:", altResponseText);
+        
         if (!tokenResponse.ok) {
-          const altErrorText = await tokenResponse.text();
-          console.error("Alternative token response error text:", altErrorText);
-          throw new Error(`Failed to exchange code for token: HTTP ${tokenResponse.status} - ${altErrorText}`);
+          throw new Error(`Failed to exchange code for token: HTTP ${tokenResponse.status} - ${altResponseText}`);
+        }
+        
+        try {
+          tokenData = JSON.parse(altResponseText);
+        } catch (parseError) {
+          console.error("Error parsing alternative token response:", parseError);
+          throw new Error("Invalid response from Twitter token endpoint (alternative method)");
+        }
+      } else {
+        try {
+          tokenData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error("Error parsing token response:", parseError);
+          throw new Error("Invalid response from Twitter token endpoint");
         }
       }
-    } catch (fetchError) {
-      console.error("Fetch error when exchanging token:", fetchError);
-      throw new Error(`Network error when exchanging token: ${fetchError.message}`);
-    }
-    
-    let tokenData;
-    try {
-      tokenData = await tokenResponse.json();
+      
       console.log("Token response received:", !!tokenData);
       console.log("Access token obtained:", !!tokenData.access_token);
       console.log("Refresh token:", !!tokenData.refresh_token);
-    } catch (parseError) {
-      console.error("Error parsing token response:", parseError);
-      throw new Error("Invalid response from Twitter token endpoint");
+    } catch (fetchError) {
+      console.error("Fetch error when exchanging token:", fetchError);
+      throw new Error(`Network error when exchanging token: ${fetchError.message}`);
     }
     
     // Get Twitter user info

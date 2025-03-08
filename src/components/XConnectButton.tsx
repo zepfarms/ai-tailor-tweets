@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 interface XConnectButtonProps {
@@ -18,9 +18,11 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
 }) => {
   const { user, linkXAccount, isLinkingX } = useAuth();
   const { toast } = useToast();
+  const [localLoading, setLocalLoading] = useState(false);
 
   const handleConnect = async () => {
     try {
+      setLocalLoading(true);
       console.log('Starting X authorization process');
       toast({
         title: "Connecting to X",
@@ -39,8 +41,12 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         description: error instanceof Error ? error.message : "Failed to connect to X",
         variant: "destructive"
       });
+      setLocalLoading(false);
     }
   };
+
+  // Determine if button is in loading state (either from context or local state)
+  const isLoading = isLinkingX || localLoading;
 
   if (user?.xLinked) {
     return (
@@ -51,7 +57,7 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         disabled
       >
         <X className="mr-2 h-4 w-4" />
-        Connected
+        Connected to X
       </Button>
     );
   }
@@ -62,10 +68,19 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
       variant={variant}
       size={size}
       onClick={handleConnect}
-      disabled={isLinkingX}
+      disabled={isLoading}
     >
-      <X className="mr-2 h-4 w-4" />
-      {isLinkingX ? 'Connecting...' : 'Connect to X'}
+      {isLoading ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Connecting...
+        </>
+      ) : (
+        <>
+          <X className="mr-2 h-4 w-4" />
+          Connect to X
+        </>
+      )}
     </Button>
   );
 };
