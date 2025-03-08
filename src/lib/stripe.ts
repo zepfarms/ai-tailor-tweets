@@ -19,6 +19,16 @@ export interface CreateCheckoutSessionParams {
   cancelUrl: string;
 }
 
+// Interface for subscription status response
+export interface SubscriptionStatusResponse {
+  hasActiveSubscription: boolean;
+  status?: SubscriptionStatus;
+  subscription?: {
+    id?: string;
+    status?: string;
+  };
+}
+
 // Basic placeholder for subscription price ID
 export const SUBSCRIPTION_PRICE_ID = 'price_1234567890';
 
@@ -47,19 +57,9 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
   }
 };
 
-// Interface for subscription status
-export interface SubscriptionStatus {
-  hasActiveSubscription: boolean;
-  status?: SubscriptionStatus;
-  subscription?: {
-    id?: string;
-    status?: string;
-  };
-}
-
 // Since we can't actually check subscription status without proper Stripe integration,
 // we'll use this simplified function
-export const checkSubscriptionStatus = async (userId: string) => {
+export const checkSubscriptionStatus = async (userId: string): Promise<SubscriptionStatusResponse> => {
   console.log('Checking subscription status for user:', userId);
   
   // For now, we'll just return a simple object to prevent errors
@@ -74,7 +74,7 @@ export const checkSubscriptionStatus = async (userId: string) => {
 };
 
 // Simplified function to get subscription from database
-export const getSubscriptionFromDatabase = async (userId: string) => {
+export const getSubscriptionFromDatabase = async (userId: string): Promise<SubscriptionStatusResponse> => {
   console.log('Getting subscription from database for user:', userId);
   
   // For now, we'll just return a simple object to prevent errors
