@@ -14,7 +14,7 @@ import { ArrowLeft, Video } from 'lucide-react';
 type Stage = "topics" | "create" | "schedule";
 
 const CreatePost: React.FC = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, postToX } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [stage, setStage] = useState<Stage>("topics");
@@ -28,11 +28,11 @@ const CreatePost: React.FC = () => {
       return;
     }
     
-    // Check if returning from X web intent
+    // Check if returning from a post action
     const status = searchParams.get('status');
-    if (status === 'shared') {
+    if (status === 'posted') {
       toast({
-        title: "Shared to X",
+        title: "Posted to X",
         description: "Your post has been shared to X successfully",
       });
     }
@@ -52,33 +52,28 @@ const CreatePost: React.FC = () => {
     setIsPosting(true);
     
     try {
-      // Open Twitter web intent in a new window
-      let intentUrl = "https://twitter.com/intent/tweet?";
-      intentUrl += "text=" + encodeURIComponent(content);
-      
-      // Add note about images if they are included
-      if (mediaPreviews && mediaPreviews.length > 0) {
-        toast({
-          title: "Media Sharing Note",
-          description: "Please manually attach your images in the Twitter window that opens.",
-          variant: "default",
-        });
+      if (!postToX) {
+        throw new Error("Posting to X functionality not available");
       }
       
-      window.open(intentUrl, "_blank", "width=550,height=420");
+      // Directly post to X using the auth context function
+      await postToX({
+        content,
+        // We'll handle media in a future update
+      });
       
       toast({
-        title: "X Post Window Opened",
-        description: "Complete your post in the X window.",
+        title: "Posted to X",
+        description: "Your post has been published successfully!",
       });
       
       // Navigate back to dashboard
-      navigate('/dashboard?status=shared');
+      navigate('/dashboard?status=posted');
     } catch (error) {
       console.error("Error posting to X:", error);
       toast({
         title: "Error",
-        description: "Could not open X web intent. Please try again.",
+        description: error instanceof Error ? error.message : "Could not post to X. Please try again.",
         variant: "destructive", 
       });
     } finally {
@@ -156,7 +151,7 @@ const CreatePost: React.FC = () => {
               onSchedule={handleSchedulePost}
               onPost={handlePostNow}
               isPosting={isPosting}
-              useWebIntent={true}
+              useWebIntent={false} // Set to false to use direct posting
               characterLimit={getCharacterLimit()}
               useHashtags={user.useHashtags !== false}
             />

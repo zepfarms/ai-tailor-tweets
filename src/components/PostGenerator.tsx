@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCw, Calendar, Share, TrendingUp, ImagePlus, X, AlertCircle, ExternalLink } from 'lucide-react';
+import { RefreshCw, Calendar, Share, TrendingUp, ImagePlus, X, AlertCircle } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Topic } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Link } from 'react-router-dom';
 
 interface PostGeneratorProps {
   selectedTopics: Topic[];
@@ -334,15 +333,24 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
       return;
     }
 
-    if (useWebIntent) {
-      openXWebIntent();
-      return;
-    }
-
     setIsPostingInternal(true);
     
     try {
-      onPost(content, mediaPreviews);
+      if (user?.postToX) {
+        await user.postToX({
+          content,
+          // We'll handle media conversion in a future update
+        });
+        
+        toast({
+          title: "Posted to X",
+          description: "Your post has been published to X",
+        });
+        
+        onPost(content, mediaPreviews);
+      } else {
+        throw new Error("X posting functionality not available");
+      }
     } catch (error) {
       console.error("Error posting to X:", error);
       toast({
@@ -353,27 +361,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     } finally {
       setIsPostingInternal(false);
     }
-  };
-
-  const openXWebIntent = () => {
-    if (!content.trim() && mediaFiles.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please add content or media first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    onPost(content, mediaPreviews);
-  };
-
-  const selectSuggestedPost = (post: string) => {
-    setContent(post);
-    toast({
-      title: "Post selected",
-      description: "You can edit it before posting or scheduling",
-    });
   };
 
   const getPostButtonDisabledReason = (): string | null => {
@@ -559,12 +546,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
                     >
                       {isPosting || isPostingInternal ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : useWebIntent ? (
-                        <ExternalLink className="w-4 h-4" />
                       ) : (
                         <Share className="w-4 h-4" />
                       )}
-                      {useWebIntent ? "Share to X" : "Post to X"}
+                      Post to X
                     </Button>
                   </div>
                 </TooltipTrigger>

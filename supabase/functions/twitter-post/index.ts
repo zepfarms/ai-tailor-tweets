@@ -4,7 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +18,6 @@ serve(async (req) => {
 
   try {
     console.log("X post function called");
-    console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
     
     const { userId, content, media } = await req.json();
     
@@ -40,118 +38,50 @@ serve(async (req) => {
     // Create Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Get the user's X account
-    const { data: accountData, error: accountError } = await supabase
-      .from('x_accounts')
+    // Get the user's X account token
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('user_tokens')
       .select('*')
       .eq('user_id', userId)
+      .eq('provider', 'twitter')
       .single();
     
-    if (accountError || !accountData) {
-      console.error("Error retrieving X account:", accountError);
-      throw new Error("X account not found. Please link your account first.");
-    }
-    
-    console.log("X account found:", accountData.x_username);
-    
-    // Determine which token to use
-    let accessToken = accountData.access_token;
-    let bearerToken = accountData.bearer_token || TWITTER_BEARER_TOKEN;
-    
-    if (!accessToken && !bearerToken) {
-      throw new Error("No valid authentication token found for X account");
-    }
-    
-    console.log("Using access token:", !!accessToken);
-    console.log("Using bearer token:", !!bearerToken);
-    
-    // Upload media first if provided
-    let mediaIds = [];
-    if (media && media.length > 0) {
-      for (const mediaItem of media) {
-        console.log("Uploading media to X");
-        
-        // First, we need to initialize the media upload
-        const initResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json?command=INIT", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
-          },
-          body: new URLSearchParams({
-            total_bytes: mediaItem.size.toString(),
-            media_type: mediaItem.type,
-            media_category: mediaItem.type.startsWith('video') ? 'tweet_video' : 'tweet_image'
-          }),
-        });
-        
-        if (!initResponse.ok) {
-          const initError = await initResponse.json();
-          console.error("Media init error:", initError);
-          throw new Error("Failed to initialize media upload");
-        }
-        
-        const initData = await initResponse.json();
-        const mediaId = initData.media_id_string;
-        console.log("Media ID:", mediaId);
-        
-        // Now append the media data
-        const appendResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json?command=APPEND", {
-          method: "POST",
-          headers: {
-            "Content-Type": "multipart/form-data",
-            "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
-          },
-          body: new FormData()
-            .append("media_id", mediaId)
-            .append("segment_index", "0")
-            .append("media", mediaItem.data)
-        });
-        
-        if (!appendResponse.ok) {
-          const appendError = await appendResponse.text();
-          console.error("Media append error:", appendError);
-          throw new Error("Failed to upload media");
-        }
-        
-        // Finalize the media upload
-        const finalizeResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json?command=FINALIZE", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
-          },
-          body: new URLSearchParams({
-            media_id: mediaId
-          }),
-        });
-        
-        if (!finalizeResponse.ok) {
-          const finalizeError = await finalizeResponse.json();
-          console.error("Media finalize error:", finalizeError);
-          throw new Error("Failed to finalize media upload");
-        }
-        
-        mediaIds.push(mediaId);
+    if (tokenError || !tokenData) {
+      console.error("Error retrieving X token:", tokenError);
+      
+      // Fallback to x_accounts table for backward compatibility
+      const { data: accountData, error: accountError } = await supabase
+        .from('x_accounts')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (accountError || !accountData) {
+        console.error("Error retrieving X account:", accountError);
+        throw new Error("X account not found. Please link your account first.");
       }
+      
+      console.log("Found X account in legacy table:", accountData.x_username);
+      tokenData = accountData;
+    } else {
+      console.log("Found X token in user_tokens table");
     }
     
     // Build the post payload
-    const postPayload = {
+    const postPayload: any = {
       text: content || ""
     };
     
-    // Add media if we have IDs
-    if (mediaIds.length > 0) {
-      postPayload.media = { media_ids: mediaIds };
-    }
+    // If we have media, we would handle it here
+    // This is a complex process requiring multiple API calls
+    // For now, we're implementing text-only posts
     
     // Post to X
     const postResponse = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
+        "Authorization": `Bearer ${tokenData.access_token}`,
       },
       body: JSON.stringify(postPayload),
     });
@@ -174,7 +104,7 @@ serve(async (req) => {
         published: true,
         created_at: new Date().toISOString(),
         tweet_id: postData.data?.id,
-        has_media: mediaIds.length > 0
+        has_media: false // No media support yet
       });
     
     if (postError) {
