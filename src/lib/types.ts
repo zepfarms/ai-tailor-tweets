@@ -1,13 +1,11 @@
-
 export interface User {
   id: string;
   email: string;
   name: string;
   xLinked?: boolean;
-  xUsername?: string;
-  isDemoAccount?: boolean;
-  isXPremium?: boolean;
+  xUsername?: string | null;
   useHashtags?: boolean;
+  isDemoAccount?: boolean;
 }
 
 export interface Post {
@@ -60,23 +58,22 @@ export type Topic =
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isLinkingX: boolean;
+  isLoginingWithX: boolean;
   isVerifying: boolean;
-  isLinkingX?: boolean;
-  isLoginingWithX?: boolean;
-  hasSubscription?: boolean | null;
-  updateSubscriptionStatus?: () => Promise<boolean>;
+  hasSubscription: boolean | null;
+  updateSubscriptionStatus: () => Promise<boolean>;
+  updateUserPreferences?: (preferences: Partial<User>) => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
-  loginWithX?: () => Promise<void>;
-  completeXAuth?: (magicLink: string) => Promise<boolean>;
-  signup: (email: string, password: string, name: string) => Promise<any>;
+  loginWithX: () => Promise<void>;
+  completeXAuth: (magicLink: string) => Promise<boolean>;
+  signup: (email: string, password: string, name: string) => Promise<{ success: boolean }>;
   logout: () => Promise<void>;
+  linkXAccount: (redirectUri?: string) => Promise<void>;
+  postToX: (data: PostToXData) => Promise<any>;
   verifyOtp: (email: string, token: string) => Promise<boolean>;
-  linkXAccount?: (redirectUri?: string) => Promise<void>;
-  postToX?: (data: PostToXData) => Promise<any>;
-  updateUserPreferences?: (preferences: Partial<User>) => Promise<void>;
 }
 
-// Demo data types
 export interface DemoData {
   posts: {
     scheduledPosts: DemoPost[];

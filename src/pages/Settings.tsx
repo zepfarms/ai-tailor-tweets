@@ -69,18 +69,31 @@ const Settings: React.FC = () => {
   };
 
   const handleUnlinkXAccount = async () => {
+    console.log("Starting X account unlinking process");
     setIsUnlinkingX(true);
     try {
+      if (!user?.id) {
+        throw new Error("User ID not found");
+      }
+      
+      console.log("Deleting X account for user:", user.id);
       const { error } = await supabase
         .from('x_accounts')
         .delete()
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error deleting X account:", error);
+        throw error;
+      }
       
-      // Refresh the user object to reflect the unlinked state
+      console.log("X account deleted successfully");
+      
+      // Update the user object locally to reflect the unlinked state
       if (updateUserPreferences) {
+        console.log("Updating user preferences to reflect unlinked state");
         await updateUserPreferences({ xLinked: false, xUsername: null });
+        console.log("User preferences updated successfully");
       }
       
       toast({
@@ -88,6 +101,7 @@ const Settings: React.FC = () => {
         description: "Your X account has been successfully disconnected.",
       });
       
+      console.log("Refreshing page to update UI");
       // Force a page refresh to update the UI
       window.location.reload();
     } catch (error) {
@@ -220,12 +234,19 @@ const Settings: React.FC = () => {
               Perform actions related to your account.
             </p>
           </div>
-          <Button variant="destructive" onClick={handleLogout}>
-            Logout
-          </Button>
-          <Button variant="secondary" onClick={handleUpdatePreferences} disabled={isLoading}>
-            {isLoading ? 'Updating...' : 'Update Preferences'}
-          </Button>
+          <div className="flex flex-wrap gap-4">
+            <Button variant="destructive" onClick={handleLogout}>
+              Logout
+            </Button>
+            <Button variant="secondary" onClick={handleUpdatePreferences} disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : 'Update Preferences'}
+            </Button>
+          </div>
         </div>
       </main>
     </div>
@@ -233,4 +254,3 @@ const Settings: React.FC = () => {
 };
 
 export default Settings;
-

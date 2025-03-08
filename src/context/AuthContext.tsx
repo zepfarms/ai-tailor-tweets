@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType, PostToXData } from '@/lib/types';
@@ -189,7 +188,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoginingWithX(true);
       
-      // Include the current origin in the request
       const origin = window.location.origin;
       
       const response = await supabase.functions.invoke('twitter-request-token', {
@@ -207,7 +205,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Invalid response from authentication service");
       }
       
-      // Save the state in localStorage for verification
       if (response.data.state) {
         localStorage.setItem('x_auth_state', response.data.state);
       }
@@ -531,7 +528,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("You must be logged in to connect your X account");
       }
       
-      // Include the current origin in the request
       const origin = window.location.origin;
       
       const response = await supabase.functions.invoke('twitter-request-token', {
@@ -549,7 +545,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Invalid response from authentication service");
       }
       
-      // Save the state in localStorage for verification
       if (response.data.state) {
         localStorage.setItem('x_auth_state', response.data.state);
       }
@@ -625,6 +620,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  const updateUserPreferences = async (preferences: Partial<User>) => {
+    try {
+      if (!user) {
+        throw new Error("No user is logged in");
+      }
+      
+      console.log("Updating user preferences:", preferences);
+      
+      const { error } = await supabase.auth.updateUser({
+        data: preferences
+      });
+      
+      if (error) {
+        console.error("Error updating user metadata:", error);
+        throw error;
+      }
+      
+      setUser(prev => {
+        if (!prev) return prev;
+        return { ...prev, ...preferences };
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error updating user preferences:", error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -634,6 +658,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isVerifying,
       hasSubscription,
       updateSubscriptionStatus,
+      updateUserPreferences,
       login, 
       loginWithX,
       completeXAuth,
