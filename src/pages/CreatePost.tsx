@@ -57,6 +57,8 @@ const CreatePost: React.FC = () => {
       const mediaData = [];
       
       if (mediaPreviews && mediaPreviews.length > 0) {
+        console.log("Processing media files:", mediaPreviews.length);
+        
         for (const previewUrl of mediaPreviews) {
           try {
             // Fetch the image/video file
@@ -77,21 +79,35 @@ const CreatePost: React.FC = () => {
               type: blob.type,
               size: blob.size
             });
+            
+            console.log("Media item processed:", blob.type, "size:", blob.size);
           } catch (error) {
             console.error("Error processing media file:", error);
+            toast({
+              title: "Media Processing Error",
+              description: "One of your media files couldn't be processed. Try a different file.",
+              variant: "destructive",
+            });
           }
         }
       }
+      
+      console.log("Sending post request with media items:", mediaData.length);
       
       const response = await supabase.functions.invoke('twitter-post', {
         body: { 
           content, 
           userId: user?.id,
-          media: mediaData.length > 0 ? mediaData : undefined
+          media: mediaData
         },
       });
       
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        console.error("Error posting to X:", response.error);
+        throw new Error(response.error.message);
+      }
+      
+      console.log("Post response:", response.data);
       
       toast({
         title: "Posted to X",

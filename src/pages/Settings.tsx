@@ -89,14 +89,19 @@ const Settings: React.FC = () => {
       
       console.log("X account deleted successfully");
       
-      // Update the user object with unlinked state
+      // First, update local state for immediate UI feedback
+      if (user) {
+        user.xLinked = false;
+        user.xUsername = null;
+      }
+      
+      // Then, try to update in database
       if (updateUserPreferences) {
         try {
           console.log("Updating user preferences to reflect unlinked state");
           await updateUserPreferences({ xLinked: false, xUsername: null });
           console.log("User preferences updated successfully");
           
-          // Force the UI to update immediately by showing a success toast
           toast({
             title: "X Account Unlinked",
             description: "Your X account has been successfully disconnected.",

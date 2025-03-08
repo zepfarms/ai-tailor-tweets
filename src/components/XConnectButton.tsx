@@ -86,7 +86,7 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         className={className}
         variant="secondary"
         size={size}
-        disabled
+        disabled={true}
       >
         <X className="mr-2 h-4 w-4" />
         Connected to X
