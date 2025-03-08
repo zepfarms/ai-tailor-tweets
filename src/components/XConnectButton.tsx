@@ -21,12 +21,12 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
 
   const handleConnect = async () => {
     try {
+      console.log('Starting X authorization process');
       toast({
         title: "Connecting to X",
         description: "You'll be redirected to X for authorization...",
       });
       
-      // Simple redirect to X authorization
       if (linkXAccount) {
         await linkXAccount();
       } else {

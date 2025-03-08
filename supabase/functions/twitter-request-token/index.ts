@@ -22,6 +22,9 @@ serve(async (req) => {
   try {
     console.log("Twitter/X request token function called");
     
+    // Log all available environment variables for debugging (excluding values)
+    console.log("Available environment variables:", Object.keys(Deno.env.toObject()));
+    
     // Check if environment variables are set
     if (!TWITTER_CLIENT_ID) {
       throw new Error("TWITTER_CLIENT_ID environment variable is not set");
@@ -39,7 +42,7 @@ serve(async (req) => {
       throw new Error("Supabase credentials are not properly configured");
     }
     
-    console.log("Environment variables are properly set");
+    console.log("All required environment variables are set");
     console.log("Callback URL:", TWITTER_CALLBACK_URL);
     
     // Get the userId from the request body
@@ -67,6 +70,7 @@ serve(async (req) => {
     let supabase;
     try {
       supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      console.log("Supabase client created successfully");
     } catch (error) {
       console.error("Error creating Supabase client:", error);
       throw new Error("Failed to connect to Supabase. Check the SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.");
@@ -97,7 +101,7 @@ serve(async (req) => {
       throw new Error(`Database operation failed: ${error.message}`);
     }
     
-    // Create X.com authorization URL
+    // Create X.com authorization URL using URL constructor for proper encoding
     const authUrl = new URL("https://x.com/i/oauth2/authorize");
     authUrl.searchParams.append("response_type", "code");
     authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);

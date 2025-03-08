@@ -69,7 +69,7 @@ export async function getSubscriptionFromDatabase(userId: string) {
     // Use a properly typed approach for the RPC call
     const { data, error } = await supabase.rpc(
       'get_user_subscription', 
-      { user_id_param: userId }
+      { user_id_param: userId } as { user_id_param: string }
     );
     
     if (error) {
