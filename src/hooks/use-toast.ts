@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import {
   Toast,
@@ -13,7 +14,7 @@ export type ToasterToast = ToastProps & {
 }
 
 const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 3000
+const TOAST_REMOVE_DELAY = 3000 // 3 seconds
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -181,6 +182,11 @@ export function toast({
       },
     },
   })
+  
+  // Auto-dismiss after TOAST_REMOVE_DELAY (3 seconds)
+  setTimeout(() => {
+    dismiss();
+  }, TOAST_REMOVE_DELAY);
 
   return {
     id,
