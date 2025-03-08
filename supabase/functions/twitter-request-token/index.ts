@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
-const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "";
+const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://www.postedpal.com/x-callback";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
@@ -48,10 +48,6 @@ serve(async (req) => {
     console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     console.log("Callback URL:", TWITTER_CALLBACK_URL);
     console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
-    if (TWITTER_BEARER_TOKEN) {
-      console.log("Bearer Token length:", TWITTER_BEARER_TOKEN.length);
-      console.log("Bearer Token preview:", TWITTER_BEARER_TOKEN.substring(0, 5) + "..." + TWITTER_BEARER_TOKEN.substring(TWITTER_BEARER_TOKEN.length - 5));
-    }
     
     // Get the userId from the request body
     let userId = null;
@@ -111,8 +107,8 @@ serve(async (req) => {
       throw new Error(`Database operation failed: ${error.message}`);
     }
     
-    // Create X.com authorization URL using URL constructor for proper encoding
-    const authUrl = new URL("https://twitter.com/i/oauth2/authorize"); // Changed from x.com to twitter.com
+    // Create Twitter authorization URL using URL constructor for proper encoding
+    const authUrl = new URL("https://twitter.com/i/oauth2/authorize");
     authUrl.searchParams.append("response_type", "code");
     authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
     authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);

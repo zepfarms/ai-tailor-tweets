@@ -36,14 +36,10 @@ serve(async (req) => {
       throw new Error("Supabase credentials are not properly configured");
     }
     
-    // Log available tokens
+    // Log available tokens and credentials (safely)
     console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
-    if (TWITTER_BEARER_TOKEN) {
-      console.log("Bearer Token length:", TWITTER_BEARER_TOKEN.length);
-      console.log("Bearer Token preview:", TWITTER_BEARER_TOKEN.substring(0, 5) + "..." + TWITTER_BEARER_TOKEN.substring(TWITTER_BEARER_TOKEN.length - 5));
-    }
-    
-    // Log the callback URL we're using
+    console.log("Client ID available:", !!TWITTER_CLIENT_ID);
+    console.log("Client Secret available:", !!TWITTER_CLIENT_SECRET);
     console.log("Using callback URL:", TWITTER_CALLBACK_URL);
     
     let requestData;
@@ -99,28 +95,42 @@ serve(async (req) => {
     
     // Exchange the authorization code for an access token
     console.log("Attempting to exchange code for token");
+    
+    // Prepare the authorization string - use Buffer for encoding instead of btoa
+    const credentialsString = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
+    const authString = Buffer.from(credentialsString).toString('base64');
+    console.log("Authorization credentials prepared (first 5 chars):", authString.substring(0, 5) + "...");
+
+    // Prepare request body - simplified to avoid redundancy
+    const tokenParams = new URLSearchParams({
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: TWITTER_CALLBACK_URL,
+      code_verifier: codeVerifier,
+    });
+    
+    // Log request details
+    console.log("Token request URL:", "https://api.twitter.com/2/oauth2/token");
+    console.log("Token request method:", "POST");
+    console.log("Token request params:", tokenParams.toString());
+    
     let tokenResponse;
     try {
       tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "Authorization": `Basic ${btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`)}`,
+          "Authorization": `Basic ${authString}`,
         },
-        body: new URLSearchParams({
-          code,
-          grant_type: "authorization_code",
-          client_id: TWITTER_CLIENT_ID,
-          redirect_uri: TWITTER_CALLBACK_URL,
-          code_verifier: codeVerifier,
-        }),
+        body: tokenParams,
       });
       
       console.log("Token response status:", tokenResponse.status);
+      console.log("Token response headers:", Object.fromEntries(tokenResponse.headers.entries()));
       
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
-        console.error("Token response error:", errorText);
+        console.error("Token response error text:", errorText);
         throw new Error(`Failed to exchange code for token: HTTP ${tokenResponse.status} - ${errorText}`);
       }
     } catch (fetchError) {
@@ -143,7 +153,7 @@ serve(async (req) => {
     console.log("Fetching user info");
     let userResponse;
     try {
-      // Try first with the obtained access token
+      // First try with the obtained access token
       userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
         headers: {
           "Authorization": `Bearer ${tokenData.access_token}`
@@ -177,12 +187,14 @@ serve(async (req) => {
     try {
       userData = await userResponse.json();
       console.log("User data received:", !!userData);
+      if (userData.data) {
+        console.log("User data username:", userData.data.username);
+      }
     } catch (parseError) {
       console.error("Error parsing user response:", parseError);
       throw new Error("Invalid response from Twitter user endpoint");
     }
 
-    // Process the user data based on whether this is a login or account linking
     // Clean up the OAuth state
     console.log("Cleaning up OAuth state");
     await supabase
@@ -190,6 +202,7 @@ serve(async (req) => {
       .delete()
       .eq('state', state);
 
+    // Process the user data based on whether this is a login or account linking
     if (userData.data) {
       if (isLogin) {
         // This is a login request, check if we have an account with this X user ID
