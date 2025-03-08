@@ -35,7 +35,7 @@ serve(async (req) => {
     }
     
     console.log("User ID:", userId);
-    console.log("Content:", content);
+    console.log("Content:", content ? "Provided" : "Not provided");
     if (media) {
       console.log("Media included:", media.length, "items");
     }
@@ -50,6 +50,8 @@ serve(async (req) => {
       .eq('user_id', userId)
       .eq('provider', 'twitter')
       .single();
+    
+    let userData = null;
     
     if (tokenError || !tokenData) {
       console.error("Error retrieving X token:", tokenError);
@@ -67,13 +69,14 @@ serve(async (req) => {
       }
       
       console.log("Found X account in legacy table:", accountData.x_username);
-      tokenData = accountData;
+      userData = accountData;
     } else {
       console.log("Found X token in user_tokens table");
+      userData = tokenData;
     }
     
     // Validate access token
-    if (!tokenData.access_token) {
+    if (!userData.access_token) {
       throw new Error("Invalid X token. Please reconnect your account.");
     }
     
@@ -83,14 +86,15 @@ serve(async (req) => {
     };
     
     // If we have media, we need to upload it first
+    let mediaIds: string[] = [];
     if (media && media.length > 0) {
       console.log("Processing media for upload to Twitter");
       try {
-        const mediaIds = await Promise.all(media.map(async (item: any) => {
+        mediaIds = await Promise.all(media.map(async (item: any) => {
           if (!item.data) {
             throw new Error("Media data is missing");
           }
-          return await uploadMediaToTwitterV2(item, tokenData.access_token);
+          return await uploadMediaToTwitterV1(item, userData.access_token, userData.access_token_secret || "");
         }));
         
         console.log("Successfully uploaded media, IDs:", mediaIds);
@@ -109,7 +113,7 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${tokenData.access_token}`,
+        "Authorization": `Bearer ${userData.access_token}`,
       },
       body: JSON.stringify(postPayload),
     });
@@ -232,8 +236,8 @@ function generateOAuthHeader(
   return oauthHeader;
 }
 
-// Simplified function to upload media to Twitter using v2 API with v1.1 media upload
-async function uploadMediaToTwitterV2(mediaItem: any, accessToken: string): Promise<string> {
+// Upload media to Twitter using v1.1 API which is more reliable for media uploads
+async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, accessTokenSecret: string): Promise<string> {
   try {
     console.log("Starting media upload process for item type:", mediaItem.type);
     
@@ -247,21 +251,50 @@ async function uploadMediaToTwitterV2(mediaItem: any, accessToken: string): Prom
       uint8Array[i] = binaryData.charCodeAt(i);
     }
     
-    // Step 2: Use Twitter's v1.1 media/upload endpoint with Bearer token
+    // Step 2: Use Twitter's v1.1 media/upload endpoint with OAuth1.0a
     const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
-    const form = new FormData();
-    const blob = new Blob([uint8Array], { type: mediaItem.type });
     
-    form.append('media', blob);
+    // Create form data
+    const boundary = `----WebKitFormBoundary${randomBytes(16).toString('hex')}`;
+    const chunks = [];
+    
+    // Append media data
+    chunks.push(`--${boundary}\r\n`);
+    chunks.push(`Content-Disposition: form-data; name="media"; filename="media${Date.now()}"\r\n`);
+    chunks.push(`Content-Type: ${mediaItem.type}\r\n\r\n`);
+    
+    // Create a combined buffer for the form data and media
+    const headerBuffer = new TextEncoder().encode(chunks.join(''));
+    const footerBuffer = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
+    
+    const combinedBuffer = new Uint8Array(
+      headerBuffer.length + uint8Array.length + footerBuffer.length
+    );
+    
+    combinedBuffer.set(headerBuffer, 0);
+    combinedBuffer.set(uint8Array, headerBuffer.length);
+    combinedBuffer.set(footerBuffer, headerBuffer.length + uint8Array.length);
     
     console.log("Uploading media with size:", uint8Array.length, "bytes");
     
+    // Generate OAuth header for the request
+    const oauthHeader = generateOAuthHeader(
+      "POST",
+      mediaUploadUrl,
+      {},
+      accessToken,
+      accessTokenSecret
+    );
+    
+    // Make the request to upload media
     const uploadResponse = await fetch(mediaUploadUrl, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`
+        "Authorization": oauthHeader,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        "Content-Length": combinedBuffer.length.toString()
       },
-      body: form
+      body: combinedBuffer
     });
     
     if (!uploadResponse.ok) {
@@ -275,7 +308,7 @@ async function uploadMediaToTwitterV2(mediaItem: any, accessToken: string): Prom
     
     return mediaData.media_id_string;
   } catch (error) {
-    console.error("Error in uploadMediaToTwitterV2:", error);
+    console.error("Error in uploadMediaToTwitterV1:", error);
     throw error;
   }
 }

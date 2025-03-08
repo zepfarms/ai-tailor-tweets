@@ -49,6 +49,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string | null
+          has_media: boolean | null
           id: string
           published: boolean | null
           scheduled_for: string | null
@@ -58,6 +59,7 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string | null
+          has_media?: boolean | null
           id?: string
           published?: boolean | null
           scheduled_for?: string | null
@@ -67,6 +69,7 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string | null
+          has_media?: boolean | null
           id?: string
           published?: boolean | null
           scheduled_for?: string | null
