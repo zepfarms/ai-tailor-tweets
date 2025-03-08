@@ -52,18 +52,23 @@ serve(async (req) => {
         twitterClientIdFirstFour: TWITTER_CLIENT_ID ? TWITTER_CLIENT_ID.substring(0, 4) + "..." : "not set",
         hasTwitterClientSecret: Boolean(TWITTER_CLIENT_SECRET),
         twitterClientSecretLength: TWITTER_CLIENT_SECRET?.length || 0,
+        twitterClientSecretValue: TWITTER_CLIENT_SECRET ? (TWITTER_CLIENT_SECRET.substring(0, 3) + "..." + TWITTER_CLIENT_SECRET.substring(TWITTER_CLIENT_SECRET.length - 3)) : "not set",
         hasTwitterCallbackUrl: Boolean(TWITTER_CALLBACK_URL),
         twitterCallbackUrl: TWITTER_CALLBACK_URL || "not set",
         
         // OAuth 1.0a credentials
         hasTwitterConsumerKey: Boolean(TWITTER_CONSUMER_KEY),
         twitterConsumerKeyLength: TWITTER_CONSUMER_KEY?.length || 0,
+        twitterConsumerKeyValue: TWITTER_CONSUMER_KEY ? (TWITTER_CONSUMER_KEY.substring(0, 3) + "..." + TWITTER_CONSUMER_KEY.substring(TWITTER_CONSUMER_KEY.length - 3)) : "not set",
         hasTwitterConsumerSecret: Boolean(TWITTER_CONSUMER_SECRET),
         twitterConsumerSecretLength: TWITTER_CONSUMER_SECRET?.length || 0,
+        twitterConsumerSecretValue: TWITTER_CONSUMER_SECRET ? (TWITTER_CONSUMER_SECRET.substring(0, 3) + "..." + TWITTER_CONSUMER_SECRET.substring(TWITTER_CONSUMER_SECRET.length - 3)) : "not set",
         hasTwitterAccessToken: Boolean(TWITTER_ACCESS_TOKEN),
         twitterAccessTokenLength: TWITTER_ACCESS_TOKEN?.length || 0,
+        twitterAccessTokenValue: TWITTER_ACCESS_TOKEN ? (TWITTER_ACCESS_TOKEN.substring(0, 3) + "..." + TWITTER_ACCESS_TOKEN.substring(TWITTER_ACCESS_TOKEN.length - 3)) : "not set",
         hasTwitterAccessTokenSecret: Boolean(TWITTER_ACCESS_TOKEN_SECRET),
         twitterAccessTokenSecretLength: TWITTER_ACCESS_TOKEN_SECRET?.length || 0,
+        twitterAccessTokenSecretValue: TWITTER_ACCESS_TOKEN_SECRET ? (TWITTER_ACCESS_TOKEN_SECRET.substring(0, 3) + "..." + TWITTER_ACCESS_TOKEN_SECRET.substring(TWITTER_ACCESS_TOKEN_SECRET.length - 3)) : "not set",
         
         // Supabase credentials
         hasSupabaseUrl: Boolean(SUPABASE_URL),
@@ -116,24 +121,23 @@ serve(async (req) => {
         // Direct log of the credentials - with some obfuscation for security
         console.log("Client ID (first 4):", TWITTER_CLIENT_ID.substring(0, 4));
         console.log("Client Secret (length):", TWITTER_CLIENT_SECRET.length);
+        console.log("Client Secret (partial):", TWITTER_CLIENT_SECRET.substring(0, 3) + "..." + TWITTER_CLIENT_SECRET.substring(TWITTER_CLIENT_SECRET.length - 3));
         
         // Method 1: Using Authorization header with Basic auth
-        // Proper encoding of client_id:client_secret - EXPLICITLY adding each step
-        const credentials = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
-        console.log("Raw credentials string length:", credentials.length);
+        // Encoding in exact format X.com expects
+        const credentialsString = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
+        console.log("Raw credentials string:", credentialsString.substring(0, 10) + "...");
         
-        // Try URL encoding each part separately which is the correct approach
-        const encodedClientId = encodeURIComponent(TWITTER_CLIENT_ID);
-        const encodedClientSecret = encodeURIComponent(TWITTER_CLIENT_SECRET);
-        const encodedCredentials = `${encodedClientId}:${encodedClientSecret}`;
-        console.log("Encoded credentials (id:secret) length:", encodedCredentials.length);
-        
-        // Base64 encode the string
-        const authString = btoa(encodedCredentials);
-        console.log("Base64 auth string length:", authString.length);
+        const authString = btoa(credentialsString);
+        console.log("Base64 auth string:", authString.substring(0, 10) + "...");
         
         console.log("Method 1: Using Authorization header with Basic auth");
         console.log("Token endpoint URL: https://api.twitter.com/2/oauth2/token");
+        
+        const requestBody = new URLSearchParams({
+          grant_type: "client_credentials",
+        }).toString();
+        console.log("Request body:", requestBody);
         
         const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
           method: "POST",
@@ -141,9 +145,7 @@ serve(async (req) => {
             "Authorization": `Basic ${authString}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: new URLSearchParams({
-            grant_type: "client_credentials",
-          }).toString(),
+          body: requestBody,
         });
         
         console.log("Token response status:", tokenResponse.status);
@@ -177,16 +179,19 @@ serve(async (req) => {
           console.log("Method 2: Using client_id and client_secret as direct form parameters");
           
           // Try with direct parameters (no encoding beyond form encoding)
+          const paramsBody = new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: TWITTER_CLIENT_ID,
+            client_secret: TWITTER_CLIENT_SECRET
+          }).toString();
+          console.log("Parameters body:", paramsBody);
+          
           const altTokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
             method: "POST",
             headers: {
               "Content-Type": "application/x-www-form-urlencoded",
             },
-            body: new URLSearchParams({
-              grant_type: "client_credentials",
-              client_id: TWITTER_CLIENT_ID,
-              client_secret: TWITTER_CLIENT_SECRET
-            }).toString(),
+            body: paramsBody,
           });
           
           console.log("Alternative token response status:", altTokenResponse.status);
@@ -215,47 +220,84 @@ serve(async (req) => {
             parsedErrorDescription: altParsedResponse?.error_description || null,
           };
           
-          // Method 3: Try a different way - URL encoded but not separately
+          // Method 3: Try using a JSON body instead of form-encoded
           if (!altTokenResponse.ok) {
-            console.log("Method 3: Trying with direct URL encoding of the entire string");
+            console.log("Method 3: Trying with JSON body");
             
-            // Try with more direct encoding
-            const directAuthString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
-            
-            const thirdTokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
+            const jsonTokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
               method: "POST",
               headers: {
-                "Authorization": `Basic ${directAuthString}`,
-                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Type": "application/json",
               },
-              body: new URLSearchParams({
+              body: JSON.stringify({
                 grant_type: "client_credentials",
-              }).toString(),
+                client_id: TWITTER_CLIENT_ID,
+                client_secret: TWITTER_CLIENT_SECRET
+              }),
             });
             
-            console.log("Third attempt token response status:", thirdTokenResponse.status);
+            console.log("JSON token response status:", jsonTokenResponse.status);
             
-            const thirdResponseBody = await thirdTokenResponse.text();
-            console.log("Raw third attempt response body:", thirdResponseBody);
+            const jsonResponseBody = await jsonTokenResponse.text();
+            console.log("Raw JSON attempt response body:", jsonResponseBody);
             
-            let thirdParsedResponse = null;
+            let jsonParsedResponse = null;
             try {
-              if (thirdResponseBody && thirdResponseBody.trim()) {
-                thirdParsedResponse = JSON.parse(thirdResponseBody);
-                console.log("Third attempt parsed response:", JSON.stringify(thirdParsedResponse));
+              if (jsonResponseBody && jsonResponseBody.trim()) {
+                jsonParsedResponse = JSON.parse(jsonResponseBody);
+                console.log("JSON attempt parsed response:", JSON.stringify(jsonParsedResponse));
               }
             } catch (parseError) {
-              console.error("Error parsing third attempt response:", parseError);
+              console.error("Error parsing JSON attempt response:", parseError);
             }
             
-            debugInfo.oauth2Test.thirdAttempt = {
-              method: "Direct Basic Auth (no URL encoding)",
-              status: thirdTokenResponse.status,
-              statusText: thirdTokenResponse.statusText,
-              success: thirdTokenResponse.ok,
-              responseBody: thirdResponseBody.length > 1000 ? thirdResponseBody.substring(0, 1000) + "..." : thirdResponseBody,
-              parsedError: thirdParsedResponse?.error || null,
-              parsedErrorDescription: thirdParsedResponse?.error_description || null,
+            debugInfo.oauth2Test.jsonAttempt = {
+              method: "JSON body",
+              status: jsonTokenResponse.status,
+              statusText: jsonTokenResponse.statusText,
+              success: jsonTokenResponse.ok,
+              responseBody: jsonResponseBody.length > 1000 ? jsonResponseBody.substring(0, 1000) + "..." : jsonResponseBody,
+              parsedError: jsonParsedResponse?.error || null,
+              parsedErrorDescription: jsonParsedResponse?.error_description || null,
+            };
+            
+            // Try the Twitter docs example format directly
+            console.log("Method 4: Trying Twitter docs example format");
+            const twitterExample = new URLSearchParams();
+            twitterExample.append("grant_type", "client_credentials");
+            
+            const exampleTokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
+              method: "POST",
+              headers: {
+                "Authorization": `Basic ${btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`)}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: twitterExample.toString(),
+            });
+            
+            console.log("Example token response status:", exampleTokenResponse.status);
+            
+            const exampleResponseBody = await exampleTokenResponse.text();
+            console.log("Raw example attempt response body:", exampleResponseBody);
+            
+            let exampleParsedResponse = null;
+            try {
+              if (exampleResponseBody && exampleResponseBody.trim()) {
+                exampleParsedResponse = JSON.parse(exampleResponseBody);
+                console.log("Example attempt parsed response:", JSON.stringify(exampleParsedResponse));
+              }
+            } catch (parseError) {
+              console.error("Error parsing example attempt response:", parseError);
+            }
+            
+            debugInfo.oauth2Test.exampleAttempt = {
+              method: "Twitter docs example",
+              status: exampleTokenResponse.status,
+              statusText: exampleTokenResponse.statusText,
+              success: exampleTokenResponse.ok,
+              responseBody: exampleResponseBody.length > 1000 ? exampleResponseBody.substring(0, 1000) + "..." : exampleResponseBody,
+              parsedError: exampleParsedResponse?.error || null,
+              parsedErrorDescription: exampleParsedResponse?.error_description || null,
             };
           }
         }
@@ -263,6 +305,8 @@ serve(async (req) => {
         debugInfo.oauth2Test = {
           skipped: true,
           reason: "Missing Twitter OAuth 2.0 client credentials",
+          clientIdPresent: Boolean(TWITTER_CLIENT_ID),
+          clientSecretPresent: Boolean(TWITTER_CLIENT_SECRET),
         };
       }
     } catch (error) {

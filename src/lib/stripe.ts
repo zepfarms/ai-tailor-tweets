@@ -1,94 +1,66 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/client";
 
-interface CreateSessionParams {
-  priceId: string;
-  userId: string;
-  customerEmail: string;
-  successUrl: string;
-  cancelUrl: string;
-}
+export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused' | null;
 
-export async function createCheckoutSession({
-  priceId,
-  userId,
-  customerEmail,
-  successUrl,
-  cancelUrl
-}: CreateSessionParams) {
+/**
+ * Checks if a user has an active subscription
+ * 
+ * @param userId The ID of the user to check
+ * @returns A promise that resolves to true if the user has an active subscription, false otherwise
+ */
+export const checkSubscription = async (userId: string): Promise<boolean> => {
+  if (!userId) {
+    console.error("User ID is required to check subscription");
+    return false;
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('check-subscription', {
+      body: { userId }
+    });
+
+    if (error) {
+      console.error("Error checking subscription:", error);
+      return false;
+    }
+
+    return data?.hasActiveSubscription ?? false;
+  } catch (err) {
+    console.error("Failed to check subscription:", err);
+    return false;
+  }
+};
+
+/**
+ * Creates a checkout session for a user
+ * 
+ * @param userId The ID of the user to create a checkout session for
+ * @param priceId The ID of the price to create a checkout session for
+ * @returns A promise that resolves to the URL of the checkout session
+ */
+export const createCheckoutSession = async (userId: string, priceId: string): Promise<string> => {
+  if (!userId || !priceId) {
+    throw new Error("User ID and Price ID are required to create a checkout session");
+  }
+
   try {
     const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-      body: {
-        priceId,
-        userId,
-        customerEmail,
-        successUrl,
-        cancelUrl
-      }
-    });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error creating checkout session:', error);
-    throw error;
-  }
-}
-
-export async function checkSubscriptionStatus(userId: string, sessionId?: string) {
-  try {
-    console.log(`Checking subscription status for user ${userId}, sessionId: ${sessionId || 'none'}`);
-    const { data, error } = await supabase.functions.invoke('check-subscription', {
-      body: { userId, sessionId }
+      body: { userId, priceId }
     });
 
     if (error) {
-      console.error('Error from check-subscription function:', error);
-      throw error;
+      console.error("Error creating checkout session:", error);
+      throw new Error(error.message);
     }
-    
-    console.log('Subscription check result:', data);
-    return data;
-  } catch (error) {
-    console.error('Error checking subscription status:', error);
-    throw error;
-  }
-}
 
-export interface SubscriptionData {
-  status?: string;
-  [key: string]: any; // Allow for other properties
-}
-
-export async function getSubscriptionFromDatabase(userId: string) {
-  try {
-    console.log(`Directly checking database subscription for user ${userId}`);
-    
-    const { data, error } = await supabase.rpc(
-      'get_user_subscription', 
-      { user_id_param: userId }
-    );
-    
-    if (error) {
-      console.error('Error in RPC call:', error);
-      return { hasActiveSubscription: false, subscription: null };
+    if (!data?.url) {
+      throw new Error("No checkout URL returned");
     }
-    
-    console.log('Database subscription result:', data);
-    
-    const subscription = data as SubscriptionData | null;
-    const hasActiveSubscription = subscription !== null && 
-                             'status' in subscription && 
-                             subscription.status === 'active';
-    
-    return { 
-      hasActiveSubscription, 
-      subscription: subscription || null
-    };
-  } catch (error) {
-    console.error('Error checking database subscription:', error);
-    return { hasActiveSubscription: false, subscription: null };
-  }
-}
 
-export const SUBSCRIPTION_PRICE_ID = 'price_1R03pDGKh91akIxXo1XPV5s0';
+    return data.url as string;
+  } catch (err) {
+    console.error("Failed to create checkout session:", err);
+    throw err;
+  }
+};
