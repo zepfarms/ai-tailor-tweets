@@ -61,15 +61,20 @@ export interface SubscriptionData {
   [key: string]: any; // Allow for other properties
 }
 
+// Define the parameters for the RPC call
+export interface GetUserSubscriptionParams {
+  user_id_param: string;
+}
+
 // Add a new function to directly query the database for subscription
 export async function getSubscriptionFromDatabase(userId: string) {
   try {
     console.log(`Directly checking database subscription for user ${userId}`);
     
-    // Use a more generic approach without specifying types
+    // Use type assertion for the RPC call
     const { data, error } = await supabase.rpc(
       'get_user_subscription', 
-      { user_id_param: userId } as any
+      { user_id_param: userId } as GetUserSubscriptionParams
     );
     
     if (error) {
@@ -79,7 +84,7 @@ export async function getSubscriptionFromDatabase(userId: string) {
     
     console.log('Database subscription result:', data);
     
-    // Safely check if data exists and has a status property
+    // Safely cast the data to our expected type
     const subscription = data as SubscriptionData | null;
     const hasActiveSubscription = subscription !== null && 
                              'status' in subscription && 

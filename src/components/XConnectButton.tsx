@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
@@ -17,7 +17,6 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
   size = 'default'
 }) => {
   const { user, linkXAccount, isLinkingX } = useAuth();
-  const [isConnecting, setIsConnecting] = useState(false);
   const { toast } = useToast();
 
   const handleConnect = async () => {
@@ -30,22 +29,15 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
       return;
     }
     
-    setIsConnecting(true);
     try {
       toast({
         title: "Connecting to X",
         description: "You'll be redirected to X for authorization...",
       });
       
-      // Directly call linkXAccount without delay - simplify the process
+      // Call the linkXAccount function
       await linkXAccount();
-      // If we get here, that means the redirect didn't happen, so show error
-      toast({
-        title: "Connection Error",
-        description: "Failed to redirect to X authentication page",
-        variant: "destructive"
-      });
-      setIsConnecting(false);
+      
     } catch (error) {
       console.error('Error connecting to X:', error);
       toast({
@@ -53,7 +45,6 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         description: error instanceof Error ? error.message : "Failed to connect to X",
         variant: "destructive"
       });
-      setIsConnecting(false);
     }
   };
 
@@ -77,10 +68,10 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
       variant={variant}
       size={size}
       onClick={handleConnect}
-      disabled={isConnecting || isLinkingX}
+      disabled={isLinkingX}
     >
       <X className="mr-2 h-4 w-4" />
-      {isConnecting || isLinkingX ? 'Connecting...' : 'Connect to X'}
+      {isLinkingX ? 'Connecting...' : 'Connect to X'}
     </Button>
   );
 };
