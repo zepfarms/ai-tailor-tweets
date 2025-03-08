@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -77,6 +78,8 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
 
   const isLoading = isLinkingX || localLoading;
 
+  // Disabling the button only when already connected
+  // is now handled by conditionally rendering different button states
   if (user?.xLinked) {
     return (
       <Button 

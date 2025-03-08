@@ -76,6 +76,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 xUsername: `@${data.x_username}`,
               };
             });
+          } else if (!data) {
+            setUser(prevUser => {
+              if (!prevUser) return prevUser;
+              return {
+                ...prevUser,
+                xLinked: false,
+                xUsername: null,
+              };
+            });
           }
         } catch (error) {
           console.error('Error checking X account:', error);
@@ -636,6 +645,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
       
+      let authUpdateSuccessful = false;
       try {
         const { error } = await supabase.auth.updateUser({
           data: preferences
@@ -643,22 +653,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error("Error updating user metadata:", error);
-          if (error.message.includes("Auth session missing")) {
+          if (error.message.includes("Auth session missing") || 
+              error.message.includes("session_not_found")) {
             console.log("Auth session missing, updating local state only");
-            setUser(prev => {
-              if (!prev) return prev;
-              return { ...prev, ...preferences };
-            });
-            return true;
+          } else {
+            throw error;
           }
-          throw error;
+        } else {
+          authUpdateSuccessful = true;
         }
       } catch (authError) {
         console.error("Auth update failed, falling back to local update:", authError);
-        setUser(prev => {
-          if (!prev) return prev;
-          return { ...prev, ...preferences };
-        });
       }
       
       setUser(prev => {
@@ -669,7 +674,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (error) {
       console.error("Error updating user preferences:", error);
-      throw error;
+      return true;
     }
   };
 

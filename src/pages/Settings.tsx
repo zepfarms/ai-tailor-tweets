@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -75,6 +76,7 @@ const Settings: React.FC = () => {
       }
       
       console.log("Deleting X account for user:", user.id);
+      // Delete the X account record from the database
       const { error } = await supabase
         .from('x_accounts')
         .delete()
@@ -87,19 +89,21 @@ const Settings: React.FC = () => {
       
       console.log("X account deleted successfully");
       
-      // Update the user object locally without calling Supabase auth
-      try {
-        if (updateUserPreferences) {
+      // Update the user object with unlinked state
+      if (updateUserPreferences) {
+        try {
           console.log("Updating user preferences to reflect unlinked state");
           await updateUserPreferences({ xLinked: false, xUsername: null });
           console.log("User preferences updated successfully");
-        }
-      } catch (error) {
-        console.error("Error updating user metadata:", error);
-        // Continue anyway - we've already deleted the account record
-        // Just update the local state manually
-        if (user) {
-          // Force a UI update by updating local state
+          
+          // Force the UI to update immediately by showing a success toast
+          toast({
+            title: "X Account Unlinked",
+            description: "Your X account has been successfully disconnected.",
+          });
+        } catch (error) {
+          console.error("Error updating user metadata:", error);
+          // If updating preferences fails, show a partial success message
           toast({
             title: "Partial Success",
             description: "X account unlinked, but profile update failed. Please refresh the page.",
@@ -107,13 +111,7 @@ const Settings: React.FC = () => {
         }
       }
       
-      toast({
-        title: "X Account Unlinked",
-        description: "Your X account has been successfully disconnected.",
-      });
-      
-      console.log("Refreshing page to update UI");
-      // Force a page refresh to update the UI
+      // Force a page refresh to update the UI state properly
       window.location.reload();
     } catch (error) {
       console.error("Error unlinking X account:", error);
