@@ -1,9 +1,14 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { createHmac, randomBytes } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+// Twitter API credentials
+const TWITTER_API_KEY = Deno.env.get("TWITTER_CONSUMER_KEY")?.trim();
+const TWITTER_API_SECRET = Deno.env.get("TWITTER_CONSUMER_SECRET")?.trim();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,6 +72,11 @@ serve(async (req) => {
       console.log("Found X token in user_tokens table");
     }
     
+    // Validate access token
+    if (!tokenData.access_token) {
+      throw new Error("Invalid X token. Please reconnect your account.");
+    }
+    
     // Build the post payload
     const postPayload: any = {
       text: content || ""
@@ -74,19 +84,22 @@ serve(async (req) => {
     
     // If we have media, we need to upload it first
     if (media && media.length > 0) {
-      console.log("Processing media for upload");
-      const mediaIds = await Promise.all(media.map(async (item: any) => {
-        try {
-          return await uploadMediaToTwitter(item, tokenData.access_token);
-        } catch (error) {
-          console.error("Error uploading media item:", error);
-          throw error;
+      console.log("Processing media for upload to Twitter");
+      try {
+        const mediaIds = await Promise.all(media.map(async (item: any) => {
+          if (!item.data) {
+            throw new Error("Media data is missing");
+          }
+          return await uploadMediaToTwitterV2(item, tokenData.access_token);
+        }));
+        
+        console.log("Successfully uploaded media, IDs:", mediaIds);
+        if (mediaIds.length > 0) {
+          postPayload.media = { media_ids: mediaIds };
         }
-      }));
-      
-      console.log("Successfully uploaded media, IDs:", mediaIds);
-      if (mediaIds.length > 0) {
-        postPayload.media = { media_ids: mediaIds };
+      } catch (error) {
+        console.error("Error uploading media:", error);
+        throw new Error(`Failed to upload media: ${error.message}`);
       }
     }
     
@@ -154,144 +167,115 @@ serve(async (req) => {
   }
 });
 
-// Function to upload media to Twitter and get media ID
-async function uploadMediaToTwitter(mediaItem: any, accessToken: string): Promise<string> {
-  console.log("Starting media upload process for item type:", mediaItem.type);
+// Function to generate OAuth signature for Twitter API V1.1
+function generateOAuthSignature(
+  method: string,
+  url: string,
+  params: Record<string, string>,
+  consumerSecret: string,
+  tokenSecret: string
+): string {
+  const signatureBaseString = `${method}&${encodeURIComponent(url)}&${encodeURIComponent(
+    Object.entries(params)
+      .sort()
+      .map(([k, v]) => `${k}=${v}`)
+      .join("&")
+  )}`;
   
-  // Step 1: Extract base64 data
-  const base64Data = mediaItem.data.split(',')[1];
-  const binaryData = atob(base64Data);
+  const signingKey = `${encodeURIComponent(consumerSecret)}&${encodeURIComponent(tokenSecret || '')}`;
+  const hmacSha1 = createHmac("sha1", signingKey);
+  const signature = hmacSha1.update(signatureBaseString).digest("base64");
   
-  // Convert to Uint8Array
-  const uint8Array = new Uint8Array(binaryData.length);
-  for (let i = 0; i < binaryData.length; i++) {
-    uint8Array[i] = binaryData.charCodeAt(i);
+  return signature;
+}
+
+// Function to generate OAuth header for Twitter API V1.1
+function generateOAuthHeader(
+  method: string,
+  url: string,
+  params: Record<string, string> = {},
+  accessToken: string,
+  accessTokenSecret: string
+): string {
+  if (!TWITTER_API_KEY || !TWITTER_API_SECRET) {
+    throw new Error("Twitter API credentials are missing");
   }
   
-  // Step 2: INIT - Initialize the media upload
-  console.log("Sending INIT request");
-  const initResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Authorization": `Bearer ${accessToken}`
-    },
-    body: new URLSearchParams({
-      command: "INIT",
-      total_bytes: uint8Array.length.toString(),
-      media_type: mediaItem.type
-    })
-  });
+  const oauthParams = {
+    oauth_consumer_key: TWITTER_API_KEY,
+    oauth_nonce: randomBytes(16).toString('hex'),
+    oauth_signature_method: "HMAC-SHA1",
+    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
+    oauth_token: accessToken,
+    oauth_version: "1.0",
+    ...params
+  };
   
-  if (!initResponse.ok) {
-    const errorData = await initResponse.json();
-    console.error("Media INIT error:", errorData);
-    throw new Error("Failed to initialize media upload");
-  }
+  const signature = generateOAuthSignature(
+    method,
+    url,
+    oauthParams,
+    TWITTER_API_SECRET,
+    accessTokenSecret
+  );
   
-  const initData = await initResponse.json();
-  const mediaId = initData.media_id_string;
-  console.log("Media initialized, ID:", mediaId);
+  const oauthHeader = 
+    'OAuth ' +
+    `oauth_consumer_key="${encodeURIComponent(oauthParams.oauth_consumer_key)}", ` +
+    `oauth_nonce="${encodeURIComponent(oauthParams.oauth_nonce)}", ` +
+    `oauth_signature="${encodeURIComponent(signature)}", ` +
+    `oauth_signature_method="HMAC-SHA1", ` +
+    `oauth_timestamp="${oauthParams.oauth_timestamp}", ` +
+    `oauth_token="${encodeURIComponent(oauthParams.oauth_token)}", ` +
+    `oauth_version="1.0"`;
   
-  // Step 3: APPEND - Upload the media in chunks
-  const chunkSize = 5 * 1024 * 1024; // 5MB chunks
-  let segmentIndex = 0;
-  
-  for (let byteStart = 0; byteStart < uint8Array.length; byteStart += chunkSize) {
-    const chunk = uint8Array.slice(byteStart, Math.min(byteStart + chunkSize, uint8Array.length));
+  return oauthHeader;
+}
+
+// Simplified function to upload media to Twitter using v2 API with v1.1 media upload
+async function uploadMediaToTwitterV2(mediaItem: any, accessToken: string): Promise<string> {
+  try {
+    console.log("Starting media upload process for item type:", mediaItem.type);
     
-    // Create binary form data
-    const formData = new FormData();
-    formData.append('command', 'APPEND');
-    formData.append('media_id', mediaId);
-    formData.append('segment_index', segmentIndex.toString());
-    formData.append('media', new Blob([chunk], { type: mediaItem.type }));
+    // Step 1: Extract base64 data
+    const base64Data = mediaItem.data.split(',')[1];
+    const binaryData = atob(base64Data);
     
-    console.log(`Uploading segment ${segmentIndex}, size: ${chunk.length} bytes`);
-    const appendResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
+    // Convert to Uint8Array
+    const uint8Array = new Uint8Array(binaryData.length);
+    for (let i = 0; i < binaryData.length; i++) {
+      uint8Array[i] = binaryData.charCodeAt(i);
+    }
+    
+    // Step 2: Use Twitter's v1.1 media/upload endpoint with Bearer token
+    const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
+    const form = new FormData();
+    const blob = new Blob([uint8Array], { type: mediaItem.type });
+    
+    form.append('media', blob);
+    
+    console.log("Uploading media with size:", uint8Array.length, "bytes");
+    
+    const uploadResponse = await fetch(mediaUploadUrl, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`
       },
-      body: formData
+      body: form
     });
     
-    if (!appendResponse.ok) {
-      const errorText = await appendResponse.text();
-      console.error(`Media APPEND error for segment ${segmentIndex}:`, errorText);
-      throw new Error(`Failed to upload media chunk ${segmentIndex}`);
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.text();
+      console.error("Media upload error:", errorData);
+      throw new Error(`Failed to upload media: ${errorData}`);
     }
     
-    console.log(`Segment ${segmentIndex} uploaded successfully`);
-    segmentIndex++;
-  }
-  
-  // Step 4: FINALIZE - Finalize the media upload
-  console.log("Sending FINALIZE request");
-  const finalizeResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Authorization": `Bearer ${accessToken}`
-    },
-    body: new URLSearchParams({
-      command: "FINALIZE",
-      media_id: mediaId
-    })
-  });
-  
-  if (!finalizeResponse.ok) {
-    const errorData = await finalizeResponse.json();
-    console.error("Media FINALIZE error:", errorData);
-    throw new Error("Failed to finalize media upload");
-  }
-  
-  const finalizeData = await finalizeResponse.json();
-  console.log("Media finalized successfully:", finalizeData);
-  
-  // If the media is processing asynchronously (like videos), wait for it to complete
-  if (finalizeData.processing_info) {
-    await waitForMediaProcessing(mediaId, accessToken, finalizeData.processing_info);
-  }
-  
-  return mediaId;
-}
-
-// Helper function to wait for media processing to complete
-async function waitForMediaProcessing(mediaId: string, accessToken: string, processingInfo: any) {
-  if (!processingInfo) return;
-  
-  if (processingInfo.state === 'succeeded') {
-    console.log("Media processing complete");
-    return;
-  }
-  
-  if (processingInfo.state === 'failed') {
-    console.error("Media processing failed:", processingInfo.error);
-    throw new Error(`Media processing failed: ${processingInfo.error.message}`);
-  }
-  
-  // Wait for the recommended time
-  const checkAfterSecs = processingInfo.check_after_secs || 1;
-  console.log(`Media still processing, checking again in ${checkAfterSecs} seconds`);
-  await new Promise(resolve => setTimeout(resolve, checkAfterSecs * 1000));
-  
-  // Check status
-  const statusResponse = await fetch(`https://upload.twitter.com/1.1/media/upload.json?command=STATUS&media_id=${mediaId}`, {
-    headers: {
-      "Authorization": `Bearer ${accessToken}`
-    }
-  });
-  
-  if (!statusResponse.ok) {
-    throw new Error("Failed to get media status");
-  }
-  
-  const statusData = await statusResponse.json();
-  console.log("Media status update:", statusData.processing_info);
-  
-  // Recursive call to continue checking
-  if (statusData.processing_info) {
-    await waitForMediaProcessing(mediaId, accessToken, statusData.processing_info);
+    const mediaData = await uploadResponse.json();
+    console.log("Media upload successful, media_id:", mediaData.media_id_string);
+    
+    return mediaData.media_id_string;
+  } catch (error) {
+    console.error("Error in uploadMediaToTwitterV2:", error);
+    throw error;
   }
 }

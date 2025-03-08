@@ -94,6 +94,7 @@ const CreatePost: React.FC = () => {
       
       console.log("Sending post request with media items:", mediaData.length);
       
+      // Call our Twitter post Edge Function
       const response = await supabase.functions.invoke('twitter-post', {
         body: { 
           content, 
@@ -104,7 +105,7 @@ const CreatePost: React.FC = () => {
       
       if (response.error) {
         console.error("Error posting to X:", response.error);
-        throw new Error(response.error.message);
+        throw new Error(response.error.message || "Failed to post to X");
       }
       
       console.log("Post response:", response.data);
