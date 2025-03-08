@@ -1,30 +1,32 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const XCallback: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { completeXAuth } = useAuth();
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
     const processCallback = async () => {
       try {
         setIsProcessing(true);
 
-        // Get query parameters
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-        const state = params.get('state');
-        const error = params.get('error');
-        const errorDescription = params.get('error_description');
+        // Get query parameters from searchParams
+        const code = searchParams.get('code');
+        const state = searchParams.get('state');
+        const error = searchParams.get('error');
+        const errorDescription = searchParams.get('error_description');
 
         // Check if there's an error from Twitter
         if (error) {
@@ -35,24 +37,28 @@ const XCallback: React.FC = () => {
             description: errorDescription || 'Failed to connect X account',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(`X authentication failed: ${errorDescription || 'Unknown error'}`)), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(`X authentication failed: ${errorDescription || 'Unknown error'}`)), 5000);
           return;
         }
 
         // Validate code and state
         if (!code || !state) {
           console.error("Missing code or state params", { code, state });
-          setError('Missing required parameters');
+          setError('Missing required parameters for X authentication');
           toast({
             title: 'X Authentication Failed',
             description: 'Missing required parameters from X',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Missing authentication parameters')), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Missing authentication parameters')), 5000);
           return;
         }
 
-        console.log("Processing X callback with code and state", { codeLength: code.length, state });
+        console.log("Processing X callback with code and state", { 
+          codeLength: code.length, 
+          state,
+          url: window.location.href 
+        });
         
         // Get debug info if there's an issue
         try {
@@ -82,7 +88,7 @@ const XCallback: React.FC = () => {
             description: response.error.message || 'Failed to verify X account',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(response.error.message || 'Failed to verify X account')), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(response.error.message || 'Failed to verify X account')), 5000);
           return;
         }
 
@@ -103,7 +109,7 @@ const XCallback: React.FC = () => {
               description: authError instanceof Error ? authError.message : 'Failed to complete authentication',
               variant: 'destructive',
             });
-            setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Failed to complete authentication')), 3000);
+            setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Failed to complete authentication')), 5000);
           }
         } else if (response.data && response.data.username) {
           toast({
@@ -121,7 +127,7 @@ const XCallback: React.FC = () => {
             description: 'Invalid response from authentication service',
             variant: 'destructive',
           });
-          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Invalid response from authentication service')), 3000);
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Invalid response from authentication service')), 5000);
         }
       } catch (err) {
         console.error('Error in X callback:', err);
@@ -131,14 +137,20 @@ const XCallback: React.FC = () => {
           description: err instanceof Error ? err.message : 'An unexpected error occurred',
           variant: 'destructive',
         });
-        setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(err instanceof Error ? err.message : 'An unexpected error occurred')), 3000);
+        setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(err instanceof Error ? err.message : 'An unexpected error occurred')), 5000);
       } finally {
         setIsProcessing(false);
       }
     };
 
     processCallback();
-  }, [navigate, toast, completeXAuth]);
+  }, [navigate, toast, completeXAuth, searchParams, attempts]);
+
+  const retryAuthentication = () => {
+    setIsProcessing(true);
+    setError(null);
+    setAttempts(prev => prev + 1); // This will trigger the useEffect to run again
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -153,20 +165,26 @@ const XCallback: React.FC = () => {
       ) : error ? (
         <>
           <div className="text-destructive mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
+            <AlertTriangle size={64} />
           </div>
           <h1 className="text-2xl font-bold mb-2">Authentication Error</h1>
           <p className="text-muted-foreground text-center mb-4">{error}</p>
+          <div className="flex flex-col gap-4 mb-4">
+            <Button onClick={retryAuthentication} className="mb-2">
+              Retry Authentication
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/dashboard')}>
+              Return to Dashboard
+            </Button>
+          </div>
           {debugInfo && (
-            <div className="text-xs text-muted-foreground bg-muted p-2 rounded mb-4 max-w-md overflow-auto">
-              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            <div className="mt-8 w-full max-w-2xl">
+              <h2 className="text-lg font-semibold mb-2">Technical Details</h2>
+              <div className="text-xs text-muted-foreground bg-muted p-4 rounded mb-4 max-w-full overflow-auto">
+                <pre className="whitespace-pre-wrap break-words">{JSON.stringify(debugInfo, null, 2)}</pre>
+              </div>
             </div>
           )}
-          <p className="text-center">Redirecting you back to dashboard...</p>
         </>
       ) : (
         <>
