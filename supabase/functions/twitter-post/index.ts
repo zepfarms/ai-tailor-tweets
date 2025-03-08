@@ -39,6 +39,7 @@ serve(async (req) => {
     if (media) {
       console.log("Media included:", media.length, "items");
       console.log("Media type:", media[0]?.type);
+      console.log("Media data length:", media[0]?.data?.substring(0, 50) + "...");
     }
     
     // Create Supabase client
@@ -96,6 +97,7 @@ serve(async (req) => {
             throw new Error("Media data is missing");
           }
           
+          console.log("Uploading media item of type:", item.type);
           const mediaId = await uploadMediaToTwitterV1(
             item, 
             userData.access_token, 
@@ -202,6 +204,7 @@ function generateOAuthSignature(
   const hmacSha1 = createHmac("sha1", signingKey);
   const signature = hmacSha1.update(signatureBaseString).digest("base64");
   
+  console.log("Generated OAuth signature for URL:", url);
   return signature;
 }
 
@@ -253,88 +256,97 @@ async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, acces
   try {
     console.log("Starting media upload process for item type:", mediaItem.type);
     
+    if (!mediaItem.data || !mediaItem.data.includes('base64')) {
+      throw new Error("Invalid media data format: Data must be in base64 format");
+    }
+    
     // Step 1: Extract base64 data 
     const base64Data = mediaItem.data.split(',')[1];
     
     if (!base64Data) {
-      throw new Error("Invalid media data format");
+      throw new Error("Invalid media data format: Missing base64 content");
     }
     
-    const binaryData = atob(base64Data);
-    
-    // Convert to Uint8Array
-    const uint8Array = new Uint8Array(binaryData.length);
-    for (let i = 0; i < binaryData.length; i++) {
-      uint8Array[i] = binaryData.charCodeAt(i);
-    }
-    
-    // Step 2: Use Twitter's v1.1 media/upload endpoint with OAuth1.0a
-    const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
-    
-    // Create form data
-    const boundary = `----WebKitFormBoundary${randomBytes(16).toString('hex')}`;
-    const chunks = [];
-    
-    // Append media data
-    chunks.push(`--${boundary}\r\n`);
-    chunks.push(`Content-Disposition: form-data; name="media"; filename="media${Date.now()}"\r\n`);
-    chunks.push(`Content-Type: ${mediaItem.type}\r\n\r\n`);
-    
-    // Create a combined buffer for the form data and media
-    const headerBuffer = new TextEncoder().encode(chunks.join(''));
-    const footerBuffer = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
-    
-    const combinedBuffer = new Uint8Array(
-      headerBuffer.length + uint8Array.length + footerBuffer.length
-    );
-    
-    combinedBuffer.set(headerBuffer, 0);
-    combinedBuffer.set(uint8Array, headerBuffer.length);
-    combinedBuffer.set(footerBuffer, headerBuffer.length + uint8Array.length);
-    
-    console.log(`Uploading media: ${mediaItem.type}, size: ${uint8Array.length} bytes`);
-    
-    // Generate OAuth header for the request
-    const oauthHeader = generateOAuthHeader(
-      "POST",
-      mediaUploadUrl,
-      {},
-      accessToken,
-      accessTokenSecret
-    );
-    
-    // Make the request to upload media
-    const uploadResponse = await fetch(mediaUploadUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": oauthHeader,
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "Content-Length": combinedBuffer.length.toString()
-      },
-      body: combinedBuffer
-    });
-    
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error("Media upload error response:", errorText);
-      console.error("Status:", uploadResponse.status);
-      console.error("Status text:", uploadResponse.statusText);
+    try {
+      const binaryData = atob(base64Data);
       
-      let errorMessage = "Failed to upload media";
-      try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.error || errorData.errors?.[0]?.message || errorMessage;
-      } catch (e) {
-        errorMessage = `${errorMessage}: ${errorText}`;
+      // Convert to Uint8Array
+      const uint8Array = new Uint8Array(binaryData.length);
+      for (let i = 0; i < binaryData.length; i++) {
+        uint8Array[i] = binaryData.charCodeAt(i);
       }
       
-      throw new Error(errorMessage);
+      // Step 2: Use Twitter's v1.1 media/upload endpoint with OAuth1.0a
+      const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
+      
+      // Create form data
+      const boundary = `----WebKitFormBoundary${randomBytes(16).toString('hex')}`;
+      const chunks = [];
+      
+      // Append media data
+      chunks.push(`--${boundary}\r\n`);
+      chunks.push(`Content-Disposition: form-data; name="media"; filename="media${Date.now()}"\r\n`);
+      chunks.push(`Content-Type: ${mediaItem.type}\r\n\r\n`);
+      
+      // Create a combined buffer for the form data and media
+      const headerBuffer = new TextEncoder().encode(chunks.join(''));
+      const footerBuffer = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
+      
+      const combinedBuffer = new Uint8Array(
+        headerBuffer.length + uint8Array.length + footerBuffer.length
+      );
+      
+      combinedBuffer.set(headerBuffer, 0);
+      combinedBuffer.set(uint8Array, headerBuffer.length);
+      combinedBuffer.set(footerBuffer, headerBuffer.length + uint8Array.length);
+      
+      console.log(`Uploading media: ${mediaItem.type}, size: ${uint8Array.length} bytes`);
+      
+      // Generate OAuth header for the request
+      const oauthHeader = generateOAuthHeader(
+        "POST",
+        mediaUploadUrl,
+        {},
+        accessToken,
+        accessTokenSecret
+      );
+      
+      // Make the request to upload media
+      const uploadResponse = await fetch(mediaUploadUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": oauthHeader,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": combinedBuffer.length.toString()
+        },
+        body: combinedBuffer
+      });
+      
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error("Media upload error response:", errorText);
+        console.error("Status:", uploadResponse.status);
+        console.error("Status text:", uploadResponse.statusText);
+        
+        let errorMessage = "Failed to upload media";
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.errors?.[0]?.message || errorMessage;
+        } catch (e) {
+          errorMessage = `${errorMessage}: ${errorText}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const mediaData = await uploadResponse.json();
+      console.log("Media upload successful, media_id:", mediaData.media_id_string);
+      
+      return mediaData.media_id_string;
+    } catch (error) {
+      console.error("Base64 decoding error:", error);
+      throw new Error(`Failed to process media: ${error.message}`);
     }
-    
-    const mediaData = await uploadResponse.json();
-    console.log("Media upload successful, media_id:", mediaData.media_id_string);
-    
-    return mediaData.media_id_string;
   } catch (error) {
     console.error("Error in uploadMediaToTwitterV1:", error);
     throw error;

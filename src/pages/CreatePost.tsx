@@ -208,6 +208,7 @@ const CreatePost: React.FC = () => {
               useWebIntent={false}
               characterLimit={getCharacterLimit()}
               useHashtags={user?.useHashtags !== false}
+              initialContent={currentContent}
             />
           )}
           

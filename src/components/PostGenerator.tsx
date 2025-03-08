@@ -15,6 +15,7 @@ interface PostGeneratorProps {
   isPosting?: boolean;
   characterLimit?: number;
   useHashtags?: boolean;
+  initialContent?: string;
 }
 
 export const PostGenerator: React.FC<PostGeneratorProps> = ({ 
@@ -24,9 +25,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   useWebIntent = false,
   isPosting = false,
   characterLimit = 280,
-  useHashtags = true
+  useHashtags = true,
+  initialContent = ''
 }) => {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(initialContent || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPostingInternal, setIsPostingInternal] = useState(false);
@@ -37,6 +39,12 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (initialContent) {
+      setContent(initialContent);
+    }
+  }, [initialContent]);
 
   const selectSuggestedPost = (post: string) => {
     setContent(post);
@@ -74,10 +82,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   };
 
   useEffect(() => {
-    if (selectedTopics.length > 0) {
+    if (selectedTopics.length > 0 && !initialContent) {
       generateSuggestedPosts();
     }
-  }, [selectedTopics]);
+  }, [selectedTopics, initialContent]);
 
   useEffect(() => {
     return () => {
@@ -327,13 +335,13 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         return;
       }
 
-      const sizeLimit = file.type.startsWith('video/') ? 15 * 1024 * 1024 : 10 * 1024 * 1024;
+      const sizeLimit = file.type.startsWith('video/') ? 15 * 1024 * 1024 : 5 * 1024 * 1024;
       if (file.size > sizeLimit) {
         toast({
           title: "File too large",
           description: file.type.startsWith('video/') 
             ? "Videos must be smaller than 15MB" 
-            : "Images must be smaller than 10MB",
+            : "Images must be smaller than 5MB",
           variant: "destructive",
         });
         return;
