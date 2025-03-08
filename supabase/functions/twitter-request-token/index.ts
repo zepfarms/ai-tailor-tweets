@@ -7,6 +7,7 @@ const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
 const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,20 +47,27 @@ serve(async (req) => {
     console.log("Client ID:", TWITTER_CLIENT_ID.substring(0, 4) + "..." + TWITTER_CLIENT_ID.substring(TWITTER_CLIENT_ID.length - 4));
     console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     console.log("Callback URL:", TWITTER_CALLBACK_URL);
+    console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
+    if (TWITTER_BEARER_TOKEN) {
+      console.log("Bearer Token length:", TWITTER_BEARER_TOKEN.length);
+      console.log("Bearer Token preview:", TWITTER_BEARER_TOKEN.substring(0, 5) + "..." + TWITTER_BEARER_TOKEN.substring(TWITTER_BEARER_TOKEN.length - 5));
+    }
     
     // Get the userId from the request body
     let userId = null;
+    let isLogin = false;
     try {
       const requestBody = await req.json();
       userId = requestBody.userId;
-      console.log("Request parameters:", { userId });
+      isLogin = requestBody.isLogin === true;
+      console.log("Request parameters:", { userId, isLogin });
     } catch (error) {
       console.error("Error parsing request JSON:", error);
       throw new Error("Invalid request format. Please provide valid JSON with a userId field.");
     }
     
-    // For account linking, we need a user ID
-    if (!userId) {
+    // For account linking, we need a user ID, but for login flow we don't
+    if (!userId && !isLogin) {
       throw new Error("User ID is required for authorization");
     }
     
@@ -79,7 +87,7 @@ serve(async (req) => {
     }
     
     try {
-      console.log("Storing OAuth state with user_id:", userId);
+      console.log("Storing OAuth state with user_id:", userId || "Login flow (no user ID)");
       
       const { error: storeError } = await supabase
         .from('oauth_states')
@@ -89,7 +97,7 @@ serve(async (req) => {
           code_verifier: codeVerifier,
           provider: 'twitter',
           created_at: new Date().toISOString(),
-          is_login: false
+          is_login: isLogin
         });
       
       if (storeError) {

@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +19,7 @@ serve(async (req) => {
 
   try {
     console.log("X post function called");
+    console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
     
     const { userId, content, media } = await req.json();
     
@@ -52,6 +54,17 @@ serve(async (req) => {
     
     console.log("X account found:", accountData.x_username);
     
+    // Determine which token to use
+    let accessToken = accountData.access_token;
+    let bearerToken = accountData.bearer_token || TWITTER_BEARER_TOKEN;
+    
+    if (!accessToken && !bearerToken) {
+      throw new Error("No valid authentication token found for X account");
+    }
+    
+    console.log("Using access token:", !!accessToken);
+    console.log("Using bearer token:", !!bearerToken);
+    
     // Upload media first if provided
     let mediaIds = [];
     if (media && media.length > 0) {
@@ -63,7 +76,7 @@ serve(async (req) => {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Authorization": `Bearer ${accountData.access_token}`,
+            "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
           },
           body: new URLSearchParams({
             total_bytes: mediaItem.size.toString(),
@@ -87,7 +100,7 @@ serve(async (req) => {
           method: "POST",
           headers: {
             "Content-Type": "multipart/form-data",
-            "Authorization": `Bearer ${accountData.access_token}`,
+            "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
           },
           body: new FormData()
             .append("media_id", mediaId)
@@ -106,7 +119,7 @@ serve(async (req) => {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Authorization": `Bearer ${accountData.access_token}`,
+            "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
           },
           body: new URLSearchParams({
             media_id: mediaId
@@ -138,7 +151,7 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${accountData.access_token}`,
+        "Authorization": accessToken ? `Bearer ${accessToken}` : `Bearer ${bearerToken}`,
       },
       body: JSON.stringify(postPayload),
     });

@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
@@ -7,6 +6,7 @@ const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
 const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://postedpal.com/x-callback";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +33,13 @@ serve(async (req) => {
     
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Supabase credentials are not properly configured");
+    }
+    
+    // Log available tokens
+    console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
+    if (TWITTER_BEARER_TOKEN) {
+      console.log("Bearer Token length:", TWITTER_BEARER_TOKEN.length);
+      console.log("Bearer Token preview:", TWITTER_BEARER_TOKEN.substring(0, 5) + "..." + TWITTER_BEARER_TOKEN.substring(TWITTER_BEARER_TOKEN.length - 5));
     }
     
     // Log the callback URL we're using
@@ -135,13 +142,25 @@ serve(async (req) => {
     console.log("Fetching user info");
     let userResponse;
     try {
+      // Try first with the obtained access token
       userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
         headers: {
           "Authorization": `Bearer ${tokenData.access_token}`
         }
       });
       
-      console.log("User info response status:", userResponse.status);
+      console.log("User info response status with access token:", userResponse.status);
+      
+      // If that fails and we have a bearer token, try with the bearer token
+      if (!userResponse.ok && TWITTER_BEARER_TOKEN) {
+        console.log("Retrying with Bearer token");
+        userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
+          headers: {
+            "Authorization": `Bearer ${TWITTER_BEARER_TOKEN}`
+          }
+        });
+        console.log("User info response status with bearer token:", userResponse.status);
+      }
       
       if (!userResponse.ok) {
         const errorText = await userResponse.text();
@@ -161,6 +180,14 @@ serve(async (req) => {
       console.error("Error parsing user response:", parseError);
       throw new Error("Invalid response from Twitter user endpoint");
     }
+
+    // Process the user data based on whether this is a login or account linking
+    // Clean up the OAuth state
+    console.log("Cleaning up OAuth state");
+    await supabase
+      .from('oauth_states')
+      .delete()
+      .eq('state', state);
 
     if (userData.data) {
       if (isLogin) {
@@ -188,6 +215,7 @@ serve(async (req) => {
             access_token: tokenData.access_token,
             access_token_secret: tokenData.refresh_token || "",
             profile_image_url: userData.data.profile_image_url,
+            bearer_token: TWITTER_BEARER_TOKEN || null,
           }).eq("x_user_id", userData.data.id);
           
           if (updateError) {
@@ -213,13 +241,6 @@ serve(async (req) => {
             console.error("Error generating auth token:", authError);
             throw new Error("Failed to authenticate with X account");
           }
-          
-          // Clean up the OAuth state
-          console.log("Cleaning up OAuth state");
-          await supabase
-            .from('oauth_states')
-            .delete()
-            .eq('state', state);
             
           return new Response(
             JSON.stringify({
@@ -267,6 +288,7 @@ serve(async (req) => {
             profile_image_url: userData.data.profile_image_url,
             access_token: tokenData.access_token,
             access_token_secret: tokenData.refresh_token || "",
+            bearer_token: TWITTER_BEARER_TOKEN || null,
           });
 
           if (upsertError) {
@@ -292,13 +314,6 @@ serve(async (req) => {
             console.error("Error generating auth token:", authError);
             throw new Error("Failed to authenticate with X account");
           }
-          
-          // Clean up the OAuth state
-          console.log("Cleaning up OAuth state");
-          await supabase
-            .from('oauth_states')
-            .delete()
-            .eq('state', state);
 
           return new Response(
             JSON.stringify({
@@ -329,19 +344,13 @@ serve(async (req) => {
           profile_image_url: userData.data.profile_image_url,
           access_token: tokenData.access_token,
           access_token_secret: tokenData.refresh_token || "",
+          bearer_token: TWITTER_BEARER_TOKEN || null,
         });
 
         if (upsertError) {
           console.error("Error storing Twitter account:", upsertError);
           throw new Error("Failed to store Twitter account");
         }
-        
-        // Clean up the OAuth state
-        console.log("Cleaning up OAuth state");
-        await supabase
-          .from('oauth_states')
-          .delete()
-          .eq('state', state);
 
         return new Response(
           JSON.stringify({

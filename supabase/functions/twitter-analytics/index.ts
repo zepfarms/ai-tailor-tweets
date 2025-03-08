@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { createHash, createHmac } from "https://deno.land/std@0.190.0/crypto/mod.ts";
@@ -7,6 +6,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
+const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +20,7 @@ serve(async (req) => {
 
   try {
     console.log("Twitter analytics function called");
+    console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
     
     const { username, userId } = await req.json();
     
@@ -31,13 +32,14 @@ serve(async (req) => {
     
     let xUsername = username;
     let accessToken = null;
+    let bearerToken = TWITTER_BEARER_TOKEN;
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     if (userId && !username) {
       const { data: xAccount, error: xAccountError } = await supabase
         .from('x_accounts')
-        .select('x_username, access_token')
+        .select('x_username, access_token, bearer_token')
         .eq('user_id', userId)
         .single();
       
@@ -48,29 +50,40 @@ serve(async (req) => {
       
       xUsername = xAccount.x_username;
       accessToken = xAccount.access_token;
+      if (xAccount.bearer_token) {
+        bearerToken = xAccount.bearer_token;
+      }
       console.log("X username found for user:", xUsername);
+      console.log("Using access token:", !!accessToken);
+      console.log("Using bearer token:", !!bearerToken);
     } else if (username) {
       const { data: xAccount, error: xAccountError } = await supabase
         .from('x_accounts')
-        .select('access_token')
+        .select('access_token, bearer_token')
         .eq('x_username', username)
         .maybeSingle();
       
       if (!xAccountError && xAccount) {
         accessToken = xAccount.access_token;
-        console.log("Found access token for username:", username);
+        if (xAccount.bearer_token) {
+          bearerToken = xAccount.bearer_token;
+        }
+        console.log("Found tokens for username:", username);
+        console.log("Using access token:", !!accessToken);
+        console.log("Using bearer token:", !!bearerToken);
       }
     }
     
     let analyticsData;
     
-    if (accessToken) {
-      console.log("Using access token to fetch real analytics data");
+    if (accessToken || bearerToken) {
+      console.log("Using tokens to fetch real analytics data");
       
       try {
+        const authToken = accessToken || bearerToken;
         const userResponse = await fetch(`https://api.twitter.com/2/users/by/username/${xUsername}?user.fields=public_metrics,profile_image_url`, {
           headers: {
-            "Authorization": `Bearer ${accessToken}`
+            "Authorization": `Bearer ${authToken}`
           }
         });
         
@@ -92,7 +105,7 @@ serve(async (req) => {
           `https://api.twitter.com/2/users/${userId}/tweets?max_results=100&tweet.fields=public_metrics,created_at&expansions=attachments.media_keys&media.fields=type,url`,
           {
             headers: {
-              "Authorization": `Bearer ${accessToken}`
+              "Authorization": `Bearer ${authToken}`
             }
           }
         );
@@ -193,7 +206,7 @@ serve(async (req) => {
         analyticsData = generateMockAnalyticsData(xUsername);
       }
     } else {
-      console.log("No access token available, using mock data");
+      console.log("No tokens available, using mock data");
       analyticsData = generateMockAnalyticsData(xUsername);
     }
 
@@ -202,7 +215,7 @@ serve(async (req) => {
         success: true,
         data: analyticsData,
         username: xUsername,
-        usingRealData: !!accessToken
+        usingRealData: !!(accessToken || bearerToken)
       }),
       {
         headers: {
