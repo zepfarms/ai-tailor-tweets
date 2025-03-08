@@ -262,29 +262,49 @@ serve(async (req) => {
       throw new Error("Invalid response from Twitter user endpoint");
     }
 
-    // Store user tokens for future use
+    // Store user tokens for future use - both in x_accounts for backward compatibility
+    // and in user_tokens for the new structure
     try {
       console.log("Storing user token in database");
       
-      // Check if x_accounts table exists, if not we'll store just the token
-      const { error: storeTokenError } = await supabase
+      // First, try to store in x_accounts for backward compatibility
+      const { error: storeXAccountError } = await supabase
         .from('x_accounts')
         .upsert({
           user_id: userId,
           x_username: userData.data?.username,
           x_user_id: userData.data?.id,
           access_token: tokenData.access_token,
+          access_token_secret: 'oauth2', // Just a marker that this is OAuth 2.0
+          profile_image_url: userData.data?.profile_image_url,
+          created_at: new Date().toISOString()
+        });
+        
+      if (storeXAccountError) {
+        console.error("Error storing X account info:", storeXAccountError);
+        // Continue anyway as we'll try the new user_tokens table
+      } else {
+        console.log("Successfully stored X account info in x_accounts table");
+      }
+      
+      // Now, store in the user_tokens table for the new structure
+      const { error: storeTokenError } = await supabase
+        .from('user_tokens')
+        .upsert({
+          user_id: userId,
+          provider: 'twitter',
+          access_token: tokenData.access_token,
           refresh_token: tokenData.refresh_token || null,
           expires_at: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000).toISOString(),
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
         
       if (storeTokenError) {
-        console.error("Error storing X account info:", storeTokenError);
-        // If x_accounts table doesn't exist, we'll just return the token without storing it
-        console.log("Unable to store token, will return to client anyway");
+        console.error("Error storing token in user_tokens:", storeTokenError);
+        // If this fails too, log but continue as we still have success in one table
       } else {
-        console.log("Successfully stored X account info in database");
+        console.log("Successfully stored token in user_tokens table");
       }
     } catch (storeError) {
       console.error("Error storing token:", storeError);
