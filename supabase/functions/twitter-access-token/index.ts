@@ -108,7 +108,8 @@ serve(async (req) => {
       data: oauthData ? {
         state: oauthData.state,
         provider: oauthData.provider,
-        created_at: oauthData.created_at
+        created_at: oauthData.created_at,
+        code_verifier: oauthData.code_verifier ? "[REDACTED]" : null
       } : null
     });
     
@@ -121,19 +122,6 @@ serve(async (req) => {
       
     console.log("10 most recent states in database:", allRecentStates || "None or error");
     if (recentStatesError) console.error("Error fetching recent states:", recentStatesError);
-    
-    // Extra debugging: try to find the exact state without the provider filter
-    const { data: stateOnly, error: stateOnlyError } = await supabase
-      .from('oauth_states')
-      .select('state, provider, created_at, user_id')
-      .eq('state', state)
-      .maybeSingle();
-      
-    console.log("State-only query result:", { 
-      found: !!stateOnly, 
-      error: stateOnlyError,
-      data: stateOnly
-    });
     
     if (oauthError) {
       console.error("Error retrieving OAuth state:", oauthError);
@@ -151,16 +139,6 @@ serve(async (req) => {
     
     if (!oauthData) {
       console.error("No matching OAuth state found for:", state);
-      // Check if there are any state entries at all
-      const { data: allStates, error: listError } = await supabase
-        .from('oauth_states')
-        .select('state, created_at, provider')
-        .order('created_at', { ascending: false })
-        .limit(5);
-        
-      console.log("Recent states in database:", allStates || "None or error");
-      if (listError) console.error("Error listing states:", listError);
-      
       // Try to see if the state exists with a different provider
       const { data: stateWithAnyProvider, error: anyProviderError } = await supabase
         .from('oauth_states')
@@ -178,7 +156,7 @@ serve(async (req) => {
         JSON.stringify({ 
           error: "Invalid or expired state parameter", 
           details: "The state parameter provided doesn't match any stored OAuth state",
-          recentStates: allStates ? allStates.map(s => ({
+          recentStates: allRecentStates ? allRecentStates.map(s => ({
             statePrefixStored: s.state.substring(0, 8),
             provider: s.provider,
             created: s.created_at
@@ -213,8 +191,9 @@ serve(async (req) => {
 
     console.log("Token request parameters:", tokenRequestBody.toString());
     
-    // Use btoa() for Base64 encoding of client credentials
-    const encodedCredentials = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
+    // Create base64 encoded credentials string
+    const credentials = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
+    const encodedCredentials = btoa(credentials);
     
     console.log("Authorization credentials prepared");
     console.log("Encoded credentials length:", encodedCredentials.length);
@@ -230,7 +209,7 @@ serve(async (req) => {
           "Content-Type": "application/x-www-form-urlencoded",
           "Authorization": `Basic ${encodedCredentials}`,
         },
-        body: tokenRequestBody,
+        body: tokenRequestBody.toString(),
       });
       
       console.log("Token response status:", tokenResponse.status);
@@ -240,49 +219,24 @@ serve(async (req) => {
       
       if (!tokenResponse.ok) {
         console.error("Token response error text:", responseText);
-        
-        // Try alternative method with client_id and client_secret in body
-        console.log("Trying alternative method with credentials in body");
-        
-        const alternativeRequestBody = new URLSearchParams({
-          code,
-          grant_type: "authorization_code",
-          redirect_uri: TWITTER_CALLBACK_URL,
-          code_verifier: codeVerifier,
-          client_id: TWITTER_CLIENT_ID,
-          client_secret: TWITTER_CLIENT_SECRET,
-        });
-        
-        tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: alternativeRequestBody,
-        });
-        
-        console.log("Alternative token response status:", tokenResponse.status);
-        
-        const altResponseText = await tokenResponse.text();
-        console.log("Alternative token response body:", altResponseText);
-        
-        if (!tokenResponse.ok) {
-          throw new Error(`Failed to exchange code for token: HTTP ${tokenResponse.status} - ${altResponseText}`);
-        }
-        
-        try {
-          tokenData = JSON.parse(altResponseText);
-        } catch (parseError) {
-          console.error("Error parsing alternative token response:", parseError);
-          throw new Error("Invalid response from Twitter token endpoint (alternative method)");
-        }
-      } else {
-        try {
-          tokenData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error("Error parsing token response:", parseError);
-          throw new Error("Invalid response from Twitter token endpoint");
-        }
+        return new Response(
+          JSON.stringify({ 
+            error: "Failed to exchange code for token", 
+            details: responseText,
+            status: tokenResponse.status
+          }),
+          { 
+            status: 500, 
+            headers: { "Content-Type": "application/json", ...corsHeaders } 
+          }
+        );
+      }
+      
+      try {
+        tokenData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Error parsing token response:", parseError);
+        throw new Error("Invalid response from Twitter token endpoint");
       }
       
       console.log("Token response received:", !!tokenData);
@@ -346,187 +300,26 @@ serve(async (req) => {
       .delete()
       .eq('state', state);
 
-    // Process the user data based on whether this is a login or account linking
-    if (userData.data) {
-      if (isLogin) {
-        // This is a login request, check if we have an account with this X user ID
-        console.log("Handling X login flow for user:", userData.data.username);
-        
-        const { data: existingAccount, error: lookupError } = await supabase
-          .from("x_accounts")
-          .select("user_id, x_username")
-          .eq("x_user_id", userData.data.id)
-          .single();
-          
-        if (lookupError && lookupError.code !== "PGRST116") { // PGRST116 is "no rows returned" error
-          console.error("Error looking up X account:", lookupError);
-          throw new Error("Failed to check for existing X account");
+    // Return the user data and token information
+    return new Response(
+      JSON.stringify({
+        success: true,
+        username: userData.data?.username,
+        userId: userData.data?.id,
+        tokenInfo: {
+          access_token_available: !!tokenData.access_token,
+          token_type: tokenData.token_type,
+          expires_in: tokenData.expires_in
         }
-        
-        if (existingAccount) {
-          // User already has an account, log them in
-          console.log("Existing account found for X user:", existingAccount.x_username);
-          console.log("Associated user ID:", existingAccount.user_id);
-          
-          // Update the token for the existing account
-          const { error: updateError } = await supabase.from("x_accounts").update({
-            access_token: tokenData.access_token,
-            access_token_secret: tokenData.refresh_token || "",
-            profile_image_url: userData.data.profile_image_url,
-            bearer_token: TWITTER_BEARER_TOKEN || null,
-          }).eq("x_user_id", userData.data.id);
-          
-          if (updateError) {
-            console.error("Error updating X account tokens:", updateError);
-            // Continue anyway as this isn't critical for login
-          }
-          
-          // Create a custom auth token for this user
-          const { data: authData, error: authError } = await supabase.auth.admin.generateLink({
-            type: 'magiclink',
-            email: `x_${userData.data.id}@placeholder.com`,
-            options: {
-              // Create or update user data
-              data: {
-                x_user_id: userData.data.id,
-                x_username: userData.data.username,
-                name: userData.data.username
-              }
-            }
-          });
-          
-          if (authError) {
-            console.error("Error generating auth token:", authError);
-            throw new Error("Failed to authenticate with X account");
-          }
-            
-          return new Response(
-            JSON.stringify({
-              success: true,
-              action: "login",
-              username: userData.data.username,
-              user_id: existingAccount.user_id,
-              token: authData.properties.action_link
-            }),
-            {
-              headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders,
-              },
-            }
-          );
-        } else {
-          // No existing account, create a new user
-          console.log("No existing account found, creating new user for:", userData.data.username);
-          
-          // Create a new auth user
-          const { data: newUserData, error: userCreateError } = await supabase.auth.admin.createUser({
-            email: `x_${userData.data.id}@placeholder.com`,
-            email_confirm: true,
-            user_metadata: {
-              x_user_id: userData.data.id,
-              x_username: userData.data.username,
-              name: userData.data.username
-            }
-          });
-          
-          if (userCreateError) {
-            console.error("Error creating new user:", userCreateError);
-            throw new Error("Failed to create new user account");
-          }
-          
-          const newUserId = newUserData.user.id;
-          
-          // Store the Twitter account information
-          console.log("Storing X account information for new user:", newUserId);
-          const { error: upsertError } = await supabase.from("x_accounts").upsert({
-            user_id: newUserId,
-            x_user_id: userData.data.id,
-            x_username: userData.data.username,
-            profile_image_url: userData.data.profile_image_url,
-            access_token: tokenData.access_token,
-            access_token_secret: tokenData.refresh_token || "",
-            bearer_token: TWITTER_BEARER_TOKEN || null,
-          });
-
-          if (upsertError) {
-            console.error("Error storing Twitter account:", upsertError);
-            // Not critical for continuing, but should be logged
-          }
-          
-          // Generate login token for the new user
-          const { data: authData, error: authError } = await supabase.auth.admin.generateLink({
-            type: 'magiclink',
-            email: `x_${userData.data.id}@placeholder.com`,
-            options: {
-              // Create or update user data
-              data: {
-                x_user_id: userData.data.id,
-                x_username: userData.data.username,
-                name: userData.data.username
-              }
-            }
-          });
-          
-          if (authError) {
-            console.error("Error generating auth token:", authError);
-            throw new Error("Failed to authenticate with X account");
-          }
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              action: "signup",
-              username: userData.data.username,
-              user_id: newUserId,
-              token: authData.properties.action_link
-            }),
-            {
-              headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders,
-              },
-            }
-          );
-        }
-      } else {
-        // This is just an account linking request
-        console.log("Linking X account for existing user:", userId);
-        
-        // Store the Twitter account information in the database
-        console.log("Storing X account information");
-        const { error: upsertError } = await supabase.from("x_accounts").upsert({
-          user_id: userId,
-          x_user_id: userData.data.id,
-          x_username: userData.data.username,
-          profile_image_url: userData.data.profile_image_url,
-          access_token: tokenData.access_token,
-          access_token_secret: tokenData.refresh_token || "",
-          bearer_token: TWITTER_BEARER_TOKEN || null,
-        });
-
-        if (upsertError) {
-          console.error("Error storing Twitter account:", upsertError);
-          throw new Error("Failed to store Twitter account");
-        }
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            action: "link",
-            username: userData.data.username,
-          }),
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          }
-        );
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
       }
-    } else {
-      throw new Error("Failed to fetch Twitter user data");
-    }
+    );
+    
   } catch (error) {
     console.error("Error:", error);
     return new Response(

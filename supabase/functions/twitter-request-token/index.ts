@@ -71,11 +71,11 @@ serve(async (req) => {
     const state = crypto.randomUUID();
     console.log("⭐⭐⭐ Generated state:", state);
     
-    // Use simpler code verifier/challenge for now
-    const codeVerifier = "challenge_verifier_" + state;
-    const codeChallenge = "challenge_" + state;
-    console.log("Generated simplified code_verifier:", codeVerifier);
-    console.log("Generated simplified code_challenge:", codeChallenge);
+    // Use the same value for verifier and challenge with plain method
+    const codeVerifier = `verifier_${state}`;
+    const codeChallenge = codeVerifier; // For plain method, they must match exactly
+    console.log("Generated code_verifier:", codeVerifier);
+    console.log("Generated code_challenge:", codeChallenge);
     
     // Create Supabase client
     let supabase;
