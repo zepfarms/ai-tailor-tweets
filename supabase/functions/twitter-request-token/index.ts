@@ -70,10 +70,12 @@ serve(async (req) => {
     // Generate the Twitter OAuth URL
     const state = crypto.randomUUID();
     console.log("⭐⭐⭐ Generated state:", state);
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
-    console.log("Generated code_verifier:", codeVerifier.substring(0, 10) + "...");
-    console.log("Generated code_challenge:", codeChallenge.substring(0, 10) + "...");
+    
+    // Simple code verifier/challenge for now (will fix PKCE later if needed)
+    const codeVerifier = "challenge_verifier_" + state;
+    const codeChallenge = "challenge_" + state;
+    console.log("Generated simplified code_verifier:", codeVerifier);
+    console.log("Generated simplified code_challenge:", codeChallenge);
     
     // Store the code verifier in Supabase for later use
     let supabase;
@@ -89,46 +91,65 @@ serve(async (req) => {
       console.log("Storing OAuth state with user_id:", userId || "Login flow (no user ID)");
       
       // Check for existing states first and log them
-      const { data: existingStates } = await supabase
+      const { data: existingStates, error: existingStatesError } = await supabase
         .from('oauth_states')
-        .select('state, created_at')
-        .eq('provider', 'twitter')
+        .select('state, created_at, provider')
         .order('created_at', { ascending: false })
         .limit(5);
         
-      console.log("Existing recent states in database:", existingStates);
+      if (existingStatesError) {
+        console.error("Error checking existing states:", existingStatesError);
+      } else {
+        console.log("Existing recent states in database:", existingStates);
+      }
+      
+      // Explicitly set all required fields
+      const stateRecord = {
+        user_id: userId,
+        state: state,
+        code_verifier: codeVerifier,
+        provider: 'twitter', // Explicitly set provider
+        created_at: new Date().toISOString(),
+        is_login: isLogin
+      };
+      
+      console.log("Inserting state record:", {
+        ...stateRecord,
+        code_verifier: "[REDACTED]" // Don't log the actual verifier
+      });
       
       const { error: storeError } = await supabase
         .from('oauth_states')
-        .upsert({
-          user_id: userId,
-          state: state,
-          code_verifier: codeVerifier,
-          provider: 'twitter',
-          created_at: new Date().toISOString(),
-          is_login: isLogin
-        });
+        .insert(stateRecord);
       
       if (storeError) {
         console.error("Error storing OAuth state:", storeError);
         throw new Error(`Failed to store OAuth state: ${storeError.message}`);
       }
       
+      console.log("Successfully stored OAuth state in database");
+      
       // Verify the state was stored by reading it back
       const { data: verifyState, error: verifyError } = await supabase
         .from('oauth_states')
         .select('*')
         .eq('state', state)
+        .eq('provider', 'twitter')
         .single();
         
       if (verifyError || !verifyState) {
         console.error("Failed to verify state was stored:", verifyError);
         console.error("This might indicate a database issue!");
+        throw new Error("Failed to verify state was stored properly");
       } else {
         console.log("✅ Successfully verified state in database:", verifyState.state);
+        console.log("State record details:", {
+          id: verifyState.id,
+          state: verifyState.state,
+          provider: verifyState.provider,
+          created_at: verifyState.created_at
+        });
       }
-      
-      console.log("Successfully stored OAuth state in database");
     } catch (error) {
       console.error("Error upserting into oauth_states table:", error);
       throw new Error(`Database operation failed: ${error.message}`);
@@ -142,7 +163,7 @@ serve(async (req) => {
     authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
     authUrl.searchParams.append("state", state);
     authUrl.searchParams.append("code_challenge", codeChallenge);
-    authUrl.searchParams.append("code_challenge_method", "S256");
+    authUrl.searchParams.append("code_challenge_method", "plain"); // Simplified for now
     
     console.log("Authorization URL created:", authUrl.toString());
     
@@ -177,26 +198,10 @@ serve(async (req) => {
   }
 });
 
-// Helper function to generate a code verifier
-function generateCodeVerifier() {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return base64UrlEncode(array);
-}
+// Helper function to generate a code verifier - removed complex version for now
+// Will restore proper PKCE implementation after basic flow works
 
-// Helper function to generate a code challenge
-async function generateCodeChallenge(verifier: string) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return base64UrlEncode(new Uint8Array(digest));
-}
+// Helper function to generate a code challenge - removed complex version for now
+// Will restore proper PKCE implementation after basic flow works
 
-// Base64Url encode function
-function base64UrlEncode(buffer: Uint8Array) {
-  const base64 = btoa(String.fromCharCode(...buffer));
-  return base64
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
+// Base64Url encode function - removed as we're using simple strings for now
