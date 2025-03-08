@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 interface CreateSessionParams {
@@ -65,7 +66,7 @@ export async function getSubscriptionFromDatabase(userId: string) {
     
     const { data, error } = await supabase.rpc(
       'get_user_subscription', 
-      { user_id_param: userId } as { user_id_param: string }
+      { user_id_param: userId }
     );
     
     if (error) {

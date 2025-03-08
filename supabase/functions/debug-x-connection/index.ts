@@ -52,10 +52,10 @@ serve(async (req) => {
       };
     }
 
-    // Test connectivity to Twitter
+    // Test connectivity to Twitter - Fixed to use GET instead of HEAD
     try {
       const twitterResponse = await fetch("https://api.twitter.com/2/openapi.json", {
-        method: "HEAD",
+        method: "GET", // Changed from HEAD to GET
       });
       
       debugInfo.connectivity = {
@@ -71,7 +71,7 @@ serve(async (req) => {
       };
     }
 
-    // Test client credentials flow
+    // Test client credentials flow - Fixed to properly encode client credentials
     try {
       if (TWITTER_CLIENT_ID && TWITTER_CLIENT_SECRET) {
         const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
@@ -84,7 +84,9 @@ serve(async (req) => {
           },
           body: new URLSearchParams({
             grant_type: "client_credentials",
-          }),
+            client_id: TWITTER_CLIENT_ID,
+            client_secret: TWITTER_CLIENT_SECRET
+          }).toString(),
         });
         
         const responseBody = await tokenResponse.text();

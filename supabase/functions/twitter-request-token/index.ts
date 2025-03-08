@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
-const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://postedpal.com/x-callback";
+const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -43,6 +43,8 @@ serve(async (req) => {
     }
     
     console.log("All required environment variables are set");
+    console.log("Client ID:", TWITTER_CLIENT_ID.substring(0, 4) + "..." + TWITTER_CLIENT_ID.substring(TWITTER_CLIENT_ID.length - 4));
+    console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     console.log("Callback URL:", TWITTER_CALLBACK_URL);
     
     // Get the userId from the request body
@@ -102,7 +104,7 @@ serve(async (req) => {
     }
     
     // Create X.com authorization URL using URL constructor for proper encoding
-    const authUrl = new URL("https://x.com/i/oauth2/authorize");
+    const authUrl = new URL("https://twitter.com/i/oauth2/authorize"); // Changed from x.com to twitter.com
     authUrl.searchParams.append("response_type", "code");
     authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
     authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
