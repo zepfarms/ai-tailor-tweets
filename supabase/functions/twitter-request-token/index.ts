@@ -71,13 +71,13 @@ serve(async (req) => {
     const state = crypto.randomUUID();
     console.log("⭐⭐⭐ Generated state:", state);
     
-    // Simple code verifier/challenge for now (will fix PKCE later if needed)
+    // Use simpler code verifier/challenge for now
     const codeVerifier = "challenge_verifier_" + state;
     const codeChallenge = "challenge_" + state;
     console.log("Generated simplified code_verifier:", codeVerifier);
     console.log("Generated simplified code_challenge:", codeChallenge);
     
-    // Store the code verifier in Supabase for later use
+    // Create Supabase client
     let supabase;
     try {
       supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -93,7 +93,8 @@ serve(async (req) => {
       // Check for existing states first and log them
       const { data: existingStates, error: existingStatesError } = await supabase
         .from('oauth_states')
-        .select('state, created_at, provider')
+        .select('state, created_at')
+        .eq('provider', 'twitter')
         .order('created_at', { ascending: false })
         .limit(5);
         
@@ -103,9 +104,9 @@ serve(async (req) => {
         console.log("Existing recent states in database:", existingStates);
       }
       
-      // Explicitly set all required fields
+      // Explicitly set all required fields including provider
       const stateRecord = {
-        user_id: userId,
+        user_id: userId || '00000000-0000-0000-0000-000000000000',
         state: state,
         code_verifier: codeVerifier,
         provider: 'twitter', // Explicitly set provider
@@ -150,6 +151,18 @@ serve(async (req) => {
           created_at: verifyState.created_at
         });
       }
+      
+      // Double-check by fetching again with different query method
+      const { data: doubleCheck, error: doubleCheckError } = await supabase
+        .from('oauth_states')
+        .select('state, provider')
+        .eq('state', state);
+        
+      console.log("Double-check query results:", { 
+        data: doubleCheck, 
+        count: doubleCheck?.length,
+        error: doubleCheckError 
+      });
     } catch (error) {
       console.error("Error upserting into oauth_states table:", error);
       throw new Error(`Database operation failed: ${error.message}`);
@@ -197,11 +210,3 @@ serve(async (req) => {
     );
   }
 });
-
-// Helper function to generate a code verifier - removed complex version for now
-// Will restore proper PKCE implementation after basic flow works
-
-// Helper function to generate a code challenge - removed complex version for now
-// Will restore proper PKCE implementation after basic flow works
-
-// Base64Url encode function - removed as we're using simple strings for now

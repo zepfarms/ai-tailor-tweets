@@ -49,12 +49,16 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         throw new Error('Received invalid response from authorization service');
       }
       
-      console.log('Received auth URL, redirecting to X:', data.authUrl.substring(0, 100) + '...');
+      console.log('Received auth URL:', data.authUrl.substring(0, 100) + '...');
+      console.log('State from response:', data.state);
       
       // Store the state in localStorage so we can verify it on return
       if (data.state) {
         localStorage.setItem('x_auth_state', data.state);
-        console.log('Stored state for verification:', data.state);
+        console.log('Stored state in localStorage for verification:', data.state);
+      } else {
+        console.error('No state returned from authorization service');
+        throw new Error('Authentication failed: No state returned from service');
       }
       
       // Redirect to Twitter/X for authorization
