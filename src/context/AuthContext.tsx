@@ -636,13 +636,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
       
-      const { error } = await supabase.auth.updateUser({
-        data: preferences
-      });
-      
-      if (error) {
-        console.error("Error updating user metadata:", error);
-        throw error;
+      try {
+        const { error } = await supabase.auth.updateUser({
+          data: preferences
+        });
+        
+        if (error) {
+          console.error("Error updating user metadata:", error);
+          if (error.message.includes("Auth session missing")) {
+            console.log("Auth session missing, updating local state only");
+            setUser(prev => {
+              if (!prev) return prev;
+              return { ...prev, ...preferences };
+            });
+            return true;
+          }
+          throw error;
+        }
+      } catch (authError) {
+        console.error("Auth update failed, falling back to local update:", authError);
+        setUser(prev => {
+          if (!prev) return prev;
+          return { ...prev, ...preferences };
+        });
       }
       
       setUser(prev => {

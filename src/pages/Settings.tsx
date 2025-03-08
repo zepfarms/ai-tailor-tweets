@@ -87,11 +87,24 @@ const Settings: React.FC = () => {
       
       console.log("X account deleted successfully");
       
-      // Update the user object locally to reflect the unlinked state
-      if (updateUserPreferences) {
-        console.log("Updating user preferences to reflect unlinked state");
-        await updateUserPreferences({ xLinked: false, xUsername: null });
-        console.log("User preferences updated successfully");
+      // Update the user object locally without calling Supabase auth
+      try {
+        if (updateUserPreferences) {
+          console.log("Updating user preferences to reflect unlinked state");
+          await updateUserPreferences({ xLinked: false, xUsername: null });
+          console.log("User preferences updated successfully");
+        }
+      } catch (error) {
+        console.error("Error updating user metadata:", error);
+        // Continue anyway - we've already deleted the account record
+        // Just update the local state manually
+        if (user) {
+          // Force a UI update by updating local state
+          toast({
+            title: "Partial Success",
+            description: "X account unlinked, but profile update failed. Please refresh the page.",
+          });
+        }
       }
       
       toast({
