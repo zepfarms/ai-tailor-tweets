@@ -53,6 +53,7 @@ serve(async (req) => {
     const { code, state } = requestData;
     
     console.log("Request data:", { codeProvided: !!code, state });
+    console.log("Received state from callback:", state);
     
     if (!code) {
       throw new Error("Authorization code is required");
@@ -72,17 +73,57 @@ serve(async (req) => {
       throw new Error("Failed to connect to Supabase");
     }
     
-    // Retrieve the stored OAuth state
+    // Retrieve the stored OAuth state using maybeSingle instead of single to avoid errors
     const { data: oauthData, error: oauthError } = await supabase
       .from('oauth_states')
       .select('*')
       .eq('state', state)
       .eq('provider', 'twitter')
-      .single();
+      .maybeSingle();
     
-    if (oauthError || !oauthData) {
+    console.log("OAuth state query result:", { dataFound: !!oauthData, error: oauthError });
+    
+    if (oauthError) {
       console.error("Error retrieving OAuth state:", oauthError);
-      throw new Error("Invalid state parameter");
+      return new Response(
+        JSON.stringify({ 
+          error: "Database error when retrieving OAuth state",
+          details: oauthError 
+        }),
+        { 
+          status: 500, 
+          headers: { "Content-Type": "application/json", ...corsHeaders } 
+        }
+      );
+    }
+    
+    if (!oauthData) {
+      console.error("No matching OAuth state found for:", state);
+      // Check if there are any state entries at all
+      const { data: allStates, error: listError } = await supabase
+        .from('oauth_states')
+        .select('state, created_at')
+        .eq('provider', 'twitter')
+        .limit(5);
+        
+      console.log("Recent states in database:", allStates || "None or error");
+      if (listError) console.error("Error listing states:", listError);
+      
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid or expired state parameter", 
+          details: "The state parameter provided doesn't match any stored OAuth state",
+          recentStates: allStates ? allStates.map(s => ({
+            statePrefixStored: s.state.substring(0, 8),
+            created: s.created_at
+          })) : null,
+          stateReceived: state.substring(0, 8) + "..." 
+        }),
+        { 
+          status: 400, 
+          headers: { "Content-Type": "application/json", ...corsHeaders } 
+        }
+      );
     }
     
     const userId = oauthData.user_id;
