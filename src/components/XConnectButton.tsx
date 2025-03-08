@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Link } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 interface XConnectButtonProps {
@@ -37,21 +37,15 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         description: "You'll be redirected to X for authorization...",
       });
       
-      // Add a small delay to allow the toast to show before redirect
-      setTimeout(async () => {
-        try {
-          await linkXAccount();
-          // Don't need to reset isConnecting as we're redirecting away
-        } catch (delayedError) {
-          console.error('Error connecting to X after delay:', delayedError);
-          toast({
-            title: "Connection Error",
-            description: delayedError instanceof Error ? delayedError.message : "Failed to connect to X",
-            variant: "destructive"
-          });
-          setIsConnecting(false);
-        }
-      }, 1000);
+      // Directly call linkXAccount without delay - simplify the process
+      await linkXAccount();
+      // If we get here, that means the redirect didn't happen, so show error
+      toast({
+        title: "Connection Error",
+        description: "Failed to redirect to X authentication page",
+        variant: "destructive"
+      });
+      setIsConnecting(false);
     } catch (error) {
       console.error('Error connecting to X:', error);
       toast({

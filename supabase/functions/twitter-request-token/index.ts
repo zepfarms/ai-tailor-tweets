@@ -42,7 +42,7 @@ serve(async (req) => {
     
     console.log("Environment variables are properly set");
     console.log("Callback URL:", TWITTER_CALLBACK_URL);
-    console.log("Client ID first chars:", TWITTER_CLIENT_ID.substring(0, 4) + "...");
+    console.log("Client ID:", TWITTER_CLIENT_ID.substring(0, 4) + "...");
     console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     
     // Get the userId from the request body and determine if this is for login
@@ -109,10 +109,9 @@ serve(async (req) => {
       throw new Error(`Database operation failed: ${error.message}`);
     }
     
-    // Try both domains for X authentication
-    try {
-      // Try X domain first (newer)
-      let authUrl = new URL("https://x.com/i/oauth2/authorize");
+    // Use a single function for creating the auth URL
+    function createAuthUrl(domain) {
+      const authUrl = new URL(`https://${domain}/i/oauth2/authorize`);
       authUrl.searchParams.append("response_type", "code");
       authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
       authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
@@ -120,10 +119,14 @@ serve(async (req) => {
       authUrl.searchParams.append("state", state);
       authUrl.searchParams.append("code_challenge", codeChallenge);
       authUrl.searchParams.append("code_challenge_method", "S256");
-      
+      return authUrl;
+    }
+    
+    // Try to create x.com URL first, then twitter.com as fallback
+    try {
+      const authUrl = createAuthUrl("x.com");
       console.log("Authorization URL created (X domain):", authUrl.toString());
-
-      // Return the authorization URL to the client
+      
       return new Response(
         JSON.stringify({
           authUrl: authUrl.toString(),
@@ -138,21 +141,11 @@ serve(async (req) => {
         }
       );
     } catch (error) {
-      console.error("Error creating authorization URL:", error);
-      
-      // Try Twitter domain as fallback
+      console.error("Error using x.com domain, trying twitter.com instead:", error);
       try {
-        let authUrl = new URL("https://twitter.com/i/oauth2/authorize");
-        authUrl.searchParams.append("response_type", "code");
-        authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-        authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
-        authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
-        authUrl.searchParams.append("state", state);
-        authUrl.searchParams.append("code_challenge", codeChallenge);
-        authUrl.searchParams.append("code_challenge_method", "S256");
-        
+        const authUrl = createAuthUrl("twitter.com");
         console.log("Authorization URL created (Twitter domain fallback):", authUrl.toString());
-
+        
         return new Response(
           JSON.stringify({
             authUrl: authUrl.toString(),
