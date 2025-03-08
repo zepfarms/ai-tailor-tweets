@@ -38,6 +38,7 @@ serve(async (req) => {
     console.log("Content:", content ? "Provided" : "Not provided");
     if (media) {
       console.log("Media included:", media.length, "items");
+      console.log("Media type:", media[0]?.type);
     }
     
     // Create Supabase client
@@ -90,14 +91,21 @@ serve(async (req) => {
     if (media && media.length > 0) {
       console.log("Processing media for upload to Twitter");
       try {
-        mediaIds = await Promise.all(media.map(async (item: any) => {
+        for (const item of media) {
           if (!item.data) {
             throw new Error("Media data is missing");
           }
-          return await uploadMediaToTwitterV1(item, userData.access_token, userData.access_token_secret || "");
-        }));
+          
+          const mediaId = await uploadMediaToTwitterV1(
+            item, 
+            userData.access_token, 
+            userData.access_token_secret || ""
+          );
+          
+          mediaIds.push(mediaId);
+          console.log("Successfully uploaded media ID:", mediaId);
+        }
         
-        console.log("Successfully uploaded media, IDs:", mediaIds);
         if (mediaIds.length > 0) {
           postPayload.media = { media_ids: mediaIds };
         }
@@ -108,7 +116,11 @@ serve(async (req) => {
     }
     
     // Post to X
-    console.log("Sending post with payload:", JSON.stringify(postPayload));
+    console.log("Sending post with payload:", JSON.stringify({
+      ...postPayload,
+      media: postPayload.media ? `${mediaIds.length} media items` : "none"
+    }));
+    
     const postResponse = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
       headers: {
@@ -241,8 +253,13 @@ async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, acces
   try {
     console.log("Starting media upload process for item type:", mediaItem.type);
     
-    // Step 1: Extract base64 data
+    // Step 1: Extract base64 data 
     const base64Data = mediaItem.data.split(',')[1];
+    
+    if (!base64Data) {
+      throw new Error("Invalid media data format");
+    }
+    
     const binaryData = atob(base64Data);
     
     // Convert to Uint8Array
@@ -275,7 +292,7 @@ async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, acces
     combinedBuffer.set(uint8Array, headerBuffer.length);
     combinedBuffer.set(footerBuffer, headerBuffer.length + uint8Array.length);
     
-    console.log("Uploading media with size:", uint8Array.length, "bytes");
+    console.log(`Uploading media: ${mediaItem.type}, size: ${uint8Array.length} bytes`);
     
     // Generate OAuth header for the request
     const oauthHeader = generateOAuthHeader(
@@ -298,9 +315,20 @@ async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, acces
     });
     
     if (!uploadResponse.ok) {
-      const errorData = await uploadResponse.text();
-      console.error("Media upload error:", errorData);
-      throw new Error(`Failed to upload media: ${errorData}`);
+      const errorText = await uploadResponse.text();
+      console.error("Media upload error response:", errorText);
+      console.error("Status:", uploadResponse.status);
+      console.error("Status text:", uploadResponse.statusText);
+      
+      let errorMessage = "Failed to upload media";
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error || errorData.errors?.[0]?.message || errorMessage;
+      } catch (e) {
+        errorMessage = `${errorMessage}: ${errorText}`;
+      }
+      
+      throw new Error(errorMessage);
     }
     
     const mediaData = await uploadResponse.json();
