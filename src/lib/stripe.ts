@@ -61,7 +61,9 @@ export async function getSubscriptionFromDatabase(userId: string) {
     console.log(`Directly checking database subscription for user ${userId}`);
     
     // Use a direct RPC call instead of table access to avoid type issues
-    const { data, error } = await supabase.rpc('get_user_subscription', { user_id_param: userId });
+    const { data, error } = await supabase.rpc('get_user_subscription', { 
+      user_id_param: userId 
+    });
     
     if (error) {
       console.error('Error in RPC call:', error);
@@ -69,8 +71,12 @@ export async function getSubscriptionFromDatabase(userId: string) {
     }
     
     console.log('Database subscription result:', data);
+    
+    // Check if data exists and has a status property before accessing it
+    const hasActiveSubscription = data && typeof data === 'object' && 'status' in data && data.status === 'active';
+    
     return { 
-      hasActiveSubscription: data && data.status === 'active', 
+      hasActiveSubscription, 
       subscription: data 
     };
   } catch (error) {

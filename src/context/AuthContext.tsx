@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType, PostToXData } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { checkSubscriptionStatus } from '@/lib/stripe';
+import { checkSubscriptionStatus, getSubscriptionFromDatabase } from '@/lib/stripe';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -40,19 +40,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           setUser(appUser);
 
-          // Check subscription status with multiple fallbacks
           if (authUser.email === 'zepfarms@gmail.com' || appUser.email === 'demo@postedpal.com') {
             console.log('Master/demo user detected, setting subscription to true');
             setHasSubscription(true);
           } else {
             try {
-              // First try database lookup (faster)
               const dbResult = await getSubscriptionFromDatabase(authUser.id);
               if (dbResult.hasActiveSubscription) {
                 console.log('Found active subscription in database');
                 setHasSubscription(true);
               } else {
-                // If no subscription in database, check with the edge function
                 try {
                   const subscription = await checkSubscriptionStatus(authUser.id);
                   console.log('Subscription check result:', subscription);
@@ -144,9 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      // Handle demo account login
       if (email === 'demo@postedpal.com' && password === 'demopassword123') {
-        // Create a demo user profile without actually authenticating with Supabase
         const demoUser: User = {
           id: 'demo-user-id',
           email: 'demo@postedpal.com',
@@ -168,7 +163,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Check for master user
       if (email === 'zepfarms@gmail.com') {
         setHasSubscription(true);
       }
@@ -183,19 +177,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.user) {
         let hasActive = false;
         
-        // Special case for specific accounts
         if (email === 'zepfarms@gmail.com' || email === 'demo@postedpal.com') {
           setHasSubscription(true);
           hasActive = true;
         } else {
-          // First try database lookup (faster)
           const dbResult = await getSubscriptionFromDatabase(data.user.id);
           if (dbResult.hasActiveSubscription) {
             console.log('Found active subscription in database during login');
             setHasSubscription(true);
             hasActive = true;
           } else {
-            // If no subscription in database, check with the edge function
             try {
               const subscription = await checkSubscriptionStatus(data.user.id);
               console.log('Login subscription check result:', subscription);
@@ -267,7 +258,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      // Handle magiclink auth
       const { data, error } = await supabase.auth.signInWithOtp({
         email: magicLink
       });
@@ -637,13 +627,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateSubscriptionStatus = async () => {
     if (user?.id) {
       try {
-        // Check for master user or demo account
         if (user.email === 'zepfarms@gmail.com' || user.email === 'demo@postedpal.com' || user.isDemoAccount) {
           setHasSubscription(true);
           return true;
         }
         
-        // First try database lookup (faster)
         const dbResult = await getSubscriptionFromDatabase(user.id);
         if (dbResult.hasActiveSubscription) {
           console.log('Found active subscription in database');
@@ -651,7 +639,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return true;
         }
         
-        // If no subscription in database, check with the edge function
         try {
           const subscription = await checkSubscriptionStatus(user.id);
           console.log('Subscription update check result:', subscription);
