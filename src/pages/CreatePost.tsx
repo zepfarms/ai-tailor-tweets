@@ -53,8 +53,42 @@ const CreatePost: React.FC = () => {
     setIsPosting(true);
     
     try {
+      // Convert media previews to base64 if provided
+      const mediaData = [];
+      
+      if (mediaPreviews && mediaPreviews.length > 0) {
+        for (const previewUrl of mediaPreviews) {
+          try {
+            // Fetch the image/video file
+            const response = await fetch(previewUrl);
+            const blob = await response.blob();
+            
+            // Convert to base64
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+            
+            const base64Data = await base64Promise;
+            
+            mediaData.push({
+              data: base64Data,
+              type: blob.type,
+              size: blob.size
+            });
+          } catch (error) {
+            console.error("Error processing media file:", error);
+          }
+        }
+      }
+      
       const response = await supabase.functions.invoke('twitter-post', {
-        body: { content, userId: user?.id },
+        body: { 
+          content, 
+          userId: user?.id,
+          media: mediaData.length > 0 ? mediaData : undefined
+        },
       });
       
       if (response.error) throw new Error(response.error.message);

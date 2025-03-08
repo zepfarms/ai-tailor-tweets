@@ -20,7 +20,7 @@ export interface Post {
 }
 
 export interface MediaItem {
-  data: ArrayBuffer;
+  data: string;
   type: string;
   size: number;
 }
