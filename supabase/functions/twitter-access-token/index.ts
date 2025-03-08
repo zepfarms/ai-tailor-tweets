@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { encode } from "https://deno.land/std@0.190.0/encoding/base64.ts";
@@ -107,9 +106,8 @@ serve(async (req) => {
 
     console.log("Token request parameters:", tokenRequestBody.toString());
     
-    // Create the authorization string using btoa instead of Buffer
-    const credentials = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
-    const encodedCredentials = btoa(credentials);
+    // Fix: use btoa() instead of Buffer
+    const encodedCredentials = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
     
     console.log("Authorization credentials prepared");
     console.log("Encoded credentials length:", encodedCredentials.length);

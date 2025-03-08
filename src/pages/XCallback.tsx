@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -98,7 +97,7 @@ const XCallback: React.FC = () => {
         });
 
         console.log("Access token response:", response);
-        addLog(`Token exchange response: status=${response.status || 'unknown'}`);
+        addLog(`Token exchange response: ${response.error ? 'error' : 'success'}`);
 
         if (response.error) {
           console.error("Error processing token:", response.error);
