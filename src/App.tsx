@@ -25,7 +25,15 @@ import SubscriptionSuccess from './pages/SubscriptionSuccess';
 import './App.css';
 
 // Create a query client
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000,
+    },
+  },
+});
 
 function App() {
   return (
