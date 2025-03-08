@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -6,6 +7,7 @@ export interface User {
   xUsername?: string | null;
   useHashtags?: boolean;
   isDemoAccount?: boolean;
+  isXPremium?: boolean;
 }
 
 export interface Post {

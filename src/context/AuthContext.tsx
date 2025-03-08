@@ -628,6 +628,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Updating user preferences:", preferences);
       
+      if (user.isDemoAccount) {
+        setUser(prev => {
+          if (!prev) return prev;
+          return { ...prev, ...preferences };
+        });
+        return true;
+      }
+      
       const { error } = await supabase.auth.updateUser({
         data: preferences
       });
