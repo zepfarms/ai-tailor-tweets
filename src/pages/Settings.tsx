@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -10,12 +11,15 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
 import XConnectButton from '@/components/XConnectButton';
+import { supabase } from '@/integrations/supabase/client';
 
 const Settings: React.FC = () => {
   const { user, logout, updateUserPreferences } = useAuth();
@@ -24,6 +28,8 @@ const Settings: React.FC = () => {
   const [name, setName] = useState(user?.name || '');
   const [useHashtags, setUseHashtags] = useState(user?.useHashtags !== false);
   const [isLoading, setIsLoading] = useState(false);
+  const [xDiagnosticInfo, setXDiagnosticInfo] = useState<any>(null);
+  const [isLoadingDiagnostic, setIsLoadingDiagnostic] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -60,6 +66,32 @@ const Settings: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const runXDiagnostic = async () => {
+    setIsLoadingDiagnostic(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('debug-x-connection');
+      
+      if (error) {
+        throw error;
+      }
+      
+      setXDiagnosticInfo(data);
+      toast({
+        title: "Diagnostic Complete",
+        description: "X connection diagnostic information retrieved.",
+      });
+    } catch (error) {
+      console.error("Error running X diagnostic:", error);
+      toast({
+        title: "Diagnostic Failed",
+        description: "Failed to retrieve X connection diagnostic information.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingDiagnostic(false);
     }
   };
 
@@ -152,6 +184,140 @@ const Settings: React.FC = () => {
               variant={user?.xLinked ? 'secondary' : 'default'}
             />
           </div>
+          <Separator />
+        </div>
+
+        {/* X Connection Diagnostic Section */}
+        <div className="space-y-6 mb-10">
+          <div>
+            <h3 className="text-lg font-medium">X Connection Diagnostics</h3>
+            <p className="text-sm text-muted-foreground">
+              Test and troubleshoot your X connection configuration
+            </p>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>X API Configuration</CardTitle>
+              <CardDescription>
+                Run diagnostics to verify your X API connection settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h4 className="text-sm font-medium">Run Diagnostic Test</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Check if your X API credentials and configuration are working properly
+                  </p>
+                </div>
+                <Button 
+                  onClick={runXDiagnostic} 
+                  disabled={isLoadingDiagnostic}
+                  size="sm"
+                >
+                  {isLoadingDiagnostic ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Running...
+                    </>
+                  ) : (
+                    'Run Diagnostic'
+                  )}
+                </Button>
+              </div>
+              
+              {xDiagnosticInfo && (
+                <div className="border rounded-md p-4 bg-muted/50 space-y-3">
+                  <div>
+                    <h4 className="text-sm font-medium">Environment</h4>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="text-xs">Twitter Client ID:</div>
+                      <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterClientId ? 
+                        `✅ Present (${xDiagnosticInfo.environment?.twitterClientIdFirstFour})` : 
+                        '❌ Missing'}</div>
+                      
+                      <div className="text-xs">Twitter Client Secret:</div>
+                      <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterClientSecret ? 
+                        '✅ Present' : 
+                        '❌ Missing'}</div>
+                      
+                      <div className="text-xs">Twitter Callback URL:</div>
+                      <div className="text-xs font-mono overflow-hidden text-ellipsis">{xDiagnosticInfo.environment?.twitterCallbackUrl}</div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium">Connectivity Test</h4>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="text-xs">Can Reach Twitter API:</div>
+                      <div className="text-xs font-mono">{xDiagnosticInfo.connectivity?.canReachTwitterApi ? 
+                        '✅ Success' : 
+                        '❌ Failed'}</div>
+                      
+                      {xDiagnosticInfo.connectivity?.twitterApiStatus && (
+                        <>
+                          <div className="text-xs">API Response Status:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.connectivity?.twitterApiStatus} {xDiagnosticInfo.connectivity?.twitterApiStatusText}</div>
+                        </>
+                      )}
+                      
+                      {xDiagnosticInfo.connectivity?.error && (
+                        <>
+                          <div className="text-xs">Error:</div>
+                          <div className="text-xs font-mono text-red-500">{xDiagnosticInfo.connectivity?.error}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium">Client Credentials Test</h4>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="text-xs">Authentication Test:</div>
+                      <div className="text-xs font-mono">
+                        {xDiagnosticInfo.clientCredentialsTest?.success ? 
+                          '✅ Success' : 
+                          xDiagnosticInfo.clientCredentialsTest?.skipped ? 
+                            '⚠️ Skipped' : 
+                            '❌ Failed'}
+                      </div>
+                      
+                      {!xDiagnosticInfo.clientCredentialsTest?.skipped && (
+                        <>
+                          <div className="text-xs">Response Status:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.clientCredentialsTest?.status} {xDiagnosticInfo.clientCredentialsTest?.statusText}</div>
+                        </>
+                      )}
+                      
+                      {xDiagnosticInfo.clientCredentialsTest?.reason && (
+                        <>
+                          <div className="text-xs">Reason:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.clientCredentialsTest?.reason}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="border-t pt-3">
+                    <p className="text-xs text-muted-foreground">
+                      Diagnostic run at: {new Date(xDiagnosticInfo.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex flex-col items-start">
+              <p className="text-xs text-muted-foreground mb-2">
+                If you're having trouble connecting to X, check that:
+              </p>
+              <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
+                <li>Your X Developer account has the correct OAuth 2.0 settings</li>
+                <li>The callback URL in your X Developer portal matches the one shown above</li>
+                <li>Your X app has both Read and Write permissions enabled</li>
+                <li>All required secrets are properly configured in your Supabase project</li>
+              </ul>
+            </CardFooter>
+          </Card>
           <Separator />
         </div>
 

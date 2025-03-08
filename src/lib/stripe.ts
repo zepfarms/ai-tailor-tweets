@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 interface CreateSessionParams {
@@ -55,18 +54,15 @@ export async function checkSubscriptionStatus(userId: string, sessionId?: string
   }
 }
 
-// Define a type for subscription data
 export interface SubscriptionData {
   status?: string;
   [key: string]: any; // Allow for other properties
 }
 
-// Add a new function to directly query the database for subscription
 export async function getSubscriptionFromDatabase(userId: string) {
   try {
     console.log(`Directly checking database subscription for user ${userId}`);
     
-    // Use a properly typed approach for the RPC call
     const { data, error } = await supabase.rpc(
       'get_user_subscription', 
       { user_id_param: userId } as { user_id_param: string }
@@ -79,7 +75,6 @@ export async function getSubscriptionFromDatabase(userId: string) {
     
     console.log('Database subscription result:', data);
     
-    // Safely cast the data to our expected type
     const subscription = data as SubscriptionData | null;
     const hasActiveSubscription = subscription !== null && 
                              'status' in subscription && 
