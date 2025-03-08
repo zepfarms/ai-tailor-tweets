@@ -85,6 +85,15 @@ serve(async (req) => {
       console.log(`oauth_states table has ${count} total records`);
     }
     
+    // Log the exact query we're about to run
+    console.log("Executing query:", { 
+      table: 'oauth_states', 
+      filters: [
+        { column: 'state', value: state },
+        { column: 'provider', value: 'twitter' }
+      ]
+    });
+    
     // Retrieve the stored OAuth state using maybeSingle instead of single to avoid errors
     const { data: oauthData, error: oauthError } = await supabase
       .from('oauth_states')
@@ -93,7 +102,38 @@ serve(async (req) => {
       .eq('provider', 'twitter')
       .maybeSingle();
     
-    console.log("OAuth state query result:", { dataFound: !!oauthData, error: oauthError });
+    console.log("OAuth state query result:", { 
+      dataFound: !!oauthData, 
+      error: oauthError,
+      data: oauthData ? {
+        state: oauthData.state,
+        provider: oauthData.provider,
+        created_at: oauthData.created_at
+      } : null
+    });
+    
+    // Extra debugging: get the 10 most recent oauth states regardless of provider or state
+    const { data: allRecentStates, error: recentStatesError } = await supabase
+      .from('oauth_states')
+      .select('state, provider, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10);
+      
+    console.log("10 most recent states in database:", allRecentStates || "None or error");
+    if (recentStatesError) console.error("Error fetching recent states:", recentStatesError);
+    
+    // Extra debugging: try to find the exact state without the provider filter
+    const { data: stateOnly, error: stateOnlyError } = await supabase
+      .from('oauth_states')
+      .select('state, provider, created_at, user_id')
+      .eq('state', state)
+      .maybeSingle();
+      
+    console.log("State-only query result:", { 
+      found: !!stateOnly, 
+      error: stateOnlyError,
+      data: stateOnly
+    });
     
     if (oauthError) {
       console.error("Error retrieving OAuth state:", oauthError);
@@ -114,13 +154,25 @@ serve(async (req) => {
       // Check if there are any state entries at all
       const { data: allStates, error: listError } = await supabase
         .from('oauth_states')
-        .select('state, created_at')
-        .eq('provider', 'twitter')
+        .select('state, created_at, provider')
         .order('created_at', { ascending: false })
         .limit(5);
         
       console.log("Recent states in database:", allStates || "None or error");
       if (listError) console.error("Error listing states:", listError);
+      
+      // Try to see if the state exists with a different provider
+      const { data: stateWithAnyProvider, error: anyProviderError } = await supabase
+        .from('oauth_states')
+        .select('state, provider, created_at')
+        .eq('state', state)
+        .maybeSingle();
+        
+      console.log("State with any provider result:", { 
+        found: !!stateWithAnyProvider, 
+        error: anyProviderError,
+        data: stateWithAnyProvider
+      });
       
       return new Response(
         JSON.stringify({ 
@@ -128,6 +180,7 @@ serve(async (req) => {
           details: "The state parameter provided doesn't match any stored OAuth state",
           recentStates: allStates ? allStates.map(s => ({
             statePrefixStored: s.state.substring(0, 8),
+            provider: s.provider,
             created: s.created_at
           })) : null,
           stateReceived: state.substring(0, 8) + "..." 
