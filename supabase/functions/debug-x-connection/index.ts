@@ -29,6 +29,20 @@ serve(async (req) => {
   }
 
   try {
+    // Print out all environment variables keys (not values) for debugging
+    console.log("Available environment variables:", Object.keys(Deno.env.toObject()));
+    
+    console.log("OAuth 2.0 credentials check:");
+    console.log("TWITTER_CLIENT_ID set:", Boolean(TWITTER_CLIENT_ID), TWITTER_CLIENT_ID ? TWITTER_CLIENT_ID.substring(0, 4) + "..." : "not set");
+    console.log("TWITTER_CLIENT_SECRET set:", Boolean(TWITTER_CLIENT_SECRET), TWITTER_CLIENT_SECRET ? "length: " + TWITTER_CLIENT_SECRET.length : "not set");
+    console.log("TWITTER_CALLBACK_URL set:", Boolean(TWITTER_CALLBACK_URL), TWITTER_CALLBACK_URL || "not set");
+    
+    console.log("OAuth 1.0a credentials check:");
+    console.log("TWITTER_CONSUMER_KEY set:", Boolean(TWITTER_CONSUMER_KEY), TWITTER_CONSUMER_KEY ? TWITTER_CONSUMER_KEY.substring(0, 4) + "..." : "not set");
+    console.log("TWITTER_CONSUMER_SECRET set:", Boolean(TWITTER_CONSUMER_SECRET), TWITTER_CONSUMER_SECRET ? "length: " + TWITTER_CONSUMER_SECRET.length : "not set");
+    console.log("TWITTER_ACCESS_TOKEN set:", Boolean(TWITTER_ACCESS_TOKEN), TWITTER_ACCESS_TOKEN ? TWITTER_ACCESS_TOKEN.substring(0, 4) + "..." : "not set");
+    console.log("TWITTER_ACCESS_TOKEN_SECRET set:", Boolean(TWITTER_ACCESS_TOKEN_SECRET), TWITTER_ACCESS_TOKEN_SECRET ? "length: " + TWITTER_ACCESS_TOKEN_SECRET.length : "not set");
+
     const debugInfo = {
       timestamp: new Date().toISOString(),
       environment: {
@@ -75,7 +89,7 @@ serve(async (req) => {
       };
     }
 
-    // Test connectivity to Twitter - Using GET method
+    // Test connectivity to Twitter - Using GET method instead of HEAD
     try {
       const twitterResponse = await fetch("https://api.twitter.com/2/openapi.json", {
         method: "GET",
@@ -100,9 +114,12 @@ serve(async (req) => {
         console.log("Testing OAuth 2.0 client credentials flow");
         
         // Method 1: Using Authorization header with Basic auth
-        const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
+        // Proper encoding of client_id:client_secret
+        const authString = btoa(`${encodeURIComponent(TWITTER_CLIENT_ID)}:${encodeURIComponent(TWITTER_CLIENT_SECRET)}`);
         
         console.log("Method 1: Using Authorization header with Basic auth");
+        console.log("Token endpoint URL: https://api.twitter.com/2/oauth2/token");
+        console.log("Auth string length:", authString.length);
         
         const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
           method: "POST",
@@ -115,12 +132,16 @@ serve(async (req) => {
           }).toString(),
         });
         
+        console.log("Token response status:", tokenResponse.status);
+        console.log("Token response headers:", Object.fromEntries(tokenResponse.headers.entries()));
+        
         const responseBody = await tokenResponse.text();
         let parsedResponse = null;
         
         try {
           if (responseBody && responseBody.trim()) {
             parsedResponse = JSON.parse(responseBody);
+            console.log("Parsed response:", JSON.stringify(parsedResponse));
           }
         } catch (parseError) {
           console.error("Error parsing response:", parseError);
@@ -137,7 +158,7 @@ serve(async (req) => {
         };
         
         // Method 2: Using client_id and client_secret as parameters
-        if (tokenResponse.status === 400) {
+        if (!tokenResponse.ok) {
           console.log("Method 2: Using client_id and client_secret as parameters");
           
           const altTokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
@@ -152,12 +173,16 @@ serve(async (req) => {
             }).toString(),
           });
           
+          console.log("Alternative token response status:", altTokenResponse.status);
+          console.log("Alternative token response headers:", Object.fromEntries(altTokenResponse.headers.entries()));
+          
           const altResponseBody = await altTokenResponse.text();
           let altParsedResponse = null;
           
           try {
             if (altResponseBody && altResponseBody.trim()) {
               altParsedResponse = JSON.parse(altResponseBody);
+              console.log("Alternative parsed response:", JSON.stringify(altParsedResponse));
             }
           } catch (parseError) {
             console.error("Error parsing alternate response:", parseError);

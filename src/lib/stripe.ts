@@ -64,7 +64,6 @@ export async function getSubscriptionFromDatabase(userId: string) {
   try {
     console.log(`Directly checking database subscription for user ${userId}`);
     
-    // Fix the TypeScript error by not providing a type parameter here
     const { data, error } = await supabase.rpc(
       'get_user_subscription', 
       { user_id_param: userId }
