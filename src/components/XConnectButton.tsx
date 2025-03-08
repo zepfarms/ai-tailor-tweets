@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { X, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface XConnectButtonProps {
   className?: string;
@@ -29,11 +30,36 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         description: "You'll be redirected to X for authorization...",
       });
       
-      if (linkXAccount) {
-        await linkXAccount();
-      } else {
-        throw new Error("Authentication context not initialized");
+      // Generate a fresh auth URL from the edge function each time
+      console.log('Requesting authorization URL from server...');
+      const { data, error } = await supabase.functions.invoke('twitter-request-token', {
+        body: {
+          userId: user?.id,
+          isLogin: false
+        }
+      });
+      
+      if (error) {
+        console.error('Error getting X authorization URL:', error);
+        throw new Error(error.message || 'Failed to connect to X authorization service');
       }
+      
+      if (!data || !data.authUrl) {
+        console.error('Invalid response from X authorization service:', data);
+        throw new Error('Received invalid response from authorization service');
+      }
+      
+      console.log('Received auth URL, redirecting to X:', data.authUrl.substring(0, 100) + '...');
+      
+      // Store the state in localStorage so we can verify it on return
+      if (data.state) {
+        localStorage.setItem('x_auth_state', data.state);
+        console.log('Stored state for verification:', data.state);
+      }
+      
+      // Redirect to Twitter/X for authorization
+      window.location.href = data.authUrl;
+      
     } catch (error) {
       console.error('Error connecting to X:', error);
       toast({

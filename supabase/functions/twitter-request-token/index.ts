@@ -69,8 +69,11 @@ serve(async (req) => {
     
     // Generate the Twitter OAuth URL
     const state = crypto.randomUUID();
+    console.log("⭐⭐⭐ Generated state:", state);
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = await generateCodeChallenge(codeVerifier);
+    console.log("Generated code_verifier:", codeVerifier.substring(0, 10) + "...");
+    console.log("Generated code_challenge:", codeChallenge.substring(0, 10) + "...");
     
     // Store the code verifier in Supabase for later use
     let supabase;
@@ -84,6 +87,16 @@ serve(async (req) => {
     
     try {
       console.log("Storing OAuth state with user_id:", userId || "Login flow (no user ID)");
+      
+      // Check for existing states first and log them
+      const { data: existingStates } = await supabase
+        .from('oauth_states')
+        .select('state, created_at')
+        .eq('provider', 'twitter')
+        .order('created_at', { ascending: false })
+        .limit(5);
+        
+      console.log("Existing recent states in database:", existingStates);
       
       const { error: storeError } = await supabase
         .from('oauth_states')
@@ -99,6 +112,20 @@ serve(async (req) => {
       if (storeError) {
         console.error("Error storing OAuth state:", storeError);
         throw new Error(`Failed to store OAuth state: ${storeError.message}`);
+      }
+      
+      // Verify the state was stored by reading it back
+      const { data: verifyState, error: verifyError } = await supabase
+        .from('oauth_states')
+        .select('*')
+        .eq('state', state)
+        .single();
+        
+      if (verifyError || !verifyState) {
+        console.error("Failed to verify state was stored:", verifyError);
+        console.error("This might indicate a database issue!");
+      } else {
+        console.log("✅ Successfully verified state in database:", verifyState.state);
       }
       
       console.log("Successfully stored OAuth state in database");

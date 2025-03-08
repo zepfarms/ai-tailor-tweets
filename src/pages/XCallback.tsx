@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -63,6 +64,25 @@ const XCallback: React.FC = () => {
           return;
         }
 
+        // Verify state matches the one we sent
+        const savedState = localStorage.getItem('x_auth_state');
+        addLog(`Stored state from localStorage: ${savedState || 'none'}`);
+        if (savedState && savedState !== state) {
+          console.error("State mismatch", { 
+            received: state,
+            saved: savedState 
+          });
+          setError('Security verification failed: state parameter mismatch');
+          addLog(`State mismatch: received=${state}, saved=${savedState}`);
+          toast({
+            title: 'X Authentication Failed',
+            description: 'Security verification failed - possible cross-site request forgery attempt',
+            variant: 'destructive',
+          });
+          setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent('Security verification failed')), 8000);
+          return;
+        }
+
         console.log("Processing X callback with code and state", { 
           codeLength: code.length, 
           state,
@@ -75,11 +95,14 @@ const XCallback: React.FC = () => {
         try {
           console.log("Fetching debug info for X connection");
           addLog("Requesting debug information from server");
-          const debugResponse = await supabase.functions.invoke('debug-x-connection');
-          if (debugResponse.data) {
-            setDebugInfo(debugResponse.data);
-            console.log("Debug info:", debugResponse.data);
-            addLog(`Debug info received: ${Object.keys(debugResponse.data).join(', ')}`);
+          const { data, error } = await supabase.functions.invoke('debug-x-connection');
+          if (error) {
+            console.error("Error getting debug info:", error);
+            addLog(`Error getting debug info: ${error.message || 'Unknown error'}`);
+          } else if (data) {
+            setDebugInfo(data);
+            console.log("Debug info:", data);
+            addLog(`Debug info received: ${Object.keys(data).join(', ')}`);
           }
         } catch (debugError) {
           console.error("Error getting debug info:", debugError);
@@ -97,8 +120,7 @@ const XCallback: React.FC = () => {
         });
 
         console.log("Access token response:", response);
-        addLog(`Token exchange response: ${response.error ? 'error' : 'success'}`);
-
+        
         if (response.error) {
           console.error("Error processing token:", response.error);
           addLog(`Token exchange error: ${response.error.message || 'Unknown error'}`);
@@ -111,10 +133,11 @@ const XCallback: React.FC = () => {
           setTimeout(() => navigate('/dashboard?error=' + encodeURIComponent(response.error.message || 'Failed to verify X account')), 8000);
           return;
         }
-
+        
+        // Success case
+        addLog(`Token exchange response: success`);
         setProcessingStep('Processing authentication');
-        addLog(`Token exchange successful: ${JSON.stringify(response.data || {})}`);
-
+        
         if (response.data && response.data.token) {
           // We have a magic link token to complete the auth
           try {

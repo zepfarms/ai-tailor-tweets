@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { encode } from "https://deno.land/std@0.190.0/encoding/base64.ts";
@@ -73,6 +74,17 @@ serve(async (req) => {
       throw new Error("Failed to connect to Supabase");
     }
     
+    // First check if table exists and has records
+    const { count, error: countError } = await supabase
+      .from('oauth_states')
+      .select('*', { count: 'exact', head: true });
+    
+    if (countError) {
+      console.error("Error checking oauth_states table:", countError);
+    } else {
+      console.log(`oauth_states table has ${count} total records`);
+    }
+    
     // Retrieve the stored OAuth state using maybeSingle instead of single to avoid errors
     const { data: oauthData, error: oauthError } = await supabase
       .from('oauth_states')
@@ -104,6 +116,7 @@ serve(async (req) => {
         .from('oauth_states')
         .select('state, created_at')
         .eq('provider', 'twitter')
+        .order('created_at', { ascending: false })
         .limit(5);
         
       console.log("Recent states in database:", allStates || "None or error");
@@ -147,7 +160,7 @@ serve(async (req) => {
 
     console.log("Token request parameters:", tokenRequestBody.toString());
     
-    // Fix: use btoa() instead of Buffer
+    // Use btoa() for Base64 encoding of client credentials
     const encodedCredentials = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
     
     console.log("Authorization credentials prepared");
