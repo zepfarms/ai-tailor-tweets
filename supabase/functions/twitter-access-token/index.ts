@@ -51,9 +51,9 @@ serve(async (req) => {
       throw new Error("Invalid request format - could not parse JSON");
     }
     
-    const { code, state } = requestData;
+    const { code, state, origin } = requestData;
     
-    console.log("Request data:", { codeProvided: !!code, state });
+    console.log("Request data:", { codeProvided: !!code, state, origin });
     console.log("Received state from callback:", state);
     
     if (!code) {
@@ -139,8 +139,17 @@ serve(async (req) => {
     const codeVerifier = oauthData.code_verifier;
     const isLogin = oauthData.is_login === true;
     
-    // Use the stored callback URL if available, otherwise use the default
-    const callbackUrl = oauthData.callback_url || TWITTER_CALLBACK_URL;
+    // Use the stored callback URL if available, otherwise use the origin or default
+    let callbackUrl = oauthData.callback_url;
+    if (!callbackUrl) {
+      if (origin) {
+        callbackUrl = `${origin}/x-callback`;
+        console.log("Using origin-based callback URL:", callbackUrl);
+      } else {
+        callbackUrl = TWITTER_CALLBACK_URL;
+        console.log("Using default callback URL:", callbackUrl);
+      }
+    }
     
     console.log("Retrieved user ID:", userId || "Not provided (login flow)");
     console.log("Code verifier found:", !!codeVerifier);

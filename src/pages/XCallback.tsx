@@ -19,6 +19,8 @@ const XCallback: React.FC = () => {
   const [attempts, setAttempts] = useState(0);
   const [networkLogs, setNetworkLogs] = useState<string[]>([]);
   const [processingStep, setProcessingStep] = useState('Initializing');
+  const [processedCode, setProcessedCode] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
     const processCallback = async () => {
@@ -35,6 +37,12 @@ const XCallback: React.FC = () => {
 
         setProcessingStep('Validating parameters');
         addLog(`Received parameters: code=${!!code}, state=${!!state}, error=${error || 'none'}`);
+
+        // Check if we've already processed this code to prevent duplicates
+        if (processedCode === code) {
+          addLog(`Already processed code ${code?.substring(0, 8)}..., skipping`);
+          return;
+        }
 
         // Check if there's an error from Twitter
         if (error) {
@@ -89,6 +97,9 @@ const XCallback: React.FC = () => {
           url: window.location.href 
         });
         addLog(`Processing code (length: ${code.length}) and state: ${state.substring(0, 8)}...`);
+        
+        // Mark this code as processed to prevent duplicate requests
+        setProcessedCode(code);
         
         // Get debug info to help with troubleshooting
         setProcessingStep('Collecting debug information');
@@ -155,8 +166,12 @@ const XCallback: React.FC = () => {
               title: 'X Account Connected',
               description: `Successfully linked to @${response.data.username}`,
             });
+            setUsername(response.data.username);
             addLog(`Authentication completed, redirecting to dashboard`);
-            navigate('/dashboard?x_auth_success=true&username=' + response.data.username);
+            // Delay redirect to show success screen
+            setTimeout(() => {
+              navigate('/dashboard?x_auth_success=true&username=' + response.data.username);
+            }, 3000);
           } catch (authError) {
             console.error("Error completing X auth:", authError);
             addLog(`Error completing auth: ${authError instanceof Error ? authError.message : 'Unknown error'}`);
@@ -170,13 +185,16 @@ const XCallback: React.FC = () => {
           }
         } else if (response.data && response.data.username) {
           addLog(`Account linked: @${response.data.username}`);
+          setUsername(response.data.username);
           toast({
             title: 'X Account Connected',
             description: `Successfully linked to @${response.data.username}`,
           });
           
-          // Add query params to indicate success to the dashboard
-          navigate('/dashboard?x_auth_success=true&username=' + response.data.username);
+          // Delay redirect to show success screen
+          setTimeout(() => {
+            navigate('/dashboard?x_auth_success=true&username=' + response.data.username);
+          }, 3000);
         } else {
           console.error("Invalid response from auth service:", response.data);
           addLog(`Invalid response from server: ${JSON.stringify(response.data || {})}`);
@@ -204,7 +222,7 @@ const XCallback: React.FC = () => {
     };
 
     processCallback();
-  }, [navigate, toast, completeXAuth, searchParams, attempts]);
+  }, [navigate, toast, completeXAuth, searchParams]);
 
   const addLog = (message: string) => {
     setNetworkLogs(prev => [...prev, `[${new Date().toISOString()}] ${message}`]);
@@ -215,6 +233,8 @@ const XCallback: React.FC = () => {
     setError(null);
     setDebugInfo(null);
     setNetworkLogs([]);
+    setProcessedCode(null);
+    setUsername(null);
     setAttempts(prev => prev + 1);
     addLog("Retrying authentication process");
   };
@@ -297,6 +317,9 @@ const XCallback: React.FC = () => {
               <Check size={64} />
             </div>
             <h1 className="text-2xl font-bold mb-2">X Account Connected</h1>
+            {username && (
+              <p className="text-lg font-medium text-primary mb-2">@{username}</p>
+            )}
             <p className="text-muted-foreground text-center mb-6">
               Your X account has been successfully connected.
             </p>

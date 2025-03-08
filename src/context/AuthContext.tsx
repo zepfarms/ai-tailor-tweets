@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType, PostToXData } from '@/lib/types';
@@ -188,8 +189,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoginingWithX(true);
       
+      // Include the current origin in the request
+      const origin = window.location.origin;
+      
       const response = await supabase.functions.invoke('twitter-request-token', {
-        body: { isLogin: true }
+        body: { 
+          isLogin: true,
+          origin 
+        }
       });
       
       if (response.error) {
@@ -198,6 +205,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (!response.data || !response.data.authUrl) {
         throw new Error("Invalid response from authentication service");
+      }
+      
+      // Save the state in localStorage for verification
+      if (response.data.state) {
+        localStorage.setItem('x_auth_state', response.data.state);
       }
       
       window.location.href = response.data.authUrl;
@@ -519,8 +531,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("You must be logged in to connect your X account");
       }
       
+      // Include the current origin in the request
+      const origin = window.location.origin;
+      
       const response = await supabase.functions.invoke('twitter-request-token', {
-        body: { userId: user.id }
+        body: { 
+          userId: user.id,
+          origin
+        }
       });
       
       if (response.error) {
@@ -529,6 +547,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (!response.data || !response.data.authUrl) {
         throw new Error("Invalid response from authentication service");
+      }
+      
+      // Save the state in localStorage for verification
+      if (response.data.state) {
+        localStorage.setItem('x_auth_state', response.data.state);
       }
       
       window.location.href = response.data.authUrl;

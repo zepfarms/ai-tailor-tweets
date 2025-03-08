@@ -13,6 +13,11 @@ serve(async (req) => {
   }
 
   try {
+    // Get request details
+    const url = new URL(req.url);
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('host');
+    
     // Gather debug information about X connection
     const debugInfo = {
       timestamp: new Date().toISOString(),
@@ -21,10 +26,18 @@ serve(async (req) => {
         twitter_client_secret_exists: !!Deno.env.get("TWITTER_CLIENT_SECRET"),
         twitter_callback_url: Deno.env.get("TWITTER_CALLBACK_URL"),
         twitter_bearer_token_exists: !!Deno.env.get("TWITTER_BEARER_TOKEN"),
-        available_env_vars: Object.keys(Deno.env.toObject()),
-        request_host: req.headers.get('host'),
-        request_origin: req.headers.get('origin'),
-        request_url: req.url
+        available_env_vars: Object.keys(Deno.env.toObject()).filter(key => 
+          !key.includes("SECRET") && !key.includes("PASSWORD") && !key.includes("KEY")
+        ),
+        request_host: host,
+        request_origin: origin,
+        request_url: url.toString()
+      },
+      callback_information: {
+        default_callback: Deno.env.get("TWITTER_CALLBACK_URL"),
+        current_origin: origin,
+        origin_callback: origin ? `${origin}/x-callback` : null,
+        current_location: globalThis.location ? globalThis.location.href : "Not available in Deno context"
       }
     };
 
@@ -64,6 +77,61 @@ serve(async (req) => {
       };
     }
     
+    // Test creating a code_verifier and code_challenge
+    try {
+      const codeVerifier = Array.from(
+        crypto.getRandomValues(new Uint8Array(32)),
+        byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)
+      ).join('');
+
+      debugInfo.pkceTest = {
+        codeVerifierLength: codeVerifier.length,
+        codeVerifierFirstChars: codeVerifier.substring(0, 6) + '...',
+        usesPkce: true,
+        pkceMethod: 'plain'
+      };
+    } catch (error) {
+      debugInfo.pkceTest = {
+        error: error.message,
+        stack: error.stack
+      };
+    }
+
+    // Add database schema information
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL") || '',
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ''
+      );
+      
+      // Check if oauth_states has callback_url
+      const { data: tableInfo, error: tableError } = await supabase.rpc(
+        'pg_get_columns_info',
+        { table_name: 'oauth_states' }
+      );
+      
+      if (!tableError && tableInfo) {
+        debugInfo.database = {
+          oauth_states_columns: tableInfo.map(col => ({
+            name: col.column_name,
+            type: col.data_type,
+            nullable: col.is_nullable === 'YES'
+          })),
+          has_callback_url: tableInfo.some(col => col.column_name === 'callback_url')
+        };
+      } else {
+        debugInfo.database = {
+          error: tableError ? tableError.message : 'No table info returned',
+          oauth_states_exists: true // We're assuming it exists but couldn't get column info
+        };
+      }
+    } catch (error) {
+      debugInfo.database = {
+        error: error.message,
+        stack: error.stack
+      };
+    }
+    
     // Return the debug information
     return new Response(
       JSON.stringify(debugInfo, null, 2),
@@ -92,3 +160,9 @@ serve(async (req) => {
     );
   }
 });
+
+// Helper to create a Supabase client
+function createClient(supabaseUrl, supabaseKey) {
+  const { createClient } = require("https://esm.sh/@supabase/supabase-js@2.7.1");
+  return createClient(supabaseUrl, supabaseKey);
+}
