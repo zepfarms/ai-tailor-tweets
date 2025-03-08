@@ -1,155 +1,176 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
-import { Twitter, Info, ArrowLeft, Home } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link, useNavigate } from 'react-router-dom';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { Separator } from "@/components/ui/separator"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/components/ui/use-toast"
+import XConnectButton from '@/components/XConnectButton';
 
 const Settings: React.FC = () => {
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const { user, logout, updateUserPreferences } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("account");
+  const { toast } = useToast();
+  const [name, setName] = useState(user?.name || '');
+  const [useHashtags, setUseHashtags] = useState(user?.useHashtags !== false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleConnectX = async () => {
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setUseHashtags(user.useHashtags !== false);
+    }
+  }, [user]);
+
+  const handleLogout = async () => {
     try {
-      // Open web intent
-      const intentUrl = "https://twitter.com/intent/tweet";
-      window.open(intentUrl, "_blank");
-      
-      toast({
-        title: "X Web Intent Opened",
-        description: "To post to X, use the web intent window.",
-      });
+      await logout();
+      navigate('/login');
     } catch (error) {
-      console.error('Error opening X web intent:', error);
+      console.error("Logout failed:", error);
+    }
+  };
+
+  const handleUpdatePreferences = async () => {
+    setIsLoading(true);
+    try {
+      if (updateUserPreferences) {
+        await updateUserPreferences({ name, useHashtags });
+        toast({
+          title: "Preferences updated",
+          description: "Your preferences have been successfully updated.",
+        });
+      }
+    } catch (error) {
+      console.error("Update preferences failed:", error);
       toast({
-        title: "Error",
-        description: "Could not open X web intent. Please check your internet connection.",
+        title: "Update failed",
+        description: "Failed to update preferences. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 pt-24 max-w-4xl">
-      <Breadcrumb
-        segments={[
-          { name: "Dashboard", href: "/dashboard" },
-          { name: "Settings", href: "/settings" }
-        ]}
-        className="mb-6"
-      />
-      
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <div className="flex gap-4">
-          <Button 
-            variant="outline" 
-            onClick={() => navigate(-1)} 
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft size={16} />
-            Back
-          </Button>
-          <Link to="/dashboard">
-            <Button className="flex items-center gap-2">
-              <Home size={16} />
-              Dashboard
-            </Button>
-          </Link>
-        </div>
-      </div>
+    <div className="min-h-screen flex flex-col page-transition">
+      <Navbar />
+      <main className="flex-1 container mx-auto px-4 md:px-6 py-8 mt-16">
+        <h1 className="text-3xl font-bold mb-8">Account Settings</h1>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="integrations">Integrations</TabsTrigger>
-          <TabsTrigger value="subscription">Subscription</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="account">
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
-            <div className="border-b pb-4 mb-4">
-              <p className="text-sm text-muted-foreground mb-2">Email</p>
-              <p className="font-medium">{user?.email}</p>
-            </div>
-            <div className="border-b pb-4 mb-4">
-              <p className="text-sm text-muted-foreground mb-2">Name</p>
-              <p className="font-medium">{user?.name}</p>
-            </div>
+        {/* Profile Section */}
+        <div className="space-y-6 mb-10">
+          <div>
+            <h3 className="text-lg font-medium">Profile Information</h3>
+            <p className="text-sm text-muted-foreground">
+              Update your profile information here.
+            </p>
           </div>
-        </TabsContent>
-        
-        <TabsContent value="integrations">
-          <Card className="mb-6">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Twitter className="mr-2 h-5 w-5 text-blue-500" />
-                X/Twitter Posting
-              </CardTitle>
+              <CardTitle>Profile Details</CardTitle>
               <CardDescription>
-                Web intent approach for posting to X/Twitter
+                Manage your basic profile information.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Alert className="bg-blue-50 border-blue-200 mb-4">
-                <Info className="h-4 w-4 text-blue-500" />
-                <AlertTitle>About Web Intent</AlertTitle>
-                <AlertDescription>
-                  We use Twitter's web intent feature for posting. This opens a pre-filled tweet window.
-                </AlertDescription>
-              </Alert>
-              
-              <Button 
-                variant="outline"
-                onClick={handleConnectX}
-                className="flex items-center gap-2"
-              >
-                <Twitter className="mr-2 h-4 w-4 text-blue-500" />
-                Try X Web Intent
-              </Button>
-              
-              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
-                <p className="text-sm text-amber-700">
-                  <strong>Note about images:</strong> When using the web intent approach, you'll need to manually attach images in the Twitter window that opens.
-                </p>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="subscription">
-          <Card className="mb-6">
+          <Separator />
+        </div>
+
+        {/* Preferences Section */}
+        <div className="space-y-6 mb-10">
+          <div>
+            <h3 className="text-lg font-medium">Preferences</h3>
+            <p className="text-sm text-muted-foreground">
+              Customize your experience.
+            </p>
+          </div>
+          <Card>
             <CardHeader>
-              <CardTitle>Subscription Settings</CardTitle>
+              <CardTitle>Content Preferences</CardTitle>
               <CardDescription>
-                Manage your Posted Pal Pro subscription
+                Manage how content is generated for you.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4">
-                <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                  <p className="font-medium">Status: <span className="text-green-600">Active</span></p>
-                  <p className="text-sm text-muted-foreground mt-1">Your Posted Pal Pro subscription is active.</p>
+            <CardContent className="grid gap-4">
+              <div className="flex items-center justify-between rounded-md border p-4">
+                <div className="space-y-1 leading-none">
+                  <p className="text-sm font-medium leading-none">
+                    Use Hashtags
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically include relevant hashtags in generated content.
+                  </p>
                 </div>
-                
-                <Link to="/subscription">
-                  <Button variant="outline" className="w-full">
-                    Manage Subscription
-                  </Button>
-                </Link>
+                <Switch id="use-hashtags" checked={useHashtags} onCheckedChange={(checked) => setUseHashtags(checked)} />
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          <Separator />
+        </div>
+
+        {/* X Connection Section */}
+        <div className="space-y-6 mb-10">
+          <div>
+            <h3 className="text-lg font-medium">X (Twitter) Connection</h3>
+            <p className="text-sm text-muted-foreground">
+              Connect your X account to post directly and view analytics
+            </p>
+          </div>
+          <div className="flex items-center justify-between py-4">
+            <div>
+              <div className="font-medium">X Account Status</div>
+              <div className="text-sm text-muted-foreground">
+                {user?.xLinked ? 
+                  `Connected to ${user.xUsername}` : 
+                  'Not connected to X'
+                }
+              </div>
+            </div>
+            <XConnectButton 
+              variant={user?.xLinked ? 'secondary' : 'default'}
+            />
+          </div>
+          <Separator />
+        </div>
+
+        {/* Actions Section */}
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-medium">Actions</h3>
+            <p className="text-sm text-muted-foreground">
+              Perform actions related to your account.
+            </p>
+          </div>
+          <Button variant="destructive" onClick={handleLogout}>
+            Logout
+          </Button>
+          <Button variant="secondary" onClick={handleUpdatePreferences} disabled={isLoading}>
+            {isLoading ? 'Updating...' : 'Update Preferences'}
+          </Button>
+        </div>
+      </main>
     </div>
   );
 };

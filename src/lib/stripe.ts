@@ -70,7 +70,7 @@ export async function getSubscriptionFromDatabase(userId: string) {
     
     console.log('Database subscription result:', data);
     return { 
-      hasActiveSubscription: !!data && data.status === 'active', 
+      hasActiveSubscription: data && data.status === 'active', 
       subscription: data 
     };
   } catch (error) {
