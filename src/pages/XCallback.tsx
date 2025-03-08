@@ -110,13 +110,21 @@ const XCallback: React.FC = () => {
           // Continue anyway as this isn't critical
         }
         
+        // Get the origin for the current site to ensure it matches what was used during auth
+        const origin = window.location.origin;
+        addLog(`Current origin: ${origin}`);
+        
         // Process the token
         setProcessingStep('Exchanging authorization code');
         console.log("Calling twitter-access-token function with code and state");
         addLog("Sending code to server for token exchange");
         
         const response = await supabase.functions.invoke('twitter-access-token', {
-          body: { code, state }
+          body: { 
+            code, 
+            state,
+            origin // Send the current origin for validation
+          }
         });
 
         console.log("Access token response:", response);

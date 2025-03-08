@@ -21,7 +21,10 @@ serve(async (req) => {
         twitter_client_secret_exists: !!Deno.env.get("TWITTER_CLIENT_SECRET"),
         twitter_callback_url: Deno.env.get("TWITTER_CALLBACK_URL"),
         twitter_bearer_token_exists: !!Deno.env.get("TWITTER_BEARER_TOKEN"),
-        available_env_vars: Object.keys(Deno.env.toObject())
+        available_env_vars: Object.keys(Deno.env.toObject()),
+        request_host: req.headers.get('host'),
+        request_origin: req.headers.get('origin'),
+        request_url: req.url
       }
     };
 

@@ -30,12 +30,17 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         description: "You'll be redirected to X for authorization...",
       });
       
+      // Get the current origin for dynamic callback URL
+      const origin = window.location.origin;
+      console.log('Current origin:', origin);
+      
       // Generate a fresh auth URL from the edge function each time
       console.log('Requesting authorization URL from server...');
       const { data, error } = await supabase.functions.invoke('twitter-request-token', {
         body: {
           userId: user?.id,
-          isLogin: false
+          isLogin: false,
+          origin: origin // Send the current origin for sandbox testing
         }
       });
       

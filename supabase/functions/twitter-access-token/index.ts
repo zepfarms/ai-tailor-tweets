@@ -41,7 +41,7 @@ serve(async (req) => {
     console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
     console.log("Client ID available:", !!TWITTER_CLIENT_ID);
     console.log("Client Secret available:", !!TWITTER_CLIENT_SECRET);
-    console.log("Using callback URL:", TWITTER_CALLBACK_URL);
+    console.log("Default callback URL:", TWITTER_CALLBACK_URL);
     
     let requestData;
     try {
@@ -74,27 +74,7 @@ serve(async (req) => {
       throw new Error("Failed to connect to Supabase");
     }
     
-    // First check if table exists and has records
-    const { count, error: countError } = await supabase
-      .from('oauth_states')
-      .select('*', { count: 'exact', head: true });
-    
-    if (countError) {
-      console.error("Error checking oauth_states table:", countError);
-    } else {
-      console.log(`oauth_states table has ${count} total records`);
-    }
-    
-    // Log the exact query we're about to run
-    console.log("Executing query:", { 
-      table: 'oauth_states', 
-      filters: [
-        { column: 'state', value: state },
-        { column: 'provider', value: 'twitter' }
-      ]
-    });
-    
-    // Retrieve the stored OAuth state using maybeSingle instead of single to avoid errors
+    // Retrieve the stored OAuth state
     const { data: oauthData, error: oauthError } = await supabase
       .from('oauth_states')
       .select('*')
@@ -109,19 +89,10 @@ serve(async (req) => {
         state: oauthData.state,
         provider: oauthData.provider,
         created_at: oauthData.created_at,
+        callback_url: oauthData.callback_url,
         code_verifier: oauthData.code_verifier ? "[REDACTED]" : null
       } : null
     });
-    
-    // Extra debugging: get the 10 most recent oauth states regardless of provider or state
-    const { data: allRecentStates, error: recentStatesError } = await supabase
-      .from('oauth_states')
-      .select('state, provider, created_at')
-      .order('created_at', { ascending: false })
-      .limit(10);
-      
-    console.log("10 most recent states in database:", allRecentStates || "None or error");
-    if (recentStatesError) console.error("Error fetching recent states:", recentStatesError);
     
     if (oauthError) {
       console.error("Error retrieving OAuth state:", oauthError);
@@ -155,13 +126,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: "Invalid or expired state parameter", 
-          details: "The state parameter provided doesn't match any stored OAuth state",
-          recentStates: allRecentStates ? allRecentStates.map(s => ({
-            statePrefixStored: s.state.substring(0, 8),
-            provider: s.provider,
-            created: s.created_at
-          })) : null,
-          stateReceived: state.substring(0, 8) + "..." 
+          details: "The state parameter provided doesn't match any stored OAuth state"
         }),
         { 
           status: 400, 
@@ -174,9 +139,13 @@ serve(async (req) => {
     const codeVerifier = oauthData.code_verifier;
     const isLogin = oauthData.is_login === true;
     
+    // Use the stored callback URL if available, otherwise use the default
+    const callbackUrl = oauthData.callback_url || TWITTER_CALLBACK_URL;
+    
     console.log("Retrieved user ID:", userId || "Not provided (login flow)");
     console.log("Code verifier found:", !!codeVerifier);
     console.log("Is login flow:", isLogin);
+    console.log("Using callback URL:", callbackUrl);
     
     // Exchange the authorization code for an access token
     console.log("Attempting to exchange code for token");
@@ -185,7 +154,7 @@ serve(async (req) => {
     const tokenRequestBody = new URLSearchParams({
       code,
       grant_type: "authorization_code",
-      redirect_uri: TWITTER_CALLBACK_URL,
+      redirect_uri: callbackUrl,
       code_verifier: codeVerifier,
     });
 
@@ -291,6 +260,35 @@ serve(async (req) => {
     } catch (parseError) {
       console.error("Error parsing user response:", parseError);
       throw new Error("Invalid response from Twitter user endpoint");
+    }
+
+    // Store user tokens for future use
+    try {
+      console.log("Storing user token in database");
+      
+      // Check if x_accounts table exists, if not we'll store just the token
+      const { error: storeTokenError } = await supabase
+        .from('x_accounts')
+        .upsert({
+          user_id: userId,
+          x_username: userData.data?.username,
+          x_user_id: userData.data?.id,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token || null,
+          expires_at: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000).toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        
+      if (storeTokenError) {
+        console.error("Error storing X account info:", storeTokenError);
+        // If x_accounts table doesn't exist, we'll just return the token without storing it
+        console.log("Unable to store token, will return to client anyway");
+      } else {
+        console.log("Successfully stored X account info in database");
+      }
+    } catch (storeError) {
+      console.error("Error storing token:", storeError);
+      // Continue anyway, as this isn't critical to the auth flow
     }
 
     // Clean up the OAuth state

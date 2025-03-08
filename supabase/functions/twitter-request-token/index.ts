@@ -35,31 +35,34 @@ serve(async (req) => {
       throw new Error("TWITTER_CLIENT_SECRET environment variable is not set");
     }
     
-    if (!TWITTER_CALLBACK_URL) {
-      throw new Error("TWITTER_CALLBACK_URL environment variable is not set");
-    }
-    
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Supabase credentials are not properly configured");
-    }
-    
     console.log("All required environment variables are set");
     console.log("Client ID:", TWITTER_CLIENT_ID.substring(0, 4) + "..." + TWITTER_CLIENT_ID.substring(TWITTER_CLIENT_ID.length - 4));
     console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
-    console.log("Callback URL:", TWITTER_CALLBACK_URL);
     console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
     
-    // Get the userId from the request body
+    // Get the userId from the request body and the origin URL for dynamic callback
     let userId = null;
     let isLogin = false;
+    let callbackUrl = TWITTER_CALLBACK_URL;
+    let origin = null;
+    
     try {
       const requestBody = await req.json();
       userId = requestBody.userId;
       isLogin = requestBody.isLogin === true;
-      console.log("Request parameters:", { userId, isLogin });
+      origin = requestBody.origin || null;
+      console.log("Request parameters:", { userId, isLogin, origin });
+      
+      // If origin is provided, use it to create a dynamic callback URL for sandbox environments
+      if (origin && origin !== "https://www.postedpal.com") {
+        callbackUrl = `${origin}/x-callback`;
+        console.log("Using dynamic callback URL:", callbackUrl);
+      } else {
+        console.log("Using default callback URL:", callbackUrl);
+      }
     } catch (error) {
       console.error("Error parsing request JSON:", error);
-      throw new Error("Invalid request format. Please provide valid JSON with a userId field.");
+      throw new Error("Invalid request format. Please provide valid JSON with required fields.");
     }
     
     // For account linking, we need a user ID, but for login flow we don't
@@ -71,9 +74,9 @@ serve(async (req) => {
     const state = crypto.randomUUID();
     console.log("⭐⭐⭐ Generated state:", state);
     
-    // Use the same value for verifier and challenge with plain method
+    // Use identical code_verifier and code_challenge as required by Twitter with plain method
     const codeVerifier = `verifier_${state}`;
-    const codeChallenge = codeVerifier; // For plain method, they must match exactly
+    const codeChallenge = codeVerifier; // Must match exactly with plain method
     console.log("Generated code_verifier:", codeVerifier);
     console.log("Generated code_challenge:", codeChallenge);
     
@@ -90,20 +93,6 @@ serve(async (req) => {
     try {
       console.log("Storing OAuth state with user_id:", userId || "Login flow (no user ID)");
       
-      // Check for existing states first and log them
-      const { data: existingStates, error: existingStatesError } = await supabase
-        .from('oauth_states')
-        .select('state, created_at')
-        .eq('provider', 'twitter')
-        .order('created_at', { ascending: false })
-        .limit(5);
-        
-      if (existingStatesError) {
-        console.error("Error checking existing states:", existingStatesError);
-      } else {
-        console.log("Existing recent states in database:", existingStates);
-      }
-      
       // Explicitly set all required fields including provider
       const stateRecord = {
         user_id: userId || '00000000-0000-0000-0000-000000000000',
@@ -111,7 +100,8 @@ serve(async (req) => {
         code_verifier: codeVerifier,
         provider: 'twitter', // Explicitly set provider
         created_at: new Date().toISOString(),
-        is_login: isLogin
+        is_login: isLogin,
+        callback_url: callbackUrl // Store the callback URL with the state
       };
       
       console.log("Inserting state record:", {
@@ -148,21 +138,10 @@ serve(async (req) => {
           id: verifyState.id,
           state: verifyState.state,
           provider: verifyState.provider,
-          created_at: verifyState.created_at
+          created_at: verifyState.created_at,
+          callback_url: verifyState.callback_url
         });
       }
-      
-      // Double-check by fetching again with different query method
-      const { data: doubleCheck, error: doubleCheckError } = await supabase
-        .from('oauth_states')
-        .select('state, provider')
-        .eq('state', state);
-        
-      console.log("Double-check query results:", { 
-        data: doubleCheck, 
-        count: doubleCheck?.length,
-        error: doubleCheckError 
-      });
     } catch (error) {
       console.error("Error upserting into oauth_states table:", error);
       throw new Error(`Database operation failed: ${error.message}`);
@@ -172,11 +151,11 @@ serve(async (req) => {
     const authUrl = new URL("https://twitter.com/i/oauth2/authorize");
     authUrl.searchParams.append("response_type", "code");
     authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-    authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
+    authUrl.searchParams.append("redirect_uri", callbackUrl);
     authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
     authUrl.searchParams.append("state", state);
     authUrl.searchParams.append("code_challenge", codeChallenge);
-    authUrl.searchParams.append("code_challenge_method", "plain"); // Simplified for now
+    authUrl.searchParams.append("code_challenge_method", "plain"); // Keep it simple with plain method
     
     console.log("Authorization URL created:", authUrl.toString());
     
