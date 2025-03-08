@@ -7,6 +7,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
 const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,10 +20,10 @@ serve(async (req) => {
   }
 
   try {
+    const { username, userId, fetchTopPosts, generateSimilarPost, inspiration } = await req.json();
+    
     console.log("Twitter analytics function called");
     console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
-    
-    const { username, userId } = await req.json();
     
     if (!username && !userId) {
       throw new Error("Either X username or user ID is required");
@@ -208,6 +209,33 @@ serve(async (req) => {
     } else {
       console.log("No tokens available, using mock data");
       analyticsData = generateMockAnalyticsData(xUsername);
+    }
+
+    if (generateSimilarPost && inspiration) {
+      const prompt = `Based on this successful post: "${inspiration}", create a new post that maintains a similar style and topic but with fresh, unique content. The new post should be engaging and shareable. Make it sound natural and conversational.`;
+      
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are a social media expert that creates engaging posts based on successful content." },
+            { role: "user", content: prompt }
+          ],
+        }),
+      });
+
+      const aiResponse = await response.json();
+      const generatedPost = aiResponse.choices[0].message.content;
+
+      return new Response(
+        JSON.stringify({ generatedPost }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(

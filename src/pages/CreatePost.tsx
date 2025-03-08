@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +9,7 @@ import PostScheduler from '@/components/PostScheduler';
 import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
+import TopPerformingPosts from '@/components/TopPerformingPosts';
 
 type Stage = "topics" | "create" | "schedule";
 
@@ -28,7 +28,6 @@ const CreatePost: React.FC = () => {
       return;
     }
     
-    // Check if returning from a post action
     const status = searchParams.get('status');
     if (status === 'posted') {
       toast({
@@ -52,22 +51,17 @@ const CreatePost: React.FC = () => {
     setIsPosting(true);
     
     try {
-      if (!postToX) {
-        throw new Error("Posting to X functionality not available");
-      }
-      
-      // Directly post to X using the auth context function
-      await postToX({
-        content,
-        // We'll handle media in a future update
+      const response = await supabase.functions.invoke('twitter-post', {
+        body: { content, userId: user?.id },
       });
+      
+      if (response.error) throw new Error(response.error.message);
       
       toast({
         title: "Posted to X",
         description: "Your post has been published successfully!",
       });
       
-      // Navigate back to dashboard
       navigate('/dashboard?status=posted');
     } catch (error) {
       console.error("Error posting to X:", error);
@@ -79,6 +73,11 @@ const CreatePost: React.FC = () => {
     } finally {
       setIsPosting(false);
     }
+  };
+
+  const handleTopPostSelect = (content: string) => {
+    setCurrentContent(content);
+    setStage("create");
   };
 
   const handleScheduleComplete = () => {
@@ -97,12 +96,11 @@ const CreatePost: React.FC = () => {
     navigate('/video-studio');
   };
 
-  // Determine character limit based on X Premium status
   const getCharacterLimit = () => {
     if (user?.isXPremium) {
-      return 4000; // X Premium character limit
+      return 4000;
     }
-    return 280; // Standard X character limit
+    return 280;
   };
 
   if (isLoading || !user) {
@@ -130,7 +128,10 @@ const CreatePost: React.FC = () => {
         <div className="max-w-3xl mx-auto">
           {stage === "topics" && (
             <>
-              <TopicSelection onSelectTopics={handleTopicSelection} />
+              <TopPerformingPosts onSelectPost={handleTopPostSelect} />
+              <div className="mt-8">
+                <TopicSelection onSelectTopics={handleTopicSelection} />
+              </div>
               <div className="mt-8 text-center">
                 <p className="text-muted-foreground mb-4">Want to create rich media content instead?</p>
                 <Button 
@@ -151,9 +152,9 @@ const CreatePost: React.FC = () => {
               onSchedule={handleSchedulePost}
               onPost={handlePostNow}
               isPosting={isPosting}
-              useWebIntent={false} // Set to false to use direct posting
+              useWebIntent={false}
               characterLimit={getCharacterLimit()}
-              useHashtags={user.useHashtags !== false}
+              useHashtags={user?.useHashtags !== false}
             />
           )}
           

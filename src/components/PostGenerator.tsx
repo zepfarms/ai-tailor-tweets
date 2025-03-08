@@ -38,6 +38,41 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const { toast } = useToast();
   const { user } = useAuth();
 
+  const selectSuggestedPost = (post: string) => {
+    setContent(post);
+  };
+
+  const postDirectlyToX = async () => {
+    if (!content.trim() && mediaFiles.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please add content or media first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPostingInternal(true);
+    
+    try {
+      await onPost(content, mediaPreviews);
+      
+      toast({
+        title: "Posted to X",
+        description: "Your post has been published to X",
+      });
+    } catch (error) {
+      console.error("Error posting to X:", error);
+      toast({
+        title: "Failed to post to X",
+        description: error instanceof Error ? error.message : "Please try again later",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPostingInternal(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedTopics.length > 0) {
       generateSuggestedPosts();
@@ -321,46 +356,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     
     setMediaFiles(prev => prev.filter((_, i) => i !== index));
     setMediaPreviews(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const postDirectlyToX = async () => {
-    if (!content.trim() && mediaFiles.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please add content or media first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsPostingInternal(true);
-    
-    try {
-      if (user?.postToX) {
-        await user.postToX({
-          content,
-          // We'll handle media conversion in a future update
-        });
-        
-        toast({
-          title: "Posted to X",
-          description: "Your post has been published to X",
-        });
-        
-        onPost(content, mediaPreviews);
-      } else {
-        throw new Error("X posting functionality not available");
-      }
-    } catch (error) {
-      console.error("Error posting to X:", error);
-      toast({
-        title: "Failed to post to X",
-        description: error instanceof Error ? error.message : "Please try again later",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPostingInternal(false);
-    }
   };
 
   const getPostButtonDisabledReason = (): string | null => {
