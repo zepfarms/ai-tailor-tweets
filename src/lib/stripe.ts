@@ -56,13 +56,13 @@ export async function checkSubscriptionStatus(userId: string, sessionId?: string
 }
 
 // Define a type for subscription data
-interface SubscriptionData {
+export interface SubscriptionData {
   status?: string;
   [key: string]: any; // Allow for other properties
 }
 
 // Define an interface for the RPC parameters
-interface GetUserSubscriptionParams {
+export interface GetUserSubscriptionParams {
   user_id_param: string;
 }
 
@@ -71,8 +71,8 @@ export async function getSubscriptionFromDatabase(userId: string) {
   try {
     console.log(`Directly checking database subscription for user ${userId}`);
     
-    // Use a direct RPC call with proper typing
-    const { data, error } = await supabase.rpc<SubscriptionData, GetUserSubscriptionParams>(
+    // Use a properly typed RPC call
+    const { data, error } = await supabase.rpc(
       'get_user_subscription', 
       { user_id_param: userId }
     );
@@ -85,13 +85,14 @@ export async function getSubscriptionFromDatabase(userId: string) {
     console.log('Database subscription result:', data);
     
     // Safely check if data exists and has a status property
-    const hasActiveSubscription = data && 
-                               'status' in data && 
-                               data.status === 'active';
+    const subscription = data as SubscriptionData | null;
+    const hasActiveSubscription = subscription !== null && 
+                             'status' in subscription && 
+                             subscription.status === 'active';
     
     return { 
       hasActiveSubscription, 
-      subscription: data 
+      subscription: subscription || null
     };
   } catch (error) {
     console.error('Error checking database subscription:', error);
