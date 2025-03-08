@@ -8,7 +8,7 @@ import Navbar from '@/components/Navbar';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Check, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { createCheckoutSession, SUBSCRIPTION_PRICE_ID } from '@/lib/stripe';
+import { createCheckoutSession, SUBSCRIPTION_PRICE_ID, CreateCheckoutSessionParams } from '@/lib/stripe';
 
 const Subscription: React.FC = () => {
   const { user, hasSubscription } = useAuth();
@@ -31,13 +31,15 @@ const Subscription: React.FC = () => {
 
     try {
       const baseUrl = window.location.origin;
-      const session = await createCheckoutSession({
+      const params: CreateCheckoutSessionParams = {
         priceId: SUBSCRIPTION_PRICE_ID,
         userId: user.id,
         customerEmail: user.email,
         successUrl: `${baseUrl}/subscription-success`,
         cancelUrl: `${baseUrl}/subscription`,
-      });
+      };
+      
+      const session = await createCheckoutSession(params);
 
       if (session?.url) {
         window.location.href = session.url;

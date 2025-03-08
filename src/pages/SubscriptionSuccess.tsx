@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -56,7 +55,7 @@ const SubscriptionSuccess: React.FC = () => {
         if (sessionId) {
           console.log(`Verifying payment with session ID: ${sessionId}`);
           try {
-            const result = await checkSubscriptionStatus(user.id, sessionId);
+            const result = await checkSubscriptionStatus(user.id);
             
             if (result?.hasActiveSubscription) {
               console.log('Session verification confirmed subscription:', result);

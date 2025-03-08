@@ -10,13 +10,21 @@ export enum SubscriptionStatus {
   UNPAID = 'unpaid'
 }
 
+// Interface for checkout session creation
+export interface CreateCheckoutSessionParams {
+  priceId: string;
+  userId: string;
+  customerEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+}
+
 // Basic placeholder for subscription price ID
 export const SUBSCRIPTION_PRICE_ID = 'price_1234567890';
 
 // Simplified function to create a checkout session
-// This is a simple placeholder that returns a fixed URL
-export const createCheckoutSession = async (userId: string) => {
-  console.log('Creating checkout session for user:', userId);
+export const createCheckoutSession = async (params: CreateCheckoutSessionParams) => {
+  console.log('Creating checkout session for user:', params.userId);
   
   try {
     const response = await fetch('/api/create-checkout-session', {
@@ -24,30 +32,44 @@ export const createCheckoutSession = async (userId: string) => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify(params),
     });
     
     if (!response.ok) {
       throw new Error('Failed to create checkout session');
     }
     
-    // For now, we'll just return a dummy URL to prevent errors
-    return '/subscription-success';
+    const session = await response.json();
+    return session;
   } catch (error) {
     console.error('Error creating checkout session:', error);
     throw error;
   }
 };
 
+// Interface for subscription status
+export interface SubscriptionStatus {
+  hasActiveSubscription: boolean;
+  status?: SubscriptionStatus;
+  subscription?: {
+    id?: string;
+    status?: string;
+  };
+}
+
 // Since we can't actually check subscription status without proper Stripe integration,
-// we'll use this simplified function that always returns false
+// we'll use this simplified function
 export const checkSubscriptionStatus = async (userId: string) => {
   console.log('Checking subscription status for user:', userId);
   
   // For now, we'll just return a simple object to prevent errors
   return {
     hasActiveSubscription: false,
-    status: SubscriptionStatus.INCOMPLETE
+    status: SubscriptionStatus.INCOMPLETE,
+    subscription: {
+      id: '',
+      status: 'incomplete'
+    }
   };
 };
 
@@ -57,6 +79,10 @@ export const getSubscriptionFromDatabase = async (userId: string) => {
   
   // For now, we'll just return a simple object to prevent errors
   return {
-    hasActiveSubscription: false
+    hasActiveSubscription: false,
+    subscription: {
+      id: '',
+      status: 'incomplete'
+    }
   };
 };
