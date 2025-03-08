@@ -4,7 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
-// Use TWITTER_CALLBACK_URL as configured or fallback to a default
 const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://postedpal.com/x-callback";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -42,30 +41,22 @@ serve(async (req) => {
     
     console.log("Environment variables are properly set");
     console.log("Callback URL:", TWITTER_CALLBACK_URL);
-    console.log("Client ID:", TWITTER_CLIENT_ID.substring(0, 4) + "...");
-    console.log("Client Secret length:", TWITTER_CLIENT_SECRET.length);
     
-    // Get the userId from the request body and determine if this is for login
+    // Get the userId from the request body
     let userId = null;
-    let isLogin = false;
     try {
       const requestBody = await req.json();
       userId = requestBody.userId;
-      isLogin = requestBody.isLogin === true;
-      
-      console.log("Request parameters:", { userId, isLogin });
+      console.log("Request parameters:", { userId });
     } catch (error) {
       console.error("Error parsing request JSON:", error);
       throw new Error("Invalid request format. Please provide valid JSON with a userId field.");
     }
     
     // For account linking, we need a user ID
-    if (!isLogin && !userId) {
-      throw new Error("User ID is required for account linking");
+    if (!userId) {
+      throw new Error("User ID is required for authorization");
     }
-    
-    console.log("User ID:", userId || "Not provided (login flow)");
-    console.log("Is login flow:", isLogin);
     
     // Generate the Twitter OAuth URL
     const state = crypto.randomUUID();
@@ -82,20 +73,17 @@ serve(async (req) => {
     }
     
     try {
-      // For login flows, use the state as the temp user ID to avoid null constraint issues
-      const userIdToStore = isLogin ? state : userId;
-      
-      console.log("Storing OAuth state with user_id:", userIdToStore);
+      console.log("Storing OAuth state with user_id:", userId);
       
       const { error: storeError } = await supabase
         .from('oauth_states')
         .upsert({
-          user_id: userIdToStore, // Use the state value as a temporary user_id for login flows
+          user_id: userId,
           state: state,
           code_verifier: codeVerifier,
           provider: 'twitter',
           created_at: new Date().toISOString(),
-          is_login: isLogin
+          is_login: false
         });
       
       if (storeError) {
@@ -109,60 +97,30 @@ serve(async (req) => {
       throw new Error(`Database operation failed: ${error.message}`);
     }
     
-    // Use a single function for creating the auth URL
-    function createAuthUrl(domain) {
-      const authUrl = new URL(`https://${domain}/i/oauth2/authorize`);
-      authUrl.searchParams.append("response_type", "code");
-      authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
-      authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
-      authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
-      authUrl.searchParams.append("state", state);
-      authUrl.searchParams.append("code_challenge", codeChallenge);
-      authUrl.searchParams.append("code_challenge_method", "S256");
-      return authUrl;
-    }
+    // Create X.com authorization URL
+    const authUrl = new URL("https://x.com/i/oauth2/authorize");
+    authUrl.searchParams.append("response_type", "code");
+    authUrl.searchParams.append("client_id", TWITTER_CLIENT_ID);
+    authUrl.searchParams.append("redirect_uri", TWITTER_CALLBACK_URL);
+    authUrl.searchParams.append("scope", "tweet.read tweet.write users.read offline.access");
+    authUrl.searchParams.append("state", state);
+    authUrl.searchParams.append("code_challenge", codeChallenge);
+    authUrl.searchParams.append("code_challenge_method", "S256");
     
-    // Try to create x.com URL first, then twitter.com as fallback
-    try {
-      const authUrl = createAuthUrl("x.com");
-      console.log("Authorization URL created (X domain):", authUrl.toString());
-      
-      return new Response(
-        JSON.stringify({
-          authUrl: authUrl.toString(),
-          state,
-          isLogin
-        }),
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        }
-      );
-    } catch (error) {
-      console.error("Error using x.com domain, trying twitter.com instead:", error);
-      try {
-        const authUrl = createAuthUrl("twitter.com");
-        console.log("Authorization URL created (Twitter domain fallback):", authUrl.toString());
-        
-        return new Response(
-          JSON.stringify({
-            authUrl: authUrl.toString(),
-            state,
-            isLogin
-          }),
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          }
-        );
-      } catch (secondError) {
-        throw new Error(`Failed to create authorization URL with both domains: ${error.message}, ${secondError.message}`);
+    console.log("Authorization URL created:", authUrl.toString());
+    
+    return new Response(
+      JSON.stringify({
+        authUrl: authUrl.toString(),
+        state
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
       }
-    }
+    );
   } catch (error) {
     console.error("Error:", error);
     return new Response(

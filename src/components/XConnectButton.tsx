@@ -20,24 +20,18 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
   const { toast } = useToast();
 
   const handleConnect = async () => {
-    if (!linkXAccount) {
-      toast({
-        title: "Error",
-        description: "Authentication context not initialized",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     try {
       toast({
         title: "Connecting to X",
         description: "You'll be redirected to X for authorization...",
       });
       
-      // Call the linkXAccount function
-      await linkXAccount();
-      
+      // Simple redirect to X authorization
+      if (linkXAccount) {
+        await linkXAccount();
+      } else {
+        throw new Error("Authentication context not initialized");
+      }
     } catch (error) {
       console.error('Error connecting to X:', error);
       toast({
@@ -57,7 +51,7 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         disabled
       >
         <X className="mr-2 h-4 w-4" />
-        Connected to {user.xUsername}
+        Connected
       </Button>
     );
   }
