@@ -2,9 +2,18 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
+// OAuth 2.0 credentials (newer API)
 const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
 const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
 const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "";
+
+// OAuth 1.0a credentials (older API)
+const TWITTER_CONSUMER_KEY = Deno.env.get("TWITTER_CONSUMER_KEY") || "";
+const TWITTER_CONSUMER_SECRET = Deno.env.get("TWITTER_CONSUMER_SECRET") || "";
+const TWITTER_ACCESS_TOKEN = Deno.env.get("TWITTER_ACCESS_TOKEN") || "";
+const TWITTER_ACCESS_TOKEN_SECRET = Deno.env.get("TWITTER_ACCESS_TOKEN_SECRET") || "";
+
+// Supabase configuration
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -23,6 +32,7 @@ serve(async (req) => {
     const debugInfo = {
       timestamp: new Date().toISOString(),
       environment: {
+        // OAuth 2.0 credentials
         hasTwitterClientId: Boolean(TWITTER_CLIENT_ID),
         twitterClientIdLength: TWITTER_CLIENT_ID?.length || 0,
         twitterClientIdFirstFour: TWITTER_CLIENT_ID ? TWITTER_CLIENT_ID.substring(0, 4) + "..." : "not set",
@@ -30,12 +40,25 @@ serve(async (req) => {
         twitterClientSecretLength: TWITTER_CLIENT_SECRET?.length || 0,
         hasTwitterCallbackUrl: Boolean(TWITTER_CALLBACK_URL),
         twitterCallbackUrl: TWITTER_CALLBACK_URL || "not set",
+        
+        // OAuth 1.0a credentials
+        hasTwitterConsumerKey: Boolean(TWITTER_CONSUMER_KEY),
+        twitterConsumerKeyLength: TWITTER_CONSUMER_KEY?.length || 0,
+        hasTwitterConsumerSecret: Boolean(TWITTER_CONSUMER_SECRET),
+        twitterConsumerSecretLength: TWITTER_CONSUMER_SECRET?.length || 0,
+        hasTwitterAccessToken: Boolean(TWITTER_ACCESS_TOKEN),
+        twitterAccessTokenLength: TWITTER_ACCESS_TOKEN?.length || 0,
+        hasTwitterAccessTokenSecret: Boolean(TWITTER_ACCESS_TOKEN_SECRET),
+        twitterAccessTokenSecretLength: TWITTER_ACCESS_TOKEN_SECRET?.length || 0,
+        
+        // Supabase credentials
         hasSupabaseUrl: Boolean(SUPABASE_URL),
         hasSupabaseServiceRoleKey: Boolean(SUPABASE_SERVICE_ROLE_KEY),
         runtime: Deno.version,
       },
       connectivity: {},
-      clientCredentialsTest: {},
+      oauth2Test: {},
+      oauth1Test: {},
       dns: {}
     };
 
@@ -52,10 +75,10 @@ serve(async (req) => {
       };
     }
 
-    // Test connectivity to Twitter - Fixed to use GET instead of HEAD
+    // Test connectivity to Twitter - Using GET method
     try {
       const twitterResponse = await fetch("https://api.twitter.com/2/openapi.json", {
-        method: "GET", // Changed from HEAD to GET
+        method: "GET",
       });
       
       debugInfo.connectivity = {
@@ -71,12 +94,15 @@ serve(async (req) => {
       };
     }
 
-    // Test client credentials flow - Fixed to properly encode client credentials
+    // Test OAuth 2.0 client credentials flow
     try {
       if (TWITTER_CLIENT_ID && TWITTER_CLIENT_SECRET) {
+        console.log("Testing OAuth 2.0 client credentials flow");
+        
+        // Method 1: Using Authorization header with Basic auth
         const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
         
-        console.log("Testing client credentials flow with auth header");
+        console.log("Method 1: Using Authorization header with Basic auth");
         
         const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
           method: "POST",
@@ -100,7 +126,8 @@ serve(async (req) => {
           console.error("Error parsing response:", parseError);
         }
         
-        debugInfo.clientCredentialsTest = {
+        debugInfo.oauth2Test = {
+          method: "Basic Authorization header",
           status: tokenResponse.status,
           statusText: tokenResponse.statusText,
           success: tokenResponse.ok,
@@ -109,9 +136,9 @@ serve(async (req) => {
           parsedErrorDescription: parsedResponse?.error_description || null,
         };
         
-        // If we got a 400 error, try the alternate format without Authorization header
+        // Method 2: Using client_id and client_secret as parameters
         if (tokenResponse.status === 400) {
-          console.log("First attempt failed, trying alternate method");
+          console.log("Method 2: Using client_id and client_secret as parameters");
           
           const altTokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
             method: "POST",
@@ -136,7 +163,8 @@ serve(async (req) => {
             console.error("Error parsing alternate response:", parseError);
           }
           
-          debugInfo.clientCredentialsTest.alternateAttempt = {
+          debugInfo.oauth2Test.alternateAttempt = {
+            method: "Form parameters",
             status: altTokenResponse.status,
             statusText: altTokenResponse.statusText,
             success: altTokenResponse.ok,
@@ -146,13 +174,53 @@ serve(async (req) => {
           };
         }
       } else {
-        debugInfo.clientCredentialsTest = {
+        debugInfo.oauth2Test = {
           skipped: true,
-          reason: "Missing Twitter client credentials",
+          reason: "Missing Twitter OAuth 2.0 client credentials",
         };
       }
     } catch (error) {
-      debugInfo.clientCredentialsTest = {
+      debugInfo.oauth2Test = {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+      };
+    }
+    
+    // Test OAuth 1.0a credentials if available
+    try {
+      if (TWITTER_CONSUMER_KEY && TWITTER_CONSUMER_SECRET && 
+          TWITTER_ACCESS_TOKEN && TWITTER_ACCESS_TOKEN_SECRET) {
+        console.log("Testing OAuth 1.0a credentials");
+        
+        // This endpoint requires OAuth 1.0a
+        const accountResponse = await fetch("https://api.twitter.com/1.1/account/verify_credentials.json", {
+          method: "GET",
+          headers: {
+            // We're not implementing the full OAuth 1.0a flow here as it's complex
+            // Just checking if the credentials are available
+            "X-Test-Only": "Not performing actual OAuth 1.0a request",
+          }
+        });
+        
+        debugInfo.oauth1Test = {
+          credentialsPresent: true,
+          message: "OAuth 1.0a credentials are configured, but actual authentication test is not implemented in this diagnostic"
+        };
+      } else {
+        debugInfo.oauth1Test = {
+          credentialsPresent: false,
+          reason: "Missing Twitter OAuth 1.0a credentials",
+          missingCredentials: {
+            consumerKey: !TWITTER_CONSUMER_KEY,
+            consumerSecret: !TWITTER_CONSUMER_SECRET,
+            accessToken: !TWITTER_ACCESS_TOKEN,
+            accessTokenSecret: !TWITTER_ACCESS_TOKEN_SECRET
+          }
+        };
+      }
+    } catch (error) {
+      debugInfo.oauth1Test = {
         success: false,
         error: error.message,
         stack: error.stack,

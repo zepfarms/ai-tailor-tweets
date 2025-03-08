@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -229,20 +228,44 @@ const Settings: React.FC = () => {
               {xDiagnosticInfo && (
                 <div className="border rounded-md p-4 bg-muted/50 space-y-3">
                   <div>
-                    <h4 className="text-sm font-medium">Environment</h4>
+                    <h4 className="text-sm font-medium">Environment Variables</h4>
                     <div className="grid grid-cols-2 gap-2 mt-2">
-                      <div className="text-xs">Twitter Client ID:</div>
+                      <div className="col-span-2 text-xs font-medium mt-2">OAuth 2.0 Credentials:</div>
+                      
+                      <div className="text-xs">Client ID:</div>
                       <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterClientId ? 
                         `✅ Present (${xDiagnosticInfo.environment?.twitterClientIdFirstFour})` : 
                         '❌ Missing'}</div>
                       
-                      <div className="text-xs">Twitter Client Secret:</div>
+                      <div className="text-xs">Client Secret:</div>
                       <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterClientSecret ? 
                         '✅ Present' : 
                         '❌ Missing'}</div>
                       
-                      <div className="text-xs">Twitter Callback URL:</div>
+                      <div className="text-xs">Callback URL:</div>
                       <div className="text-xs font-mono overflow-hidden text-ellipsis">{xDiagnosticInfo.environment?.twitterCallbackUrl}</div>
+                      
+                      <div className="col-span-2 text-xs font-medium mt-2">OAuth 1.0a Credentials:</div>
+                      
+                      <div className="text-xs">Consumer Key:</div>
+                      <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterConsumerKey ? 
+                        '✅ Present' : 
+                        '❌ Missing'}</div>
+                      
+                      <div className="text-xs">Consumer Secret:</div>
+                      <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterConsumerSecret ? 
+                        '✅ Present' : 
+                        '❌ Missing'}</div>
+                      
+                      <div className="text-xs">Access Token:</div>
+                      <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterAccessToken ? 
+                        '✅ Present' : 
+                        '❌ Missing'}</div>
+                      
+                      <div className="text-xs">Access Token Secret:</div>
+                      <div className="text-xs font-mono">{xDiagnosticInfo.environment?.hasTwitterAccessTokenSecret ? 
+                        '✅ Present' : 
+                        '❌ Missing'}</div>
                     </div>
                   </div>
                   
@@ -271,28 +294,114 @@ const Settings: React.FC = () => {
                   </div>
                   
                   <div>
-                    <h4 className="text-sm font-medium">Client Credentials Test</h4>
+                    <h4 className="text-sm font-medium">OAuth 2.0 Test</h4>
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       <div className="text-xs">Authentication Test:</div>
                       <div className="text-xs font-mono">
-                        {xDiagnosticInfo.clientCredentialsTest?.success ? 
+                        {xDiagnosticInfo.oauth2Test?.success ? 
                           '✅ Success' : 
-                          xDiagnosticInfo.clientCredentialsTest?.skipped ? 
+                          xDiagnosticInfo.oauth2Test?.skipped ? 
                             '⚠️ Skipped' : 
                             '❌ Failed'}
                       </div>
                       
-                      {!xDiagnosticInfo.clientCredentialsTest?.skipped && (
+                      {!xDiagnosticInfo.oauth2Test?.skipped && (
                         <>
+                          <div className="text-xs">Method:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth2Test?.method}</div>
+                          
                           <div className="text-xs">Response Status:</div>
-                          <div className="text-xs font-mono">{xDiagnosticInfo.clientCredentialsTest?.status} {xDiagnosticInfo.clientCredentialsTest?.statusText}</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth2Test?.status} {xDiagnosticInfo.oauth2Test?.statusText}</div>
+                          
+                          {xDiagnosticInfo.oauth2Test?.parsedError && (
+                            <>
+                              <div className="text-xs">Error:</div>
+                              <div className="text-xs font-mono text-red-500">{xDiagnosticInfo.oauth2Test?.parsedError}</div>
+                            </>
+                          )}
+                          
+                          {xDiagnosticInfo.oauth2Test?.parsedErrorDescription && (
+                            <>
+                              <div className="text-xs">Error Description:</div>
+                              <div className="text-xs font-mono text-red-500">{xDiagnosticInfo.oauth2Test?.parsedErrorDescription}</div>
+                            </>
+                          )}
                         </>
                       )}
                       
-                      {xDiagnosticInfo.clientCredentialsTest?.reason && (
+                      {xDiagnosticInfo.oauth2Test?.alternateAttempt && (
+                        <>
+                          <div className="col-span-2 text-xs font-medium mt-2">Alternative OAuth 2.0 Method:</div>
+                          
+                          <div className="text-xs">Method:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth2Test?.alternateAttempt.method}</div>
+                          
+                          <div className="text-xs">Response Status:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth2Test?.alternateAttempt.status} {xDiagnosticInfo.oauth2Test?.alternateAttempt.statusText}</div>
+                          
+                          <div className="text-xs">Success:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth2Test?.alternateAttempt.success ? '✅ Yes' : '❌ No'}</div>
+                          
+                          {xDiagnosticInfo.oauth2Test?.alternateAttempt.parsedError && (
+                            <>
+                              <div className="text-xs">Error:</div>
+                              <div className="text-xs font-mono text-red-500">{xDiagnosticInfo.oauth2Test?.alternateAttempt.parsedError}</div>
+                            </>
+                          )}
+                          
+                          {xDiagnosticInfo.oauth2Test?.alternateAttempt.parsedErrorDescription && (
+                            <>
+                              <div className="text-xs">Error Description:</div>
+                              <div className="text-xs font-mono text-red-500">{xDiagnosticInfo.oauth2Test?.alternateAttempt.parsedErrorDescription}</div>
+                            </>
+                          )}
+                        </>
+                      )}
+                      
+                      {xDiagnosticInfo.oauth2Test?.reason && (
                         <>
                           <div className="text-xs">Reason:</div>
-                          <div className="text-xs font-mono">{xDiagnosticInfo.clientCredentialsTest?.reason}</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth2Test?.reason}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium">OAuth 1.0a Test</h4>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="text-xs">Credentials Present:</div>
+                      <div className="text-xs font-mono">
+                        {xDiagnosticInfo.oauth1Test?.credentialsPresent ? 
+                          '✅ Yes' : 
+                          '❌ No'}
+                      </div>
+                      
+                      {xDiagnosticInfo.oauth1Test?.message && (
+                        <>
+                          <div className="text-xs">Message:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth1Test?.message}</div>
+                        </>
+                      )}
+                      
+                      {xDiagnosticInfo.oauth1Test?.reason && (
+                        <>
+                          <div className="text-xs">Reason:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth1Test?.reason}</div>
+                        </>
+                      )}
+                      
+                      {xDiagnosticInfo.oauth1Test?.missingCredentials && (
+                        <>
+                          <div className="col-span-2 text-xs">Missing Credentials:</div>
+                          <div className="text-xs">Consumer Key:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth1Test?.missingCredentials.consumerKey ? '❌ Missing' : '✅ Present'}</div>
+                          <div className="text-xs">Consumer Secret:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth1Test?.missingCredentials.consumerSecret ? '❌ Missing' : '✅ Present'}</div>
+                          <div className="text-xs">Access Token:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth1Test?.missingCredentials.accessToken ? '❌ Missing' : '✅ Present'}</div>
+                          <div className="text-xs">Access Token Secret:</div>
+                          <div className="text-xs font-mono">{xDiagnosticInfo.oauth1Test?.missingCredentials.accessTokenSecret ? '❌ Missing' : '✅ Present'}</div>
                         </>
                       )}
                     </div>
@@ -308,12 +417,13 @@ const Settings: React.FC = () => {
             </CardContent>
             <CardFooter className="flex flex-col items-start">
               <p className="text-xs text-muted-foreground mb-2">
-                If you're having trouble connecting to X, check that:
+                If you're having trouble connecting to X, make sure you have:
               </p>
               <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
-                <li>Your X Developer account has the correct OAuth 2.0 settings</li>
-                <li>The callback URL in your X Developer portal matches the one shown above</li>
-                <li>Your X app has both Read and Write permissions enabled</li>
+                <li><strong>OAuth 2.0 credentials</strong> (Client ID, Client Secret) - Required for the newer Twitter API v2 endpoints</li>
+                <li><strong>OAuth 1.0a credentials</strong> (Consumer Key/Secret, Access Token/Secret) - Required for some v1.1 endpoints</li>
+                <li>Your app has both <strong>Read and Write permissions</strong> enabled in Twitter Developer Portal</li>
+                <li>The <strong>callback URL</strong> in your Twitter Developer portal matches the one shown above</li>
                 <li>All required secrets are properly configured in your Supabase project</li>
               </ul>
             </CardFooter>
