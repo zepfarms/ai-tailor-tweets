@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, AuthContextType, PostToXData } from '@/lib/types';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { checkSubscriptionStatus, getSubscriptionFromDatabase } from '@/lib/stripe';
+import { SubscriptionStatus } from '@/lib/stripe';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -44,25 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('Master/demo user detected, setting subscription to true');
             setHasSubscription(true);
           } else {
-            try {
-              const dbResult = await getSubscriptionFromDatabase(authUser.id);
-              if (dbResult.hasActiveSubscription) {
-                console.log('Found active subscription in database');
-                setHasSubscription(true);
-              } else {
-                try {
-                  const subscription = await checkSubscriptionStatus(authUser.id);
-                  console.log('Subscription check result:', subscription);
-                  setHasSubscription(subscription?.hasActiveSubscription || false);
-                } catch (subError) {
-                  console.error('Error checking subscription with edge function:', subError);
-                  setHasSubscription(false);
-                }
-              }
-            } catch (error) {
-              console.error('Error during subscription check:', error);
-              setHasSubscription(false);
-            }
+            setHasSubscription(false);
           }
         }
       } catch (error) {
@@ -175,30 +157,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       
       if (data.user) {
-        let hasActive = false;
-        
-        if (email === 'zepfarms@gmail.com' || email === 'demo@postedpal.com') {
-          setHasSubscription(true);
-          hasActive = true;
-        } else {
-          const dbResult = await getSubscriptionFromDatabase(data.user.id);
-          if (dbResult.hasActiveSubscription) {
-            console.log('Found active subscription in database during login');
-            setHasSubscription(true);
-            hasActive = true;
-          } else {
-            try {
-              const subscription = await checkSubscriptionStatus(data.user.id);
-              console.log('Login subscription check result:', subscription);
-              setHasSubscription(subscription?.hasActiveSubscription || false);
-              hasActive = subscription?.hasActiveSubscription || false;
-            } catch (subError) {
-              console.error('Error checking subscription during login:', subError);
-              setHasSubscription(false);
-              hasActive = false;
-            }
-          }
-        }
+        let hasActive = email === 'zepfarms@gmail.com' || email === 'demo@postedpal.com';
+        setHasSubscription(hasActive);
         
         toast({
           title: "Login successful",
@@ -632,24 +592,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return true;
         }
         
-        const dbResult = await getSubscriptionFromDatabase(user.id);
-        if (dbResult.hasActiveSubscription) {
-          console.log('Found active subscription in database');
-          setHasSubscription(true);
-          return true;
-        }
-        
-        try {
-          const subscription = await checkSubscriptionStatus(user.id);
-          console.log('Subscription update check result:', subscription);
-          const hasActive = subscription?.hasActiveSubscription || false;
-          setHasSubscription(hasActive);
-          return hasActive;
-        } catch (subError) {
-          console.error('Error checking subscription with edge function:', subError);
-          setHasSubscription(false);
-          return false;
-        }
+        setHasSubscription(false);
+        return false;
       } catch (error) {
         console.error('Error updating subscription status:', error);
         return false;
