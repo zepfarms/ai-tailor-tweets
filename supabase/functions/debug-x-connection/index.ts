@@ -76,6 +76,8 @@ serve(async (req) => {
       if (TWITTER_CLIENT_ID && TWITTER_CLIENT_SECRET) {
         const authString = btoa(`${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`);
         
+        console.log("Testing client credentials flow with auth header");
+        
         const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
           method: "POST",
           headers: {
@@ -84,19 +86,65 @@ serve(async (req) => {
           },
           body: new URLSearchParams({
             grant_type: "client_credentials",
-            client_id: TWITTER_CLIENT_ID,
-            client_secret: TWITTER_CLIENT_SECRET
           }).toString(),
         });
         
         const responseBody = await tokenResponse.text();
+        let parsedResponse = null;
+        
+        try {
+          if (responseBody && responseBody.trim()) {
+            parsedResponse = JSON.parse(responseBody);
+          }
+        } catch (parseError) {
+          console.error("Error parsing response:", parseError);
+        }
         
         debugInfo.clientCredentialsTest = {
           status: tokenResponse.status,
           statusText: tokenResponse.statusText,
           success: tokenResponse.ok,
           responseBody: responseBody.length > 1000 ? responseBody.substring(0, 1000) + "..." : responseBody,
+          parsedError: parsedResponse?.error || null,
+          parsedErrorDescription: parsedResponse?.error_description || null,
         };
+        
+        // If we got a 400 error, try the alternate format without Authorization header
+        if (tokenResponse.status === 400) {
+          console.log("First attempt failed, trying alternate method");
+          
+          const altTokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              grant_type: "client_credentials",
+              client_id: TWITTER_CLIENT_ID,
+              client_secret: TWITTER_CLIENT_SECRET
+            }).toString(),
+          });
+          
+          const altResponseBody = await altTokenResponse.text();
+          let altParsedResponse = null;
+          
+          try {
+            if (altResponseBody && altResponseBody.trim()) {
+              altParsedResponse = JSON.parse(altResponseBody);
+            }
+          } catch (parseError) {
+            console.error("Error parsing alternate response:", parseError);
+          }
+          
+          debugInfo.clientCredentialsTest.alternateAttempt = {
+            status: altTokenResponse.status,
+            statusText: altTokenResponse.statusText,
+            success: altTokenResponse.ok,
+            responseBody: altResponseBody.length > 1000 ? altResponseBody.substring(0, 1000) + "..." : altResponseBody,
+            parsedError: altParsedResponse?.error || null,
+            parsedErrorDescription: altParsedResponse?.error_description || null,
+          };
+        }
       } else {
         debugInfo.clientCredentialsTest = {
           skipped: true,
