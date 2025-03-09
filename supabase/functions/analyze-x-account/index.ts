@@ -74,7 +74,7 @@ serve(async (req) => {
       .from('x_analyses')
       .select('*')
       .eq('user_id', user_id)
-      .single();
+      .maybeSingle();
     
     if (recentAnalysis) {
       const lastAnalyzed = new Date(recentAnalysis.last_analyzed);
@@ -94,10 +94,15 @@ serve(async (req) => {
       .from('x_accounts')
       .select('x_user_id, x_username')
       .eq('user_id', user_id)
-      .single();
+      .maybeSingle();
     
-    if (xAccountError || !xAccount) {
+    if (xAccountError) {
       console.error("Error retrieving X account:", xAccountError);
+      throw new Error("Error retrieving X account details. Please try again.");
+    }
+    
+    if (!xAccount) {
+      console.error("No X account found for user:", user_id);
       throw new Error("X account not found for this user. Please reconnect your X account.");
     }
     
@@ -111,14 +116,20 @@ serve(async (req) => {
       .select('access_token, refresh_token')
       .eq('user_id', user_id)
       .eq('provider', 'twitter')
-      .single();
+      .maybeSingle();
     
-    if (tokenError || !tokenData || !tokenData.access_token) {
+    if (tokenError) {
       console.error("Error retrieving tokens:", tokenError);
+      throw new Error("Error retrieving account tokens. Please try again.");
+    }
+    
+    if (!tokenData || !tokenData.access_token) {
+      console.error("No valid token found for user:", user_id);
       throw new Error("No valid access token found. Please reconnect your X account.");
     }
     
     const accessToken = tokenData.access_token;
+    console.log("Access token retrieved successfully");
     
     // Set up date range (last 30 days)
     const thirtyDaysAgo = new Date();
@@ -173,9 +184,15 @@ serve(async (req) => {
           }
         }
         
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          console.error("Error parsing X API response:", jsonError);
+          throw new Error("Invalid response from X API. Please try again later.");
+        }
         
-        if (data.data && data.data.length > 0) {
+        if (data.data && Array.isArray(data.data) && data.data.length > 0) {
           allTweets = [...allTweets, ...data.data];
           console.log(`Fetched ${data.data.length} tweets, total now: ${allTweets.length}`);
         } else {
@@ -239,24 +256,28 @@ serve(async (req) => {
     let totalEngagement = 0;
     allTweets.forEach(tweet => {
       const metrics = tweet.public_metrics;
+      if (!metrics) return;
+      
       const engagement = (metrics.like_count || 0) + 
                         (metrics.retweet_count || 0) + 
                         (metrics.reply_count || 0) + 
                         (metrics.quote_count || 0);
       totalEngagement += engagement;
     });
-    const averageEngagement = totalEngagement / allTweets.length;
+    const averageEngagement = allTweets.length > 0 ? totalEngagement / allTweets.length : 0;
     
     // 2. Calculate posting frequency (tweets per day)
     const days = 30; // Assuming we're looking at 30 days
     const postingFrequency = allTweets.length / days;
     
     // 3. Find best-performing tweet
-    let topTweet = allTweets[0];
+    let topTweet = allTweets[0] || { id: "", text: "", public_metrics: { like_count: 0, retweet_count: 0, reply_count: 0, quote_count: 0 } };
     let topEngagement = 0;
     
     allTweets.forEach(tweet => {
       const metrics = tweet.public_metrics;
+      if (!metrics) return;
+      
       const engagement = (metrics.like_count || 0) + (metrics.retweet_count || 0);
       if (engagement > topEngagement) {
         topEngagement = engagement;
@@ -269,6 +290,8 @@ serve(async (req) => {
     
     allTweets.forEach(tweet => {
       try {
+        if (!tweet.created_at) return;
+        
         const date = new Date(tweet.created_at);
         const hour = date.getUTCHours();
         const hourKey = hour.toString();
@@ -279,6 +302,8 @@ serve(async (req) => {
         
         hourCounts[hourKey].count += 1;
         const metrics = tweet.public_metrics;
+        if (!metrics) return;
+        
         hourCounts[hourKey].engagement += (metrics.like_count || 0) + 
                                          (metrics.retweet_count || 0) + 
                                          (metrics.reply_count || 0);
@@ -318,7 +343,7 @@ serve(async (req) => {
     
     // Media recommendation
     const tweetsWithMedia = allTweets.filter(t => t.attachments?.media_keys?.length > 0).length;
-    const mediaPercentage = (tweetsWithMedia / allTweets.length) * 100;
+    const mediaPercentage = allTweets.length > 0 ? (tweetsWithMedia / allTweets.length) * 100 : 0;
     
     if (mediaPercentage < 30) {
       recommendations.push("Include images or videos more often. Tweets with media typically get higher engagement.");
@@ -330,13 +355,20 @@ serve(async (req) => {
     }
     
     // Top tweet insight
-    if (topTweet.id) {
+    if (topTweet.id && topTweet.text) {
       recommendations.push(`Your top performing tweet received ${topEngagement} engagements. Try creating more content similar to: "${topTweet.text.substring(0, 50)}..."`);
     }
     
     // Stringify arrays safely
-    const peakTimesJson = JSON.stringify(sortedHours);
-    const recommendationsJson = JSON.stringify(recommendations);
+    let peakTimesJson = "[]";
+    let recommendationsJson = "[]";
+    
+    try {
+      peakTimesJson = JSON.stringify(sortedHours);
+      recommendationsJson = JSON.stringify(recommendations);
+    } catch (jsonError) {
+      console.error("Error stringifying JSON data:", jsonError);
+    }
     
     console.log("Peak times JSON:", peakTimesJson);
     console.log("Recommendations JSON:", recommendationsJson);
@@ -374,7 +406,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error analyzing X account:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Unknown error occurred" }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error occurred" }),
       { 
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" }

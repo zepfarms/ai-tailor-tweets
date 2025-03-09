@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -72,6 +73,12 @@ const Dashboard: React.FC = () => {
         throw new Error(error.message || 'Failed to analyze X account');
       }
 
+      if (!data) {
+        throw new Error('No data returned from analysis');
+      }
+
+      console.log('Analysis result:', data);
+      
       toast({
         title: "Analysis complete",
         description: "Your X account analysis is ready to view",
@@ -80,9 +87,25 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error analyzing X account:', error);
       addErrorLog(`Error analyzing X account: ${error instanceof Error ? error.message : String(error)}`);
+      
+      let errorMessage = "Failed to analyze X account";
+      if (error instanceof Error) {
+        // Handle specific error messages for better user feedback
+        if (error.message.includes("X account not found") || 
+            error.message.includes("Please reconnect")) {
+          errorMessage = "Please reconnect your X account in the settings";
+        } else if (error.message.includes("Authorization failed")) {
+          errorMessage = "Authorization failed. Please reconnect your X account";
+        } else if (error.message.includes("Rate limit")) {
+          errorMessage = "X API rate limit reached. Please try again later";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Analysis failed",
-        description: error instanceof Error ? error.message : "Failed to analyze X account",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
