@@ -13,6 +13,18 @@ serve(async (req) => {
   try {
     console.log('Twitter request token function invoked');
     
+    // CORS headers for preflight requests
+    if (req.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        },
+        status: 204,
+      });
+    }
+    
     // Parse request body
     const { userId, isLogin = false, origin } = await req.json() as RequestBody;
     console.log('Request parameters:', { userId, isLogin, origin });
@@ -82,7 +94,12 @@ serve(async (req) => {
         state
       }),
       {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        },
         status: 200,
       }
     );
@@ -94,7 +111,12 @@ serve(async (req) => {
         details: 'Failed to initialize X authentication',
       }),
       {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        },
         status: 500,
       }
     );

@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from "lucide-react"
+import { useToast } from '@/components/ui/use-toast';
 
 interface XConnectButtonProps {
   showLoginOption?: boolean;
@@ -17,6 +19,7 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
 }) => {
   const { user, linkXAccount, loginWithX, isLinkingX, isLoginingWithX } = useAuth();
   const [isConnecting, setIsConnecting] = useState(false);
+  const { toast } = useToast();
   
   const handleXConnect = async () => {
     try {
@@ -24,6 +27,11 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
       await linkXAccount();
     } catch (error) {
       console.error('Error connecting X account:', error);
+      toast({
+        variant: "destructive",
+        title: "Connection Error",
+        description: error instanceof Error ? error.message : "Failed to connect X account"
+      });
     } finally {
       setIsConnecting(false);
     }
@@ -34,6 +42,11 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
       await loginWithX();
     } catch (error) {
       console.error('Error logging in with X:', error);
+      toast({
+        variant: "destructive",
+        title: "Login Error",
+        description: error instanceof Error ? error.message : "Failed to login with X"
+      });
     }
   };
   
