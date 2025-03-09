@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
@@ -9,10 +9,12 @@ import PostGenerator from '@/components/PostGenerator';
 import PostScheduler from '@/components/PostScheduler';
 import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
-import { ArrowLeft, Video } from 'lucide-react';
+import { ArrowLeft, Video, FileWarning } from 'lucide-react';
 import TopPerformingPosts from '@/components/TopPerformingPosts';
 import { supabase } from '@/integrations/supabase/client';
 import XConnectButton from '@/components/XConnectButton';
+import MediaUpload from '@/components/MediaUpload';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 type Stage = "topics" | "create" | "schedule";
 
@@ -20,10 +22,15 @@ const CreatePost: React.FC = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [stage, setStage] = useState<Stage>("topics");
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
   const [currentContent, setCurrentContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+  
+  // Check if we have a template from XDashboard
+  const templateFromLocation = location.state?.template || "";
   
   useEffect(() => {
     if (!isLoading && !user) {
@@ -38,7 +45,13 @@ const CreatePost: React.FC = () => {
         description: "Your post has been shared to X successfully",
       });
     }
-  }, [user, isLoading, navigate, searchParams]);
+    
+    // If we have a template from XDashboard, go directly to create stage
+    if (templateFromLocation) {
+      setCurrentContent(templateFromLocation);
+      setStage("create");
+    }
+  }, [user, isLoading, navigate, searchParams, templateFromLocation]);
 
   const handleTopicSelection = (topics: Topic[]) => {
     setSelectedTopics(topics);
@@ -50,7 +63,7 @@ const CreatePost: React.FC = () => {
     setStage("schedule");
   };
 
-  const handlePostNow = async (content: string, mediaPreviews?: string[]) => {
+  const handlePostNow = async (content: string) => {
     setIsPosting(true);
     
     try {
@@ -142,6 +155,7 @@ const CreatePost: React.FC = () => {
   const goBack = () => {
     if (stage === "create") {
       setStage("topics");
+      setMediaPreviews([]);
     } else if (stage === "schedule") {
       setStage("create");
     }
@@ -149,6 +163,10 @@ const CreatePost: React.FC = () => {
 
   const goToVideoStudio = () => {
     navigate('/video-studio');
+  };
+
+  const handleMediaChange = (newMediaPreviews: string[]) => {
+    setMediaPreviews(newMediaPreviews);
   };
 
   const getCharacterLimit = () => {
@@ -182,11 +200,16 @@ const CreatePost: React.FC = () => {
         
         <div className="max-w-3xl mx-auto">
           {!user.xLinked && (
-            <div className="mb-8 p-4 border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-              <h3 className="text-lg font-medium mb-2">X Account Not Connected</h3>
-              <p className="mb-4">You need to connect your X account before you can post.</p>
-              <XConnectButton />
-            </div>
+            <Alert variant="destructive" className="mb-8">
+              <FileWarning className="h-4 w-4" />
+              <AlertTitle>X Account Not Connected</AlertTitle>
+              <AlertDescription>
+                You need to connect your X account before you can post.
+                <div className="mt-4">
+                  <XConnectButton />
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
           
           {stage === "topics" && (
@@ -210,21 +233,30 @@ const CreatePost: React.FC = () => {
           )}
           
           {stage === "create" && (
-            <PostGenerator 
-              selectedTopics={selectedTopics} 
-              onSchedule={handleSchedulePost}
-              onPost={handlePostNow}
-              isPosting={isPosting}
-              useWebIntent={false}
-              characterLimit={getCharacterLimit()}
-              useHashtags={user?.useHashtags !== false}
-            />
+            <>
+              <PostGenerator 
+                selectedTopics={selectedTopics} 
+                onSchedule={handleSchedulePost}
+                onPost={handlePostNow}
+                isPosting={isPosting}
+                useWebIntent={false}
+                characterLimit={getCharacterLimit()}
+                useHashtags={user?.useHashtags !== false}
+                initialContent={templateFromLocation || currentContent}
+              />
+              
+              <div className="mt-8 space-y-6">
+                <h3 className="text-lg font-medium">Add Media to Your Post</h3>
+                <MediaUpload onMediaChange={handleMediaChange} />
+              </div>
+            </>
           )}
           
           {stage === "schedule" && (
             <PostScheduler 
               content={currentContent}
               onScheduleComplete={handleScheduleComplete}
+              mediaPreviews={mediaPreviews}
             />
           )}
         </div>

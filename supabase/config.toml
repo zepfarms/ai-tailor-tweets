@@ -29,3 +29,12 @@ enable_signup = true
 
 [functions.twitter-post]
 verify_jwt = false
+
+[functions.twitter-request-token]
+verify_jwt = false
+
+[functions.twitter-access-token]
+verify_jwt = false
+
+[functions.twitter-analytics]
+verify_jwt = false

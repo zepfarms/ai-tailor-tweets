@@ -11,6 +11,8 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
+import XConnectButton from '@/components/XConnectButton';
 
 const Login: React.FC = () => {
   const { login, user, isLoading } = useAuth();
@@ -118,6 +120,17 @@ const Login: React.FC = () => {
                   {isLoading ? "Logging in..." : "Log in"}
                 </Button>
               </form>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator className="w-full" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-background px-2 text-muted-foreground text-sm">Or continue with</span>
+                </div>
+              </div>
+
+              <XConnectButton className="w-full" showLoginOption={true} />
             </CardContent>
             
             <CardFooter>

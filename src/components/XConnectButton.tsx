@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, LogIn } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -10,14 +10,16 @@ interface XConnectButtonProps {
   className?: string;
   variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive';
   size?: 'default' | 'sm' | 'lg' | 'icon';
+  showLoginOption?: boolean;
 }
 
 const XConnectButton: React.FC<XConnectButtonProps> = ({ 
   className = '',
   variant = 'default',
-  size = 'default'
+  size = 'default',
+  showLoginOption = false
 }) => {
-  const { user, linkXAccount, isLinkingX } = useAuth();
+  const { user, linkXAccount, isLinkingX, loginWithX, isLoginingWithX } = useAuth();
   const { toast } = useToast();
   const [localLoading, setLocalLoading] = useState(false);
 
@@ -79,7 +81,51 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
     }
   };
 
-  const isLoading = isLinkingX || localLoading;
+  const handleLoginWithX = async () => {
+    try {
+      console.log('Starting X login process');
+      toast({
+        title: "Logging in with X",
+        description: "You'll be redirected to X for authorization...",
+      });
+      
+      await loginWithX();
+    } catch (error) {
+      console.error('Error logging in with X:', error);
+      toast({
+        title: "Login Error",
+        description: error instanceof Error ? error.message : "Failed to login with X",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const isLoading = isLinkingX || localLoading || isLoginingWithX;
+
+  // If we're showing login option and user is not logged in
+  if (showLoginOption && !user) {
+    return (
+      <Button 
+        className={className}
+        variant={variant}
+        size={size}
+        onClick={handleLoginWithX}
+        disabled={isLoading}
+      >
+        {isLoginingWithX ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Logging in...
+          </>
+        ) : (
+          <>
+            <LogIn className="mr-2 h-4 w-4" />
+            Login with X
+          </>
+        )}
+      </Button>
+    );
+  }
 
   // Disabling the button only when already connected
   // is now handled by conditionally rendering different button states

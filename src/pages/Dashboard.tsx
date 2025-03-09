@@ -1,19 +1,23 @@
+
 import React, { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Info, Check } from 'lucide-react';
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import XConnectButton from '@/components/XConnectButton';
+import XDashboard from '@/components/XDashboard';
 
 const Dashboard: React.FC = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const isDemoAccount = user?.email === 'demo@postedpal.com';
   const xAuthSuccess = searchParams.get('x_auth_success') === 'true';
   const username = searchParams.get('username');
+  const postStatus = searchParams.get('status');
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -71,30 +75,22 @@ const Dashboard: React.FC = () => {
               </AlertDescription>
             </Alert>
           )}
+          
+          {/* Success alert when post is published */}
+          {postStatus === 'posted' && (
+            <Alert className="mb-6" variant="success">
+              <Check className="h-4 w-4" />
+              <AlertTitle>Post published</AlertTitle>
+              <AlertDescription>
+                Your post has been successfully published to X.
+              </AlertDescription>
+            </Alert>
+          )}
         </section>
         
-        {/* Posts Section */}
-        <section>
-          <h2 className="text-2xl font-semibold tracking-tight mb-4">Your Posts</h2>
-          <p className="text-muted-foreground mb-6">
-            Here's an overview of your scheduled and published posts.
-          </p>
-          
-          {/* Placeholder for Posts Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="border rounded-md p-4">
-              <h3 className="font-semibold">Scheduled Posts</h3>
-              <p className="text-muted-foreground">No scheduled posts yet.</p>
-            </div>
-            <div className="border rounded-md p-4">
-              <h3 className="font-semibold">Published Posts</h3>
-              <p className="text-muted-foreground">No published posts yet.</p>
-            </div>
-            <div className="border rounded-md p-4">
-              <h3 className="font-semibold">Analytics</h3>
-              <p className="text-muted-foreground">Connect your X account to view analytics.</p>
-            </div>
-          </div>
+        {/* X Dashboard Section */}
+        <section className="mb-12">
+          <XDashboard />
         </section>
       </main>
     </div>

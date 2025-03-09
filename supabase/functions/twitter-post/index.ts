@@ -22,7 +22,8 @@ serve(async (req) => {
   try {
     console.log("X post function called");
     
-    const { userId, content, media } = await req.json();
+    const requestData = await req.json();
+    const { userId, content, media } = requestData;
     
     if (!userId) {
       throw new Error("User ID is required");
@@ -136,21 +137,70 @@ serve(async (req) => {
     }
     
     // Get the tweet client for posting
-    const tweetClient = twitterClient.v2.tweet;
+    const v2Client = twitterClient.v2;
     
     console.log("Sending post request to X API");
     console.log("Content:", content);
     
     let postData;
     
-    // Post to X with or without media
+    // Handle media uploads if present
     if (media && media.length > 0) {
-      console.log("Posting with media is not fully supported yet");
-      
-      // For now, just post the text
-      postData = await tweetClient(content);
+      try {
+        console.log("Processing media for upload");
+        
+        // Get the media client
+        const mediaClient = twitterClient.v1.uploadMedia;
+        
+        // Array to store media IDs
+        const mediaIds = [];
+        
+        // Process each media item
+        for (const mediaItem of media) {
+          console.log("Processing media item:", mediaItem.type);
+          
+          // Convert base64 data to Buffer
+          const base64Data = mediaItem.data.split(',')[1]; // Remove the data URL prefix
+          const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+          
+          // Upload the media based on type
+          let mediaId;
+          if (mediaItem.type.startsWith('image/')) {
+            console.log("Uploading image");
+            mediaId = await mediaClient(binaryData, { mimeType: mediaItem.type });
+          } else if (mediaItem.type.startsWith('video/')) {
+            console.log("Uploading video");
+            // Use chunked upload for videos
+            mediaId = await mediaClient(binaryData, { 
+              mimeType: mediaItem.type,
+              type: 'video'
+            });
+          } else {
+            console.log("Unsupported media type:", mediaItem.type);
+            continue;
+          }
+          
+          console.log("Media uploaded with ID:", mediaId);
+          mediaIds.push(mediaId);
+        }
+        
+        if (mediaIds.length > 0) {
+          console.log("Posting with media IDs:", mediaIds);
+          // Post the tweet with media
+          postData = await v2Client.tweet(content, { media: { media_ids: mediaIds } });
+        } else {
+          console.log("No valid media uploaded, posting text only");
+          postData = await v2Client.tweet(content);
+        }
+      } catch (mediaError) {
+        console.error("Error uploading media:", mediaError);
+        // Fallback to posting without media
+        console.log("Falling back to posting without media");
+        postData = await v2Client.tweet(content);
+      }
     } else {
-      postData = await tweetClient(content);
+      // Post text-only tweet
+      postData = await v2Client.tweet(content);
     }
     
     console.log("Post published successfully:", postData);
@@ -164,7 +214,7 @@ serve(async (req) => {
         published: true,
         created_at: new Date().toISOString(),
         tweet_id: postData.data?.id,
-        has_media: false
+        has_media: media && media.length > 0
       });
     
     if (postError) {
