@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -9,6 +8,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import XConnectButton from '@/components/XConnectButton';
 import { useToast } from '@/hooks/use-toast';
 import XPostsAnalyzer from '@/components/XPostsAnalyzer';
+import { supabase } from '@/integrations/supabase/client';
 
 const Dashboard: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -64,37 +64,12 @@ const Dashboard: React.FC = () => {
 
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-x-account`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({ user_id: user.id })
+      const { data, error } = await supabase.functions.invoke('analyze-x-account', {
+        body: { user_id: user.id }
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        // Try to parse as JSON, but fall back to plain text if it's not valid JSON
-        let errorMessage;
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || 'Failed to analyze X account';
-        } catch {
-          errorMessage = errorText || 'Failed to analyze X account';
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.text();
-      let result;
-      try {
-        // Only parse as JSON if it's not empty
-        result = data ? JSON.parse(data) : {};
-      } catch (parseError) {
-        console.error("Error parsing response:", parseError);
-        addErrorLog(`Error parsing response: ${parseError}`);
-        throw new Error("Received invalid response from server");
+      if (error) {
+        throw new Error(error.message || 'Failed to analyze X account');
       }
 
       toast({
