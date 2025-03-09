@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -113,4 +114,7 @@ export interface XPost {
   has_media: boolean;
   created_at: string;
   media_urls?: string[] | null;
+  x_user_id?: string;
+  user_id?: string;
+  imported_at?: string;
 }
