@@ -9,6 +9,13 @@ interface RequestBody {
   origin: string;
 }
 
+// Define CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 serve(async (req) => {
   try {
     console.log('Twitter request token function invoked');
@@ -16,11 +23,7 @@ serve(async (req) => {
     // CORS headers for preflight requests
     if (req.method === 'OPTIONS') {
       return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-        },
+        headers: corsHeaders,
         status: 204,
       });
     }
@@ -53,8 +56,9 @@ serve(async (req) => {
     }
     
     // Store OAuth state in database
-    // For login flows, use a temporary ID since we don't have a user yet
-    const storeUser = isLogin ? 'temp-auth-user' : userId;
+    // Generate a random UUID for temporary auth users
+    const tempId = crypto.randomBytes(16).toString('hex');
+    const storeUser = isLogin ? `temp-${tempId}` : userId;
     
     if (!storeUser) {
       throw new Error('User ID is required for account linking');
@@ -96,9 +100,7 @@ serve(async (req) => {
       {
         headers: { 
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+          ...corsHeaders
         },
         status: 200,
       }
@@ -113,9 +115,7 @@ serve(async (req) => {
       {
         headers: { 
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+          ...corsHeaders
         },
         status: 500,
       }
