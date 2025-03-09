@@ -10,7 +10,7 @@ import PostScheduler from '@/components/PostScheduler';
 import { Topic } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
-import TopPerformingPosts from '@/components/TopPerformingPosts';
+import XPostsAnalyzer from '@/components/XPostsAnalyzer';
 import { supabase } from '@/integrations/supabase/client';
 
 type Stage = "topics" | "create" | "schedule";
@@ -178,13 +178,19 @@ const CreatePost: React.FC = () => {
           Back
         </Button>
         
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {stage === "topics" && (
             <>
-              <TopPerformingPosts onSelectPost={handleTopPostSelect} />
+              {user.xLinked && (
+                <div className="mb-12">
+                  <XPostsAnalyzer onGenerateFromPost={handleTopPostSelect} />
+                </div>
+              )}
+              
               <div className="mt-8">
                 <TopicSelection onSelectTopics={handleTopicSelection} />
               </div>
+              
               <div className="mt-8 text-center">
                 <p className="text-muted-foreground mb-4">Want to create rich media content instead?</p>
                 <Button 

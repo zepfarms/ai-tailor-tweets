@@ -38,8 +38,10 @@ serve(async (req) => {
     console.log("Content:", content ? "Provided" : "Not provided");
     if (media) {
       console.log("Media included:", media.length, "items");
-      console.log("Media type:", media[0]?.type);
-      console.log("Media data length:", media[0]?.data?.substring(0, 50) + "...");
+      if (media.length > 0) {
+        console.log("Media type:", media[0]?.type);
+        console.log("Media data length:", media[0]?.data?.substring(0, 50) + "...");
+      }
     }
     
     // Create Supabase client
@@ -132,11 +134,20 @@ serve(async (req) => {
       body: JSON.stringify(postPayload),
     });
     
-    const postData = await postResponse.json();
+    const postResponseText = await postResponse.text();
+    console.log("Raw post response:", postResponseText);
+    
+    let postData;
+    try {
+      postData = JSON.parse(postResponseText);
+    } catch (parseError) {
+      console.error("Error parsing post response:", parseError);
+      throw new Error(`Invalid response from X API: ${postResponseText}`);
+    }
     
     if (!postResponse.ok) {
       console.error("Post response error:", postData);
-      throw new Error(postData.detail || "Failed to publish post");
+      throw new Error(postData.detail || postData.errors?.[0]?.message || "Failed to publish post");
     }
     
     console.log("Post published successfully:", postData);
@@ -302,6 +313,11 @@ async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, acces
       
       console.log(`Uploading media: ${mediaItem.type}, size: ${uint8Array.length} bytes`);
       
+      // Check for exceeding X's media size limits
+      if (uint8Array.length > 20 * 1024 * 1024) { // 20MB limit
+        throw new Error(`Media file is too large: ${(uint8Array.length / (1024 * 1024)).toFixed(2)}MB. Maximum allowed size is 20MB.`);
+      }
+      
       // Generate OAuth header for the request
       const oauthHeader = generateOAuthHeader(
         "POST",
@@ -322,29 +338,46 @@ async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, acces
         body: combinedBuffer
       });
       
+      // Get the response text for better error handling
+      const responseText = await uploadResponse.text();
+      console.log("Media upload response status:", uploadResponse.status);
+      console.log("Media upload response headers:", JSON.stringify(Object.fromEntries([...uploadResponse.headers])));
+      console.log("Media upload response body:", responseText);
+      
       if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error("Media upload error response:", errorText);
+        console.error("Media upload error response:", responseText);
         console.error("Status:", uploadResponse.status);
         console.error("Status text:", uploadResponse.statusText);
         
         let errorMessage = "Failed to upload media";
         try {
-          const errorData = JSON.parse(errorText);
+          const errorData = JSON.parse(responseText);
           errorMessage = errorData.error || errorData.errors?.[0]?.message || errorMessage;
         } catch (e) {
-          errorMessage = `${errorMessage}: ${errorText}`;
+          errorMessage = `${errorMessage}: ${responseText}`;
         }
         
         throw new Error(errorMessage);
       }
       
-      const mediaData = await uploadResponse.json();
+      // Parse the JSON response
+      let mediaData;
+      try {
+        mediaData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Error parsing media upload response:", parseError);
+        throw new Error(`Invalid response from media upload: ${responseText}`);
+      }
+      
+      if (!mediaData.media_id_string) {
+        throw new Error(`Missing media_id_string in response: ${responseText}`);
+      }
+      
       console.log("Media upload successful, media_id:", mediaData.media_id_string);
       
       return mediaData.media_id_string;
     } catch (error) {
-      console.error("Base64 decoding error:", error);
+      console.error("Base64 decoding or media processing error:", error);
       throw new Error(`Failed to process media: ${error.message}`);
     }
   } catch (error) {

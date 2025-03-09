@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { Sparkles, TrendingUp } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface TopPost {
   text: string;
@@ -17,8 +18,41 @@ interface TopPost {
 
 export const TopPerformingPosts = ({ onSelectPost }: { onSelectPost: (content: string) => void }) => {
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const { data: topPosts, isLoading } = useQuery({
+  // First check if we have imported posts
+  const { data: importedPosts, isLoading: isLoadingImported } = useQuery({
+    queryKey: ['importedXPosts', user?.id],
+    queryFn: async () => {
+      if (!user?.id || !user?.xLinked) return null;
+      
+      const { data, error } = await supabase
+        .from('x_posts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('engagement_rate', { ascending: false })
+        .limit(3);
+        
+      if (error) throw new Error(error.message);
+      
+      if (data && data.length > 0) {
+        return data.map(post => ({
+          id: post.id,
+          text: post.content,
+          impressions: post.impressions_count || 0,
+          engagementRate: post.engagement_rate ? `${post.engagement_rate.toFixed(2)}%` : '0%',
+          likes: post.likes_count,
+          shares: post.retweets_count
+        }));
+      }
+      
+      return null;
+    },
+    enabled: !!user?.id && !!user?.xLinked
+  });
+
+  // Fallback to the Twitter Analytics endpoint if no imported posts
+  const { data: topPosts, isLoading: isLoadingAnalytics } = useQuery({
     queryKey: ['topPosts'],
     queryFn: async () => {
       const response = await supabase.functions.invoke('twitter-analytics', {
@@ -28,9 +62,13 @@ export const TopPerformingPosts = ({ onSelectPost }: { onSelectPost: (content: s
       if (response.error) throw new Error(response.error.message);
       return response.data.topPosts as TopPost[];
     },
+    enabled: !importedPosts || importedPosts.length === 0
   });
 
-  const generateNewPost = async (inspiration: TopPost) => {
+  const isLoading = isLoadingImported || (isLoadingAnalytics && (!importedPosts || importedPosts.length === 0));
+  const postsToShow = importedPosts || topPosts;
+
+  const generateNewPost = async (inspiration: any) => {
     try {
       toast({
         title: "Generating new post",
@@ -72,7 +110,7 @@ export const TopPerformingPosts = ({ onSelectPost }: { onSelectPost: (content: s
       </div>
       
       <div className="grid gap-4 md:grid-cols-2">
-        {topPosts?.map((post, index) => (
+        {postsToShow?.map((post, index) => (
           <Card key={index} className="p-4">
             <p className="text-sm mb-2 line-clamp-3">{post.text}</p>
             <div className="flex justify-between text-sm text-muted-foreground mb-3">

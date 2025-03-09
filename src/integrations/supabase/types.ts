@@ -144,12 +144,68 @@ export type Database = {
         }
         Relationships: []
       }
+      x_posts: {
+        Row: {
+          content: string
+          created_at: string
+          engagement_rate: number | null
+          has_media: boolean | null
+          id: number
+          imported_at: string
+          impressions_count: number | null
+          likes_count: number
+          media_urls: string[] | null
+          replies_count: number
+          retweets_count: number
+          user_id: string
+          x_user_id: string
+        }
+        Insert: {
+          content: string
+          created_at: string
+          engagement_rate?: number | null
+          has_media?: boolean | null
+          id: number
+          imported_at?: string
+          impressions_count?: number | null
+          likes_count?: number
+          media_urls?: string[] | null
+          replies_count?: number
+          retweets_count?: number
+          user_id: string
+          x_user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          engagement_rate?: number | null
+          has_media?: boolean | null
+          id?: number
+          imported_at?: string
+          impressions_count?: number | null
+          likes_count?: number
+          media_urls?: string[] | null
+          replies_count?: number
+          retweets_count?: number
+          user_id?: string
+          x_user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_engagement_rate: {
+        Args: {
+          likes: number
+          retweets: number
+          replies: number
+          impressions: number
+        }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
