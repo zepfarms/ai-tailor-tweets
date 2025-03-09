@@ -22,7 +22,6 @@ interface XPostsAnalyzerProps {
 const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) => {
   const [posts, setPosts] = useState<XPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
   const [activeTab, setActiveTab] = useState('engagement');
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPosts, setFilteredPosts] = useState<XPost[]>([]);
@@ -88,53 +87,6 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
     }
   };
 
-  const importXPosts = async () => {
-    if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to import X posts",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsImporting(true);
-    addErrorLog(`Starting X posts import for user: ${user.id}`);
-    
-    try {
-      const response = await supabase.functions.invoke('import-x-posts', {
-        body: { userId: user.id }
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to import X posts');
-      }
-
-      console.log("Import response:", response);
-      addErrorLog(`Import response: ${JSON.stringify(response.data)}`);
-      
-      if (response.data?.success) {
-        toast({
-          title: "Success",
-          description: response.data.message || `Imported ${response.data.inserted || 0} X posts`,
-        });
-        fetchXPosts(); // Refresh the posts list
-      } else {
-        throw new Error(response.data?.error || 'Unknown error during import');
-      }
-    } catch (error) {
-      console.error('Error importing X posts:', error);
-      addErrorLog(`Error importing X posts: ${error instanceof Error ? error.message : String(error)}`);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to import X posts',
-        variant: "destructive",
-      });
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
   const handleSelectTopPost = (content: string) => {
     onGenerateFromPost(content);
   };
@@ -190,19 +142,6 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={importXPosts} 
-              disabled={isImporting}
-            >
-              {isImporting ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Import X Posts
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
               onClick={fetchXPosts} 
               disabled={isLoading}
             >
@@ -246,15 +185,7 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
 
       {posts.length === 0 ? (
         <Card className="p-6 text-center">
-          <p className="mb-4">No X posts found. Import your posts from X to see analytics.</p>
-          <Button onClick={importXPosts} disabled={isImporting}>
-            {isImporting ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Import X Posts
-          </Button>
+          <p className="mb-4">No X posts found for analysis.</p>
         </Card>
       ) : (
         <div className="space-y-6">
