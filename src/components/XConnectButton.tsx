@@ -30,6 +30,9 @@ const XConnectButton: React.FC<XConnectButtonProps> = ({
         description: "You'll be redirected to X for authorization...",
       });
       
+      // Clear any existing state from previous attempts
+      localStorage.removeItem('x_auth_state');
+      
       const origin = window.location.origin;
       console.log('Current origin:', origin);
       

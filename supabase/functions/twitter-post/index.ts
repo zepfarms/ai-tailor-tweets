@@ -62,13 +62,14 @@ serve(async (req) => {
       }
       
       console.log("Found X account in legacy table:", accountData.x_username);
-      tokenData = accountData;
+      var userData = accountData;
     } else {
       console.log("Found X token in user_tokens table");
+      var userData = tokenData;
     }
     
-    if (!tokenData.access_token) {
-      console.error("Invalid token data found:", tokenData);
+    if (!userData.access_token) {
+      console.error("Invalid token data found:", userData);
       throw new Error("Invalid X token. Please reconnect your X account.");
     }
     
@@ -76,7 +77,7 @@ serve(async (req) => {
     try {
       const testResponse = await fetch("https://api.twitter.com/2/users/me", {
         headers: {
-          "Authorization": `Bearer ${tokenData.access_token}`
+          "Authorization": `Bearer ${userData.access_token}`
         }
       });
       
@@ -110,7 +111,7 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${tokenData.access_token}`,
+        "Authorization": `Bearer ${userData.access_token}`,
       },
       body: JSON.stringify(postPayload),
     });

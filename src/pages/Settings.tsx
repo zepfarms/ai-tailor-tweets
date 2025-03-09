@@ -75,16 +75,31 @@ const Settings: React.FC = () => {
         throw new Error("User ID not found");
       }
       
-      console.log("Deleting X account for user:", user.id);
-      // Delete the X account record from the database
-      const { error } = await supabase
+      console.log("Deleting X account from both tables for user:", user.id);
+      
+      // Delete the X account from user_tokens
+      const { error: userTokensError } = await supabase
+        .from('user_tokens')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('provider', 'twitter');
+      
+      if (userTokensError) {
+        console.error("Error deleting from user_tokens:", userTokensError);
+        // Continue trying to delete from x_accounts even if user_tokens deletion failed
+      } else {
+        console.log("Deleted X token from user_tokens table");
+      }
+      
+      // Delete the X account record from the x_accounts table
+      const { error: xAccountsError } = await supabase
         .from('x_accounts')
         .delete()
         .eq('user_id', user.id);
       
-      if (error) {
-        console.error("Error deleting X account:", error);
-        throw error;
+      if (xAccountsError) {
+        console.error("Error deleting X account:", xAccountsError);
+        throw xAccountsError;
       }
       
       console.log("X account deleted successfully");
@@ -96,7 +111,7 @@ const Settings: React.FC = () => {
           await updateUserPreferences({ xLinked: false, xUsername: null });
           console.log("User preferences updated successfully");
           
-          // Force the UI to update immediately by showing a success toast
+          // Show a success toast
           toast({
             title: "X Account Unlinked",
             description: "Your X account has been successfully disconnected.",
