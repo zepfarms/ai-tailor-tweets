@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { createHmac, randomBytes } from "https://deno.land/std@0.190.0/crypto/mod.ts";
+import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -191,6 +191,51 @@ serve(async (req) => {
   }
 });
 
+// Create HMAC signature using the Deno crypto APIs
+function createHmac(algorithm: string, key: string): { update: (message: string) => { digest: (encoding: string) => string } } {
+  return {
+    update: (message: string) => {
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(key);
+      const messageData = encoder.encode(message);
+      
+      // Create an HMAC object
+      const hmacKey = crypto.subtle.importKeySync(
+        "raw",
+        keyData,
+        { name: "HMAC", hash: algorithm === "sha1" ? "SHA-1" : "SHA-256" },
+        true,
+        ["sign"]
+      );
+      
+      // Sign the message
+      const signature = crypto.subtle.signSync(
+        "HMAC",
+        hmacKey,
+        messageData
+      );
+      
+      return {
+        digest: (encoding: string) => {
+          if (encoding === "base64") {
+            return btoa(String.fromCharCode(...new Uint8Array(signature)));
+          }
+          throw new Error(`Unsupported encoding: ${encoding}`);
+        }
+      };
+    }
+  };
+}
+
+// Function to generate random bytes as a hex string
+function randomBytes(size: number): string {
+  const buffer = new Uint8Array(size);
+  crypto.getRandomValues(buffer);
+  return Array.from(buffer)
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 // Function to generate OAuth signature for Twitter API V1.1
 function generateOAuthSignature(
   method: string,
@@ -227,7 +272,7 @@ function generateOAuthHeader(
   
   const oauthParams = {
     oauth_consumer_key: TWITTER_API_KEY,
-    oauth_nonce: randomBytes(16).toString('hex'),
+    oauth_nonce: randomBytes(16),
     oauth_signature_method: "HMAC-SHA1",
     oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
     oauth_token: accessToken,
@@ -285,7 +330,7 @@ async function uploadMediaToTwitterV1(mediaItem: any, accessToken: string, acces
       const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
       
       // Create form data
-      const boundary = `----WebKitFormBoundary${randomBytes(16).toString('hex')}`;
+      const boundary = `----WebKitFormBoundary${randomBytes(16)}`;
       const chunks = [];
       
       // Append media data
