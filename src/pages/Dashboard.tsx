@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -73,8 +74,27 @@ const Dashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to analyze X account');
+        const errorText = await response.text();
+        // Try to parse as JSON, but fall back to plain text if it's not valid JSON
+        let errorMessage;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || 'Failed to analyze X account';
+        } catch {
+          errorMessage = errorText || 'Failed to analyze X account';
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.text();
+      let result;
+      try {
+        // Only parse as JSON if it's not empty
+        result = data ? JSON.parse(data) : {};
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError);
+        addErrorLog(`Error parsing response: ${parseError}`);
+        throw new Error("Received invalid response from server");
       }
 
       toast({

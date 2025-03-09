@@ -45,7 +45,21 @@ serve(async (req) => {
   }
 
   try {
-    const { user_id } = await req.json();
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (e) {
+      console.error("Error parsing request JSON:", e);
+      return new Response(
+        JSON.stringify({ error: "Invalid request format" }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+    
+    const { user_id } = requestData;
     
     console.log("X account analysis function called for user:", user_id);
     
@@ -107,7 +121,10 @@ serve(async (req) => {
     // Set up date range (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const startTime = thirtyDaysAgo.toISOString();
+    
+    // Format the date according to X API requirements: YYYY-MM-DDTHH:MM:SSZ (without milliseconds)
+    const startTime = thirtyDaysAgo.toISOString().replace(/\.\d{3}Z$/, "Z");
+    console.log("Using start_time:", startTime);
     
     // Fetch tweets from X API
     let allTweets: Tweet[] = [];
@@ -133,29 +150,34 @@ serve(async (req) => {
       const url = `${baseUrl}?${params.toString()}`;
       console.log(`Fetching tweets: ${url}`);
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`X API error (${response.status}):`, errorText);
+          throw new Error(`Failed to fetch tweets: ${response.status} - ${errorText}`);
         }
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`X API error (${response.status}):`, errorText);
-        throw new Error(`Failed to fetch tweets: ${response.status} - ${errorText}`);
+        
+        const data = await response.json();
+        
+        if (data.data && data.data.length > 0) {
+          allTweets = [...allTweets, ...data.data];
+          console.log(`Fetched ${data.data.length} tweets, total now: ${allTweets.length}`);
+        } else {
+          console.log("No tweets returned in this page");
+        }
+        
+        nextToken = data.meta?.next_token;
+        paginationCount++;
+      } catch (fetchError) {
+        console.error("Error fetching tweets:", fetchError);
+        throw new Error(`Failed to fetch tweets: ${fetchError.message}`);
       }
-      
-      const data = await response.json();
-      
-      if (data.data && data.data.length > 0) {
-        allTweets = [...allTweets, ...data.data];
-        console.log(`Fetched ${data.data.length} tweets, total now: ${allTweets.length}`);
-      } else {
-        console.log("No tweets returned in this page");
-      }
-      
-      nextToken = data.meta?.next_token;
-      paginationCount++;
       
     } while (nextToken && paginationCount < maxPagination);
     
@@ -180,7 +202,14 @@ serve(async (req) => {
       };
       
       // Store the analysis
-      await supabase.from('x_analyses').upsert(basicAnalysis);
+      const { error: insertError } = await supabase
+        .from('x_analyses')
+        .upsert(basicAnalysis);
+      
+      if (insertError) {
+        console.error("Error saving basic analysis:", insertError);
+        throw new Error(`Failed to save analysis: ${insertError.message}`);
+      }
       
       return new Response(
         JSON.stringify({ success: true, data: basicAnalysis, cached: false }),
@@ -189,11 +218,15 @@ serve(async (req) => {
     }
     
     // Analyze the data
+    
     // 1. Calculate average engagement
     let totalEngagement = 0;
     allTweets.forEach(tweet => {
       const metrics = tweet.public_metrics;
-      const engagement = metrics.like_count + metrics.retweet_count + metrics.reply_count + (metrics.quote_count || 0);
+      const engagement = (metrics.like_count || 0) + 
+                        (metrics.retweet_count || 0) + 
+                        (metrics.reply_count || 0) + 
+                        (metrics.quote_count || 0);
       totalEngagement += engagement;
     });
     const averageEngagement = totalEngagement / allTweets.length;
@@ -208,7 +241,7 @@ serve(async (req) => {
     
     allTweets.forEach(tweet => {
       const metrics = tweet.public_metrics;
-      const engagement = metrics.like_count + metrics.retweet_count;
+      const engagement = (metrics.like_count || 0) + (metrics.retweet_count || 0);
       if (engagement > topEngagement) {
         topEngagement = engagement;
         topTweet = tweet;
@@ -219,22 +252,32 @@ serve(async (req) => {
     const hourCounts: {[hour: string]: {count: number, engagement: number}} = {};
     
     allTweets.forEach(tweet => {
-      const date = new Date(tweet.created_at);
-      const hour = date.getUTCHours();
-      const hourKey = hour.toString();
-      
-      if (!hourCounts[hourKey]) {
-        hourCounts[hourKey] = { count: 0, engagement: 0 };
+      try {
+        const date = new Date(tweet.created_at);
+        const hour = date.getUTCHours();
+        const hourKey = hour.toString();
+        
+        if (!hourCounts[hourKey]) {
+          hourCounts[hourKey] = { count: 0, engagement: 0 };
+        }
+        
+        hourCounts[hourKey].count += 1;
+        const metrics = tweet.public_metrics;
+        hourCounts[hourKey].engagement += (metrics.like_count || 0) + 
+                                         (metrics.retweet_count || 0) + 
+                                         (metrics.reply_count || 0);
+      } catch (dateError) {
+        console.error("Error processing date:", tweet.created_at, dateError);
       }
-      
-      hourCounts[hourKey].count += 1;
-      const metrics = tweet.public_metrics;
-      hourCounts[hourKey].engagement += metrics.like_count + metrics.retweet_count + metrics.reply_count;
     });
     
     // Find top 3 hours by engagement
     const sortedHours = Object.entries(hourCounts)
-      .sort((a, b) => (b[1].engagement / b[1].count) - (a[1].engagement / a[1].count))
+      .sort((a, b) => {
+        const engagementA = a[1].count > 0 ? a[1].engagement / a[1].count : 0;
+        const engagementB = b[1].count > 0 ? b[1].engagement / b[1].count : 0;
+        return engagementB - engagementA;
+      })
       .slice(0, 3)
       .map(entry => entry[0]);
     
@@ -275,6 +318,13 @@ serve(async (req) => {
       recommendations.push(`Your top performing tweet received ${topEngagement} engagements. Try creating more content similar to: "${topTweet.text.substring(0, 50)}..."`);
     }
     
+    // Stringify arrays safely
+    const peakTimesJson = JSON.stringify(sortedHours);
+    const recommendationsJson = JSON.stringify(recommendations);
+    
+    console.log("Peak times JSON:", peakTimesJson);
+    console.log("Recommendations JSON:", recommendationsJson);
+    
     // Create the analysis object
     const analysis: Analysis = {
       user_id,
@@ -282,11 +332,13 @@ serve(async (req) => {
       last_analyzed: new Date().toISOString(),
       average_engagement: averageEngagement,
       posting_frequency: postingFrequency,
-      top_tweet_id: topTweet.id,
-      top_tweet_text: topTweet.text,
-      peak_times: JSON.stringify(sortedHours),
-      recommendations: JSON.stringify(recommendations)
+      top_tweet_id: topTweet.id || "",
+      top_tweet_text: topTweet.text || "",
+      peak_times: peakTimesJson,
+      recommendations: recommendationsJson
     };
+    
+    console.log("Final analysis object being stored:", JSON.stringify(analysis));
     
     // Store the analysis in Supabase
     const { error: insertError } = await supabase
@@ -295,6 +347,7 @@ serve(async (req) => {
     
     if (insertError) {
       console.error("Error saving analysis:", insertError);
+      throw new Error(`Failed to save analysis: ${insertError.message}`);
     }
     
     return new Response(
@@ -305,7 +358,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error analyzing X account:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || "Unknown error occurred" }),
       { 
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
