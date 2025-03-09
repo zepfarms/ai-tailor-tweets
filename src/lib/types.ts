@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -103,7 +104,7 @@ export interface Subscription {
 }
 
 export interface XPost {
-  id: string;
+  id: number; // Changed from string to number to match the database structure
   content: string;
   likes_count: number;
   retweets_count: number;

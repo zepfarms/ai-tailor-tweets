@@ -41,7 +41,8 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
           .limit(50);
         
         if (error) throw error;
-        setPosts(data || []);
+        // Cast the data to XPost[] type to ensure compatibility
+        setPosts(data as XPost[] || []);
       } catch (err) {
         console.error('Error fetching X posts:', err);
         setError('Failed to load X posts. Please try again later.');
@@ -54,7 +55,6 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
       setIsAnalysisLoading(true);
       
       try {
-        // Use custom types query to avoid TypeScript errors since our table is new
         const { data, error } = await supabase
           .from('x_analyses')
           .select('*')
