@@ -7,7 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { XPost } from '@/lib/types';
@@ -34,6 +34,7 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
   const fetchXPosts = async () => {
     setIsLoading(true);
     try {
+      console.log("Fetching X posts for user:", user?.id);
       const { data, error } = await supabase
         .from('x_posts')
         .select('*')
@@ -53,6 +54,9 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
         })) as unknown as XPost[];
         
         setPosts(formattedPosts);
+        console.log(`Fetched ${formattedPosts.length} X posts`);
+      } else {
+        console.log("No posts data returned from Supabase");
       }
     } catch (error) {
       console.error('Error fetching X posts:', error);
@@ -114,7 +118,6 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
       {posts.length === 0 ? (
         <Card className="p-6 text-center">
           <p className="mb-4">No X posts found. Import your posts from X to see analytics.</p>
-          <Button onClick={() => {}}>Import X Posts</Button>
         </Card>
       ) : (
         <div className="space-y-6">
