@@ -1,375 +1,214 @@
 
-import React, { useState, useEffect } from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
-  Legend, ResponsiveContainer, AreaChart, Area
-} from 'recharts';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import React, { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { XPost } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, BarChart2, RefreshCw } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 import TopPerformingPosts from '@/components/TopPerformingPosts';
-import { RefreshCw, Lightbulb, Download, Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { XPost, XAnalysis } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
 
 interface XPostsAnalyzerProps {
   onGenerateFromPost: (content: string) => void;
 }
 
-interface XAnalysis {
-  user_id: string;
-  x_user_id: string;
-  last_analyzed: string;
-  average_engagement: number;
-  posting_frequency: number;
-  top_tweet_id: string;
-  top_tweet_text: string;
-  peak_times: string;
-  recommendations: string;
-}
-
 const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) => {
-  const [posts, setPosts] = useState<XPost[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('engagement');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredPosts, setFilteredPosts] = useState<XPost[]>([]);
-  const [errorLog, setErrorLog] = useState<string[]>([]);
-  const [analysis, setAnalysis] = useState<XAnalysis | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(true);
+  const [posts, setPosts] = useState<XPost[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<XAnalysis | null>(null);
 
   useEffect(() => {
-    if (user?.id) {
-      fetchXPosts();
-      fetchAnalysis();
-    }
+    if (!user?.id) return;
+    
+    const fetchPosts = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const { data, error } = await supabase
+          .from('x_posts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        if (error) throw error;
+        setPosts(data || []);
+      } catch (err) {
+        console.error('Error fetching X posts:', err);
+        setError('Failed to load X posts. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const fetchAnalysis = async () => {
+      setIsAnalysisLoading(true);
+      
+      try {
+        // Use custom types query to avoid TypeScript errors since our table is new
+        const { data, error } = await supabase
+          .from('x_analyses')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (error) {
+          console.log('Error fetching analysis:', error);
+          // Continue without analysis instead of throwing error
+        } else if (data) {
+          // Safely cast data to XAnalysis type
+          setAnalysis(data as unknown as XAnalysis);
+        }
+      } catch (err) {
+        console.error('Error fetching X analysis:', err);
+        // Continue without analysis
+      } finally {
+        setIsAnalysisLoading(false);
+      }
+    };
+    
+    fetchPosts();
+    fetchAnalysis();
   }, [user?.id]);
 
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredPosts(posts);
-    } else {
-      const filtered = posts.filter(post => 
-        post.content.toLowerCase().includes(searchTerm.toLowerCase())
+  // Helper function to render recommendations
+  const renderRecommendations = () => {
+    if (!analysis?.recommendations) return null;
+    
+    try {
+      const recommendations = JSON.parse(analysis.recommendations);
+      if (!Array.isArray(recommendations)) return null;
+      
+      return (
+        <ul className="list-disc pl-5 space-y-2">
+          {recommendations.map((recommendation, index) => (
+            <li key={index}>{recommendation}</li>
+          ))}
+        </ul>
       );
-      setFilteredPosts(filtered);
+    } catch (e) {
+      console.error('Error parsing recommendations:', e);
+      return null;
     }
-  }, [searchTerm, posts]);
+  };
 
-  const fetchXPosts = async () => {
-    setIsLoading(true);
+  // Helper function to format timestamp
+  const formatTimestamp = (timestamp: string) => {
     try {
-      console.log("Fetching X posts for user:", user?.id);
-      const { data, error } = await supabase
-        .from('x_posts')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) {
-        throw error;
-      }
-
-      if (data) {
-        // Convert id to string if it's a number
-        const formattedPosts = data.map(post => ({
-          ...post,
-          id: String(post.id)
-        })) as unknown as XPost[];
-        
-        setPosts(formattedPosts);
-        setFilteredPosts(formattedPosts);
-        console.log(`Fetched ${formattedPosts.length} X posts`);
-      } else {
-        console.log("No posts data returned from Supabase");
-      }
-    } catch (error) {
-      console.error('Error fetching X posts:', error);
-      addErrorLog(`Error fetching X posts: ${error instanceof Error ? error.message : String(error)}`);
-      toast({
-        title: "Error",
-        description: "Failed to load X post analytics",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      return new Date(timestamp).toLocaleString();
+    } catch (e) {
+      return timestamp;
     }
   };
 
-  const fetchAnalysis = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('x_analyses')
-        .select('*')
-        .eq('user_id', user?.id)
-        .single();
-
-      if (error) {
-        console.log("No analysis found or error fetching analysis:", error);
-        return;
-      }
-
-      if (data) {
-        setAnalysis(data as XAnalysis);
-        console.log("Fetched X account analysis:", data);
-      }
-    } catch (error) {
-      console.error('Error fetching X analysis:', error);
-      addErrorLog(`Error fetching X analysis: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
-  const handleSelectTopPost = (content: string) => {
-    onGenerateFromPost(content);
-  };
-
-  // Add to error log
-  const addErrorLog = (message: string) => {
-    const timestamp = new Date().toISOString();
-    setErrorLog(prev => [...prev, `[${timestamp}] ${message}`]);
-  };
-
-  // Download error logs
-  const downloadErrorLogs = () => {
-    const logText = errorLog.join('\n');
-    const blob = new Blob([logText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'x-posts-error-log.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Format data for engagement chart
-  const getEngagementData = () => {
-    return filteredPosts.slice(0, 15).map(post => ({
-      date: new Date(post.created_at).toLocaleDateString(),
-      engagement: Number((post.engagement_rate * 100).toFixed(2)),
-      likes: post.likes_count,
-      retweets: post.retweets_count,
-      replies: post.replies_count,
-    })).reverse();
-  };
-
-  // Format data for impressions chart
-  const getImpressionsData = () => {
-    return filteredPosts.slice(0, 15).map(post => ({
-      date: new Date(post.created_at).toLocaleDateString(),
-      impressions: post.impressions_count,
-    })).reverse();
-  };
-
-  // Check if we have enough data to show analysis
-  const hasEnoughData = filteredPosts.length >= 3;
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">X Analytics</h2>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={fetchXPosts} 
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* Search Posts */}
-        <div className="flex items-center gap-2">
-          <Search className="w-4 h-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search posts..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
-          />
-          {searchTerm && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setSearchTerm('')}
-              className="h-8 px-2"
-            >
-              Clear
-            </Button>
-          )}
-          {searchTerm && (
-            <span className="text-sm text-muted-foreground">
-              {filteredPosts.length} results
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Display X Account Analysis */}
-      {analysis && (
-        <Card className="p-4 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Lightbulb className="h-5 w-5 text-yellow-500" />
-            <h3 className="font-semibold text-lg">X Account Analysis</h3>
-            <span className="text-xs text-muted-foreground ml-auto">
-              Last analyzed: {new Date(analysis.last_analyzed).toLocaleString()}
-            </span>
-          </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Your X Posts Analytics</CardTitle>
+        <CardDescription>
+          Insights and analytics from your X posts.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="posts">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="posts">Top Posts</TabsTrigger>
+            <TabsTrigger value="analysis">Account Analysis</TabsTrigger>
+          </TabsList>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">Avg. Engagement</p>
-              <p className="text-2xl font-semibold">{analysis.average_engagement.toFixed(1)}</p>
-            </div>
-            <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">Posting Frequency</p>
-              <p className="text-2xl font-semibold">{analysis.posting_frequency.toFixed(1)} <span className="text-sm font-normal">tweets/day</span></p>
-            </div>
-            <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">Peak Times (UTC)</p>
-              <p className="text-2xl font-semibold">
-                {JSON.parse(analysis.peak_times).map((hour: string) => {
-                  const h = parseInt(hour);
-                  return `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'AM' : 'PM'}`;
-                }).join(", ")}
+          <TabsContent value="posts" className="space-y-4">
+            {isLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : posts.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">
+                No X posts available. Connect your X account and post some content to see analytics.
               </p>
-            </div>
-          </div>
+            ) : (
+              <TopPerformingPosts posts={posts} onSelectPost={onGenerateFromPost} />
+            )}
+          </TabsContent>
           
-          {analysis.top_tweet_text && (
-            <div className="mb-4">
-              <p className="text-sm font-medium mb-1">Top Performing Tweet:</p>
-              <div className="bg-muted/30 p-3 rounded-lg">
-                <p className="italic">{analysis.top_tweet_text}</p>
+          <TabsContent value="analysis">
+            {isAnalysisLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-8 w-3/4" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
               </div>
-            </div>
-          )}
-          
-          <div>
-            <p className="text-sm font-medium mb-2">Growth Recommendations:</p>
-            <ul className="space-y-2">
-              {JSON.parse(analysis.recommendations).map((recommendation: string, index: number) => (
-                <li key={index} className="flex gap-2">
-                  <span className="inline-flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 w-5 h-5 text-xs text-blue-800 dark:text-blue-200">{index + 1}</span>
-                  <span>{recommendation}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-      )}
-
-      {posts.length === 0 ? (
-        <Card className="p-6 text-center">
-          <p className="mb-4">No X posts found for analysis.</p>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          <Tabs defaultValue="engagement" value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="engagement">Engagement</TabsTrigger>
-              <TabsTrigger value="impressions">Impressions</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="engagement" className="pt-4">
-              <div className="bg-card rounded-md p-4 h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    width={500}
-                    height={300}
-                    data={getEngagementData()}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="likes" fill="#8884d8" name="Likes" />
-                    <Bar dataKey="retweets" fill="#82ca9d" name="Retweets" />
-                    <Bar dataKey="replies" fill="#ffc658" name="Replies" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="impressions" className="pt-4">
-              <div className="bg-card rounded-md p-4 h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    width={500}
-                    height={300}
-                    data={getImpressionsData()}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="impressions" stroke="#8884d8" fill="#8884d8" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </TabsContent>
-          </Tabs>
-          
-          {hasEnoughData && !analysis && (
-            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Lightbulb className="h-5 w-5 text-blue-500" />
-                <h3 className="font-semibold text-blue-700 dark:text-blue-300">Insights</h3>
-              </div>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Your posts with media get {Math.round(filteredPosts.filter(p => p.has_media).reduce((acc, p) => acc + p.engagement_rate, 0) / Math.max(filteredPosts.filter(p => p.has_media).length, 1) * 100)}% 
-                more engagement than posts without media. Try including images or videos in your next post!
-              </p>
-            </div>
-          )}
-          
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Top Performing Posts</h3>
-            {/* Pass the posts as prop to TopPerformingPosts */}
-            <TopPerformingPosts posts={filteredPosts} onSelectPost={handleSelectTopPost} />
-          </div>
-
-          {/* Error Log Section */}
-          {errorLog.length > 0 && (
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold">Error Logs</h3>
-                <Button variant="outline" size="sm" onClick={downloadErrorLogs}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Logs
-                </Button>
-              </div>
-              <Card className="p-4">
-                <div className="bg-black/5 dark:bg-white/5 rounded-md p-4 max-h-60 overflow-y-auto font-mono text-xs">
-                  {errorLog.map((log, i) => (
-                    <div key={i} className="mb-1 whitespace-pre-wrap">{log}</div>
-                  ))}
+            ) : analysis ? (
+              <div className="space-y-6">
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Account Metrics</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Average Engagement</p>
+                      <p className="text-xl font-bold">{analysis.average_engagement.toFixed(1)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Posting Frequency</p>
+                      <p className="text-xl font-bold">{analysis.posting_frequency.toFixed(1)} posts/day</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Last analyzed: {formatTimestamp(analysis.last_analyzed)}
+                  </div>
                 </div>
-              </Card>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+                
+                {analysis.top_tweet_text && (
+                  <div className="border rounded-lg p-4">
+                    <h3 className="text-lg font-medium mb-2">Top Performing Tweet</h3>
+                    <blockquote className="border-l-4 pl-4 italic">
+                      {analysis.top_tweet_text}
+                    </blockquote>
+                  </div>
+                )}
+                
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Growth Recommendations</h3>
+                  {renderRecommendations()}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  No analysis available yet. Click the button below to analyze your X account.
+                </p>
+                <Button disabled={true} className="flex items-center">
+                  <BarChart2 className="mr-2 h-4 w-4" />
+                  Analyze Account
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Please use the Analyze X Account button on the dashboard.
+                </p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 };
 
