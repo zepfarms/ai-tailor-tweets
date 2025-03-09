@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import XConnectButton from './XConnectButton';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate import
 
 interface Post {
   id: string | number; // Updated to accept both string and number
@@ -27,7 +27,7 @@ interface Post {
 const XDashboard: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate(); // Add useNavigate
+  const navigate = useNavigate(); // Added useNavigate hook
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);

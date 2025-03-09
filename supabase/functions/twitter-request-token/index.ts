@@ -41,6 +41,7 @@ serve(async (req) => {
     }
     
     // Store OAuth state in database
+    // For login flows, use a temporary ID since we don't have a user yet
     const storeUser = isLogin ? 'temp-auth-user' : userId;
     
     if (!storeUser) {

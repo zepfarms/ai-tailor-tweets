@@ -11,7 +11,7 @@ export interface User {
 }
 
 export interface Post {
-  id: string;
+  id: string | number; // Updated to accept both string and number
   content: string;
   scheduledFor?: Date;
   published: boolean;
