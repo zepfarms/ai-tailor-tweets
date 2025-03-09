@@ -14,9 +14,22 @@ import { XPost } from '@/lib/types';
 import TopPerformingPosts from '@/components/TopPerformingPosts';
 import { RefreshCw, Lightbulb, Download, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface XPostsAnalyzerProps {
   onGenerateFromPost: (content: string) => void;
+}
+
+interface XAnalysis {
+  user_id: string;
+  x_user_id: string;
+  last_analyzed: string;
+  average_engagement: number;
+  posting_frequency: number;
+  top_tweet_id: string;
+  top_tweet_text: string;
+  peak_times: string;
+  recommendations: string;
 }
 
 const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) => {
@@ -26,12 +39,14 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPosts, setFilteredPosts] = useState<XPost[]>([]);
   const [errorLog, setErrorLog] = useState<string[]>([]);
+  const [analysis, setAnalysis] = useState<XAnalysis | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     if (user?.id) {
       fetchXPosts();
+      fetchAnalysis();
     }
   }, [user?.id]);
 
@@ -84,6 +99,29 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchAnalysis = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('x_analyses')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (error) {
+        console.log("No analysis found or error fetching analysis:", error);
+        return;
+      }
+
+      if (data) {
+        setAnalysis(data as XAnalysis);
+        console.log("Fetched X account analysis:", data);
+      }
+    } catch (error) {
+      console.error('Error fetching X analysis:', error);
+      addErrorLog(`Error fetching X analysis: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -183,6 +221,60 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
         </div>
       </div>
 
+      {/* Display X Account Analysis */}
+      {analysis && (
+        <Card className="p-4 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="h-5 w-5 text-yellow-500" />
+            <h3 className="font-semibold text-lg">X Account Analysis</h3>
+            <span className="text-xs text-muted-foreground ml-auto">
+              Last analyzed: {new Date(analysis.last_analyzed).toLocaleString()}
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="bg-muted/50 p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">Avg. Engagement</p>
+              <p className="text-2xl font-semibold">{analysis.average_engagement.toFixed(1)}</p>
+            </div>
+            <div className="bg-muted/50 p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">Posting Frequency</p>
+              <p className="text-2xl font-semibold">{analysis.posting_frequency.toFixed(1)} <span className="text-sm font-normal">tweets/day</span></p>
+            </div>
+            <div className="bg-muted/50 p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">Peak Times (UTC)</p>
+              <p className="text-2xl font-semibold">
+                {JSON.parse(analysis.peak_times).map((hour: string) => {
+                  const h = parseInt(hour);
+                  return `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'AM' : 'PM'}`;
+                }).join(", ")}
+              </p>
+            </div>
+          </div>
+          
+          {analysis.top_tweet_text && (
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-1">Top Performing Tweet:</p>
+              <div className="bg-muted/30 p-3 rounded-lg">
+                <p className="italic">{analysis.top_tweet_text}</p>
+              </div>
+            </div>
+          )}
+          
+          <div>
+            <p className="text-sm font-medium mb-2">Growth Recommendations:</p>
+            <ul className="space-y-2">
+              {JSON.parse(analysis.recommendations).map((recommendation: string, index: number) => (
+                <li key={index} className="flex gap-2">
+                  <span className="inline-flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 w-5 h-5 text-xs text-blue-800 dark:text-blue-200">{index + 1}</span>
+                  <span>{recommendation}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+      )}
+
       {posts.length === 0 ? (
         <Card className="p-6 text-center">
           <p className="mb-4">No X posts found for analysis.</p>
@@ -237,7 +329,7 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
             </TabsContent>
           </Tabs>
           
-          {hasEnoughData && (
+          {hasEnoughData && !analysis && (
             <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Lightbulb className="h-5 w-5 text-blue-500" />

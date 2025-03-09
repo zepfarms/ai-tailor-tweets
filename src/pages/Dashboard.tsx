@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Info, Check, AlertTriangle, Download } from 'lucide-react';
+import { PlusCircle, Info, Check, AlertTriangle, Download, BarChart2 } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import XConnectButton from '@/components/XConnectButton';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ const Dashboard: React.FC = () => {
   const xAuthSuccess = searchParams.get('x_auth_success') === 'true';
   const username = searchParams.get('username');
   const [errorLogs, setErrorLogs] = useState<string[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -49,6 +50,50 @@ const Dashboard: React.FC = () => {
 
   const clearErrorLogs = () => {
     setErrorLogs([]);
+  };
+
+  const handleAnalyzeXAccount = async () => {
+    if (!user?.id || !user?.xLinked) {
+      toast({
+        title: "X account not connected",
+        description: "Please connect your X account first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-x-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ user_id: user.id })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to analyze X account');
+      }
+
+      toast({
+        title: "Analysis complete",
+        description: "Your X account analysis is ready to view",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error('Error analyzing X account:', error);
+      addErrorLog(`Error analyzing X account: ${error instanceof Error ? error.message : String(error)}`);
+      toast({
+        title: "Analysis failed",
+        description: error instanceof Error ? error.message : "Failed to analyze X account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -85,7 +130,7 @@ const Dashboard: React.FC = () => {
               <Info className="h-4 w-4" />
               <AlertTitle>Connect your X account</AlertTitle>
               <AlertDescription>
-                To post directly to X, import your posts, and see your analytics, connect your X account.
+                To post directly to X, analyze your posts, and see your analytics, connect your X account.
               </AlertDescription>
             </Alert>
           )}
@@ -99,6 +144,33 @@ const Dashboard: React.FC = () => {
                 Successfully connected to {username ? `@${username}` : 'your X account'}.
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Analyze X Account Button (only show if account is linked) */}
+          {user?.xLinked && (
+            <div className="mt-6 mb-8">
+              <Button 
+                onClick={handleAnalyzeXAccount} 
+                disabled={isAnalyzing}
+                className="flex items-center"
+                variant="secondary"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <BarChart2 className="mr-2 h-4 w-4" />
+                    Analyze X Account
+                  </>
+                )}
+              </Button>
+              <p className="text-sm text-muted-foreground mt-2">
+                Analyze your last 30 days of X activity and get growth recommendations.
+              </p>
+            </div>
           )}
         </section>
         
