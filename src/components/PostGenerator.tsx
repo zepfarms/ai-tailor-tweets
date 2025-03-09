@@ -63,7 +63,27 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     setIsPostingInternal(true);
     
     try {
-      await onPost(content, mediaPreviews);
+      const mediaData = [];
+      
+      if (mediaFiles.length > 0) {
+        for (const file of mediaFiles) {
+          const base64Promise = new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+          
+          const base64Data = await base64Promise;
+          
+          mediaData.push({
+            data: base64Data,
+            type: file.type,
+            size: file.size
+          });
+        }
+      }
+      
+      await onPost(content, mediaFiles.length > 0 ? mediaPreviews : undefined);
       
       toast({
         title: "Posted to X",

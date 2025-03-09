@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import TopicSelection from '@/components/TopicSelection';
 import PostGenerator from '@/components/PostGenerator';
 import PostScheduler from '@/components/PostScheduler';
-import { Topic } from '@/lib/types';
+import { Topic, MediaItem } from '@/lib/types';
 import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
 import XPostsAnalyzer from '@/components/XPostsAnalyzer';

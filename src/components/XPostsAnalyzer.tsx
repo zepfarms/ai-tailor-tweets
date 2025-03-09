@@ -1,27 +1,29 @@
 
 import React, { useState, useEffect } from 'react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
+  Legend, ResponsiveContainer, AreaChart, Area
+} from 'recharts';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/components/ui/use-toast';
 import { XPost } from '@/lib/types';
-import { 
-  ResponsiveContainer, BarChart, Bar, AreaChart, Area, 
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend 
-} from 'recharts';
-import TopPerformingPosts from './TopPerformingPosts';
+import TopPerformingPosts from '@/components/TopPerformingPosts';
+import { RefreshCw, Lightbulb } from 'lucide-react';
 
-export const XPostsAnalyzer: React.FC = () => {
+interface XPostsAnalyzerProps {
+  onGenerateFromPost: (content: string) => void;
+}
+
+const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) => {
+  const [posts, setPosts] = useState<XPost[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('engagement');
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [posts, setPosts] = useState<XPost[]>([]);
-  const [activeTab, setActiveTab] = useState('engagement');
 
   useEffect(() => {
     if (user?.id) {
@@ -30,311 +32,159 @@ export const XPostsAnalyzer: React.FC = () => {
   }, [user?.id]);
 
   const fetchXPosts = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
       const { data, error } = await supabase
         .from('x_posts')
         .select('*')
-        .order('created_at', { ascending: false });
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) {
         throw error;
       }
 
       if (data) {
-        // Convert the id from number to string to match the XPost interface
-        const formattedData: XPost[] = data.map(post => ({
+        // Convert id to string if it's a number
+        const formattedPosts = data.map(post => ({
           ...post,
-          id: post.id.toString()
-        }));
-        setPosts(formattedData);
+          id: String(post.id)
+        })) as unknown as XPost[];
+        
+        setPosts(formattedPosts);
       }
     } catch (error) {
       console.error('Error fetching X posts:', error);
       toast({
-        title: "Error fetching posts",
-        description: "We couldn't load your X posts. Please try again.",
-        variant: "destructive"
+        title: "Error",
+        description: "Failed to load X post analytics",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const importXPosts = async () => {
-    if (!user?.id) return;
-    
-    try {
-      setIsImporting(true);
-      
-      const response = await supabase.functions.invoke('import-x-posts', {
-        body: { userId: user.id }
-      });
-      
-      if (response.error) {
-        throw new Error(response.error.message || "Failed to import posts");
-      }
-      
-      toast({
-        title: "Posts imported successfully",
-        description: "Your X posts have been imported and analyzed.",
-      });
-      
-      // Refresh the posts list
-      fetchXPosts();
-    } catch (error) {
-      console.error('Error importing X posts:', error);
-      toast({
-        title: "Import failed",
-        description: error instanceof Error ? error.message : "Failed to import your X posts",
-        variant: "destructive"
-      });
-    } finally {
-      setIsImporting(false);
-    }
+  const handleSelectTopPost = (content: string) => {
+    onGenerateFromPost(content);
   };
 
-  // Format posts for charts
-  const getEngagementData = (filteredPosts: XPost[]) => {
-    return filteredPosts.slice(0, 10).map(post => ({
+  // Format data for engagement chart
+  const getEngagementData = () => {
+    return posts.slice(0, 15).map(post => ({
       date: new Date(post.created_at).toLocaleDateString(),
-      engagement: post.engagement_rate,
+      engagement: Number((post.engagement_rate * 100).toFixed(2)),
       likes: post.likes_count,
       retweets: post.retweets_count,
-      replies: post.replies_count
-    }));
+      replies: post.replies_count,
+    })).reverse();
   };
 
-  // Get top performing posts by engagement rate
-  const getTopPosts = () => {
-    return [...posts].sort((a, b) => b.engagement_rate - a.engagement_rate).slice(0, 5);
+  // Format data for impressions chart
+  const getImpressionsData = () => {
+    return posts.slice(0, 15).map(post => ({
+      date: new Date(post.created_at).toLocaleDateString(),
+      impressions: post.impressions_count,
+    })).reverse();
   };
 
-  // Calculate average engagement
-  const getAverageEngagement = () => {
-    if (posts.length === 0) return 0;
-    const total = posts.reduce((sum, post) => sum + post.engagement_rate, 0);
-    return (total / posts.length).toFixed(2);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-[300px] w-full" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Skeleton className="h-[100px] w-full" />
-          <Skeleton className="h-[100px] w-full" />
-          <Skeleton className="h-[100px] w-full" />
-        </div>
-      </div>
-    );
-  }
+  // Check if we have enough data to show analysis
+  const hasEnoughData = posts.length >= 3;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">X Analytics</h2>
         <Button 
-          onClick={importXPosts} 
-          disabled={isImporting}
+          variant="outline" 
+          size="sm" 
+          onClick={fetchXPosts} 
+          disabled={isLoading}
         >
-          {isImporting ? "Importing..." : "Import X Posts"}
+          {isLoading ? (
+            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          Refresh
         </Button>
       </div>
 
       {posts.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No X Posts Found</CardTitle>
-            <CardDescription>
-              Import your X posts to get insights on your performance
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center py-8">
-            <Button onClick={importXPosts} disabled={isImporting}>
-              {isImporting ? "Importing..." : "Import X Posts Now"}
-            </Button>
-          </CardContent>
+        <Card className="p-6 text-center">
+          <p className="mb-4">No X posts found. Import your posts from X to see analytics.</p>
+          <Button onClick={() => {}}>Import X Posts</Button>
         </Card>
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total Posts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{posts.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Average Engagement</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{getAverageEngagement()}%</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total Interactions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {posts.reduce((sum, post) => sum + post.likes_count + post.retweets_count + post.replies_count, 0)}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-4">
+        <div className="space-y-6">
+          <Tabs defaultValue="engagement" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="engagement">Engagement</TabsTrigger>
-              <TabsTrigger value="posts">Top Posts</TabsTrigger>
-              <TabsTrigger value="insights">Insights</TabsTrigger>
+              <TabsTrigger value="impressions">Impressions</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="engagement" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Engagement Rate</CardTitle>
-                  <CardDescription>
-                    How your posts have performed over time
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={getEngagementData(posts)}
-                        margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" angle={-45} textAnchor="end" height={70} />
-                        <YAxis />
-                        <Tooltip formatter={(value) => [`${value}%`, 'Engagement']} />
-                        <Area 
-                          type="monotone" 
-                          dataKey="engagement" 
-                          stroke="#8884d8" 
-                          fill="#8884d8" 
-                          fillOpacity={0.3} 
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Interaction Breakdown</CardTitle>
-                  <CardDescription>
-                    Likes, retweets and replies per post
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={getEngagementData(posts)}
-                        margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" angle={-45} textAnchor="end" height={70} />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="likes" fill="#8884d8" name="Likes" />
-                        <Bar dataKey="retweets" fill="#82ca9d" name="Retweets" />
-                        <Bar dataKey="replies" fill="#ffc658" name="Replies" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
+            <TabsContent value="engagement" className="pt-4">
+              <div className="bg-card rounded-md p-4 h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    width={500}
+                    height={300}
+                    data={getEngagementData()}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="likes" fill="#8884d8" name="Likes" />
+                    <Bar dataKey="retweets" fill="#82ca9d" name="Retweets" />
+                    <Bar dataKey="replies" fill="#ffc658" name="Replies" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </TabsContent>
-            
-            <TabsContent value="posts">
-              <TopPerformingPosts posts={getTopPosts()} />
-            </TabsContent>
-            
-            <TabsContent value="insights" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Post Timing Analysis</CardTitle>
-                  <CardDescription>
-                    Best times to post based on your engagement
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <p className="text-muted-foreground">
-                      Based on your post history, we recommend posting at these times:
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="font-medium">Weekdays</p>
-                        <p className="text-muted-foreground">7-9am, 12-1pm, 5-7pm</p>
-                      </div>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="font-medium">Weekends</p>
-                        <p className="text-muted-foreground">9-11am, 2-4pm</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Content Recommendations</CardTitle>
-                  <CardDescription>
-                    What type of content performs best
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="font-medium">Media Posts</p>
-                        <p className="text-muted-foreground">
-                          Posts with images get {posts.some(p => p.has_media) ? '47%' : '30%'} more engagement
-                        </p>
-                      </div>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="font-medium">Optimal Length</p>
-                        <p className="text-muted-foreground">
-                          Posts with 80-120 characters perform best
-                        </p>
-                      </div>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="font-medium">Questions</p>
-                        <p className="text-muted-foreground">
-                          Posts with questions get 2x more replies
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <Separator className="my-4" />
-                    
-                    <div>
-                      <h4 className="font-medium mb-2">Popular Topics in Your Posts</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {['Technology', 'Marketing', 'Business', 'News'].map(topic => (
-                          <div key={topic} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                            {topic}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+
+            <TabsContent value="impressions" className="pt-4">
+              <div className="bg-card rounded-md p-4 h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    width={500}
+                    height={300}
+                    data={getImpressionsData()}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="impressions" stroke="#8884d8" fill="#8884d8" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </TabsContent>
           </Tabs>
-        </>
+          
+          {hasEnoughData && (
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Lightbulb className="h-5 w-5 text-blue-500" />
+                <h3 className="font-semibold text-blue-700 dark:text-blue-300">Insights</h3>
+              </div>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Your posts with media get {Math.round(posts.filter(p => p.has_media).reduce((acc, p) => acc + p.engagement_rate, 0) / posts.filter(p => p.has_media).length * 100)}% 
+                more engagement than posts without media. Try including images or videos in your next post!
+              </p>
+            </div>
+          )}
+          
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Top Performing Posts</h3>
+            {/* Pass the posts as prop to TopPerformingPosts */}
+            <TopPerformingPosts posts={posts} onSelectPost={handleSelectTopPost} />
+          </div>
+        </div>
       )}
     </div>
   );

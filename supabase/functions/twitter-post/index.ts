@@ -111,6 +111,7 @@ serve(async (req) => {
         }
         
         if (mediaIds.length > 0) {
+          // The correct way to attach media to a tweet in Twitter API v2
           postPayload.media = { media_ids: mediaIds };
         }
       } catch (error) {
