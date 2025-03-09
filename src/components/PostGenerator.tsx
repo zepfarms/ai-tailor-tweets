@@ -15,6 +15,7 @@ interface PostGeneratorProps {
   isPosting?: boolean;
   characterLimit?: number;
   useHashtags?: boolean;
+  initialContent?: string;
 }
 
 export const PostGenerator: React.FC<PostGeneratorProps> = ({ 
@@ -24,9 +25,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   useWebIntent = false,
   isPosting = false,
   characterLimit = 280,
-  useHashtags = true
+  useHashtags = true,
+  initialContent = ''
 }) => {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(initialContent);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPostingInternal, setIsPostingInternal] = useState(false);
@@ -37,6 +39,12 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (initialContent) {
+      setContent(initialContent);
+    }
+  }, [initialContent]);
 
   const selectSuggestedPost = (post: string) => {
     setContent(post);

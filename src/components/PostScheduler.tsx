@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -12,9 +11,14 @@ import { useToast } from "@/components/ui/use-toast";
 interface PostSchedulerProps {
   content: string;
   onScheduleComplete: () => void;
+  mediaPreviews?: string[];
 }
 
-export const PostScheduler: React.FC<PostSchedulerProps> = ({ content, onScheduleComplete }) => {
+export const PostScheduler: React.FC<PostSchedulerProps> = ({ 
+  content, 
+  onScheduleComplete,
+  mediaPreviews = []
+}) => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [hour, setHour] = useState("12");
   const [minute, setMinute] = useState("00");
@@ -85,6 +89,20 @@ export const PostScheduler: React.FC<PostSchedulerProps> = ({ content, onSchedul
       <div className="glass-card p-6 rounded-xl">
         <div className="mb-6 p-4 bg-neutral-50 rounded-lg border border-border">
           <p className="text-sm">{content}</p>
+          
+          {mediaPreviews && mediaPreviews.length > 0 && (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {mediaPreviews.map((url, index) => (
+                <div key={index} className="rounded-md overflow-hidden aspect-video bg-gray-100">
+                  {url.includes('video') ? (
+                    <video src={url} className="w-full h-full object-cover" controls />
+                  ) : (
+                    <img src={url} alt={`Media ${index + 1}`} className="w-full h-full object-cover" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
