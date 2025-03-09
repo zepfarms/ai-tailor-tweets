@@ -36,13 +36,7 @@ serve(async (req) => {
     
     console.log("User ID:", userId);
     console.log("Content:", content ? "Provided" : "Not provided");
-    if (media) {
-      console.log("Media included:", media.length, "items");
-      if (media.length > 0) {
-        console.log("Media type:", media[0]?.type);
-        console.log("Media data length:", media[0]?.data?.substring(0, 50) + "...");
-      }
-    }
+    console.log("Media included:", media ? media.length : 0, "items");
     
     // Create Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -216,7 +210,6 @@ function generateOAuthSignature(
   const hmacSha1 = createHmac("sha1", signingKey);
   const signature = hmacSha1.update(signatureBaseString).digest("base64");
   
-  console.log("Generated OAuth signature for URL:", url);
   return signature;
 }
 
