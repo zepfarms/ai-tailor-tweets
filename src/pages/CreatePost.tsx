@@ -12,11 +12,12 @@ import { toast } from "@/components/ui/use-toast";
 import { ArrowLeft, Video } from 'lucide-react';
 import TopPerformingPosts from '@/components/TopPerformingPosts';
 import { supabase } from '@/integrations/supabase/client';
+import XConnectButton from '@/components/XConnectButton';
 
 type Stage = "topics" | "create" | "schedule";
 
 const CreatePost: React.FC = () => {
-  const { user, isLoading, postToX } = useAuth();
+  const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [stage, setStage] = useState<Stage>("topics");
@@ -53,6 +54,10 @@ const CreatePost: React.FC = () => {
     setIsPosting(true);
     
     try {
+      if (!user?.xLinked) {
+        throw new Error("Please connect your X account first to post");
+      }
+
       // Convert media previews to base64 if provided
       const mediaData = [];
       
@@ -83,6 +88,8 @@ const CreatePost: React.FC = () => {
         }
       }
       
+      console.log("Calling twitter-post function with userId:", user?.id);
+      
       const response = await supabase.functions.invoke('twitter-post', {
         body: { 
           content, 
@@ -91,7 +98,10 @@ const CreatePost: React.FC = () => {
         },
       });
       
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        console.error("Error from twitter-post function:", response.error);
+        throw new Error(response.error.message || "Could not post to X");
+      }
       
       toast({
         title: "Posted to X",
@@ -101,11 +111,20 @@ const CreatePost: React.FC = () => {
       navigate('/dashboard?status=posted');
     } catch (error) {
       console.error("Error posting to X:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Could not post to X. Please try again.",
-        variant: "destructive", 
-      });
+      
+      if (error instanceof Error && error.message.includes("reconnect")) {
+        toast({
+          title: "Authentication Error",
+          description: "Your X connection has expired. Please reconnect your account.",
+          variant: "destructive", 
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Could not post to X. Please try again.",
+          variant: "destructive", 
+        });
+      }
     } finally {
       setIsPosting(false);
     }
@@ -162,6 +181,14 @@ const CreatePost: React.FC = () => {
         </Button>
         
         <div className="max-w-3xl mx-auto">
+          {!user.xLinked && (
+            <div className="mb-8 p-4 border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+              <h3 className="text-lg font-medium mb-2">X Account Not Connected</h3>
+              <p className="mb-4">You need to connect your X account before you can post.</p>
+              <XConnectButton />
+            </div>
+          )}
+          
           {stage === "topics" && (
             <>
               <TopPerformingPosts onSelectPost={handleTopPostSelect} />

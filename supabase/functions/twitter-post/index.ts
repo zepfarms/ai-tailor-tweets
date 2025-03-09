@@ -38,7 +38,8 @@ serve(async (req) => {
     // Create Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Get the user's X account token
+    // First try to get token from user_tokens (preferred)
+    console.log("Attempting to fetch token from user_tokens table");
     const { data: tokenData, error: tokenError } = await supabase
       .from('user_tokens')
       .select('*')
@@ -46,26 +47,29 @@ serve(async (req) => {
       .eq('provider', 'twitter')
       .single();
     
-    if (tokenError || !tokenData) {
-      console.error("Error retrieving X token:", tokenError);
+    let userData;
+    
+    if (tokenError || !tokenData || !tokenData.access_token) {
+      console.error("Error retrieving X token from user_tokens:", tokenError);
       
       // Fallback to x_accounts table for backward compatibility
+      console.log("Falling back to x_accounts table");
       const { data: accountData, error: accountError } = await supabase
         .from('x_accounts')
         .select('*')
         .eq('user_id', userId)
         .single();
       
-      if (accountError || !accountData) {
+      if (accountError || !accountData || !accountData.access_token) {
         console.error("Error retrieving X account:", accountError);
-        throw new Error("X account not found. Please link your account first.");
+        throw new Error("X account not found or invalid. Please link your account first.");
       }
       
       console.log("Found X account in legacy table:", accountData.x_username);
-      var userData = accountData;
+      userData = accountData;
     } else {
       console.log("Found X token in user_tokens table");
-      var userData = tokenData;
+      userData = tokenData;
     }
     
     if (!userData.access_token) {
@@ -75,6 +79,7 @@ serve(async (req) => {
     
     // Test token validity before trying to post
     try {
+      console.log("Testing token validity with users/me endpoint");
       const testResponse = await fetch("https://api.twitter.com/2/users/me", {
         headers: {
           "Authorization": `Bearer ${userData.access_token}`
