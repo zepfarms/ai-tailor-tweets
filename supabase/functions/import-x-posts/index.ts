@@ -41,12 +41,11 @@ serve(async (req) => {
     let xUserId = null;
     let xUsername = null;
     let accessToken = null;
-    let refreshToken = null;
     
     // First try to get X user info from x_accounts
     const { data: xAccount, error: xAccountError } = await supabase
       .from('x_accounts')
-      .select('x_username, x_user_id, access_token, refresh_token')
+      .select('x_username, x_user_id, access_token')
       .eq('user_id', userId)
       .maybeSingle();
     
@@ -59,7 +58,6 @@ serve(async (req) => {
       xUserId = xAccount.x_user_id;
       xUsername = xAccount.x_username;
       accessToken = xAccount.access_token;
-      refreshToken = xAccount.refresh_token;
     }
     
     // If not found in x_accounts, try user_tokens
@@ -67,7 +65,7 @@ serve(async (req) => {
       console.log("Checking user_tokens table for access tokens");
       const { data: tokensData, error: tokensError } = await supabase
         .from('user_tokens')
-        .select('access_token, refresh_token, provider_account_id')
+        .select('access_token, user_id, provider')
         .eq('user_id', userId)
         .eq('provider', 'twitter')
         .maybeSingle();
@@ -79,13 +77,6 @@ serve(async (req) => {
       if (tokensData) {
         console.log("Found tokens in user_tokens table");
         accessToken = tokensData.access_token;
-        refreshToken = tokensData.refresh_token;
-        
-        // If we got the provider_account_id (X user ID) from user_tokens
-        if (tokensData.provider_account_id) {
-          xUserId = tokensData.provider_account_id;
-          console.log("Using X user ID from user_tokens:", xUserId);
-        }
       }
     }
     
@@ -116,7 +107,6 @@ serve(async (req) => {
           const errorText = await userResponse.text();
           console.error("X API user lookup error:", errorText);
           console.error("Status code:", userResponse.status);
-          console.error("Using authorization header:", authHeader.substring(0, 15) + "...");
           throw new Error(`Failed to fetch X user info: ${userResponse.status} - ${errorText}`);
         }
         
@@ -141,8 +131,7 @@ serve(async (req) => {
                 user_id: userId,
                 x_user_id: xUserId,
                 x_username: xUsername,
-                access_token: accessToken,
-                refresh_token: refreshToken
+                access_token: accessToken
               });
             
             if (updateError) {
@@ -308,22 +297,7 @@ serve(async (req) => {
         const { data, error } = await supabase
           .from('x_posts')
           .upsert(
-            batch.map(tweet => {
-              // Convert tweet.id to BigInt
-              const numericId = tweet.id.replace(/\D/g, '');
-              let bigIntId;
-              try {
-                bigIntId = BigInt(numericId);
-              } catch (e) {
-                console.error(`Error converting ID ${tweet.id} to BigInt:`, e);
-                bigIntId = BigInt(0); // Fallback ID
-              }
-              
-              return {
-                ...tweet,
-                id: bigIntId
-              };
-            }),
+            batch,
             { onConflict: 'id' }
           );
         
