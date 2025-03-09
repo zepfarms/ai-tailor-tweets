@@ -4,12 +4,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Info, Check, AlertTriangle, Download, BarChart2 } from 'lucide-react';
+import { PlusCircle, Info, Check, AlertTriangle, Download } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import XConnectButton from '@/components/XConnectButton';
 import { useToast } from '@/hooks/use-toast';
 import XPostsAnalyzer from '@/components/XPostsAnalyzer';
-import { supabase } from '@/integrations/supabase/client';
 
 const Dashboard: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -20,7 +19,6 @@ const Dashboard: React.FC = () => {
   const xAuthSuccess = searchParams.get('x_auth_success') === 'true';
   const username = searchParams.get('username');
   const [errorLogs, setErrorLogs] = useState<string[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -51,66 +49,6 @@ const Dashboard: React.FC = () => {
 
   const clearErrorLogs = () => {
     setErrorLogs([]);
-  };
-
-  const handleAnalyzeXAccount = async () => {
-    if (!user?.id || !user?.xLinked) {
-      toast({
-        title: "X account not connected",
-        description: "Please connect your X account first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('analyze-x-account', {
-        body: { user_id: user.id }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Failed to analyze X account');
-      }
-
-      if (!data) {
-        throw new Error('No data returned from analysis');
-      }
-
-      console.log('Analysis result:', data);
-      
-      toast({
-        title: "Analysis complete",
-        description: "Your X account analysis is ready to view",
-        variant: "default",
-      });
-    } catch (error) {
-      console.error('Error analyzing X account:', error);
-      addErrorLog(`Error analyzing X account: ${error instanceof Error ? error.message : String(error)}`);
-      
-      let errorMessage = "Failed to analyze X account";
-      if (error instanceof Error) {
-        // Handle specific error messages for better user feedback
-        if (error.message.includes("X account not found") || 
-            error.message.includes("Please reconnect")) {
-          errorMessage = "Please reconnect your X account in the settings";
-        } else if (error.message.includes("Authorization failed")) {
-          errorMessage = "Authorization failed. Please reconnect your X account";
-        } else if (error.message.includes("Rate limit")) {
-          errorMessage = "X API rate limit reached. Please try again later";
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      toast({
-        title: "Analysis failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
   };
 
   return (
@@ -147,7 +85,7 @@ const Dashboard: React.FC = () => {
               <Info className="h-4 w-4" />
               <AlertTitle>Connect your X account</AlertTitle>
               <AlertDescription>
-                To post directly to X, analyze your posts, and see your analytics, connect your X account.
+                To post directly to X, import your posts, and see your analytics, connect your X account.
               </AlertDescription>
             </Alert>
           )}
@@ -161,33 +99,6 @@ const Dashboard: React.FC = () => {
                 Successfully connected to {username ? `@${username}` : 'your X account'}.
               </AlertDescription>
             </Alert>
-          )}
-
-          {/* Analyze X Account Button (only show if account is linked) */}
-          {user?.xLinked && (
-            <div className="mt-6 mb-8">
-              <Button 
-                onClick={handleAnalyzeXAccount} 
-                disabled={isAnalyzing}
-                className="flex items-center"
-                variant="secondary"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <BarChart2 className="mr-2 h-4 w-4" />
-                    Analyze X Account
-                  </>
-                )}
-              </Button>
-              <p className="text-sm text-muted-foreground mt-2">
-                Analyze your last 30 days of X activity and get growth recommendations.
-              </p>
-            </div>
           )}
         </section>
         

@@ -18,6 +18,3 @@ verify_jwt = false
 
 [functions.ayrshare-post]
 verify_jwt = false
-
-[functions.analyze-x-account]
-verify_jwt = false

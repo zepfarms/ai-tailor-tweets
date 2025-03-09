@@ -104,7 +104,7 @@ export interface Subscription {
 }
 
 export interface XPost {
-  id: number; // Changed from string to number to match the database structure
+  id: string;
   content: string;
   likes_count: number;
   retweets_count: number;
@@ -117,16 +117,4 @@ export interface XPost {
   x_user_id?: string;
   user_id?: string;
   imported_at?: string;
-}
-
-export interface XAnalysis {
-  user_id: string;
-  x_user_id: string;
-  last_analyzed: string;
-  average_engagement: number;
-  posting_frequency: number;
-  top_tweet_id: string;
-  top_tweet_text: string;
-  peak_times: string; // JSON string of top hours
-  recommendations: string; // JSON string of recommendation strings
 }

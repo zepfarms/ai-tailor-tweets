@@ -144,42 +144,6 @@ export type Database = {
         }
         Relationships: []
       }
-      x_analyses: {
-        Row: {
-          average_engagement: number | null
-          last_analyzed: string
-          peak_times: string | null
-          posting_frequency: number | null
-          recommendations: string | null
-          top_tweet_id: string | null
-          top_tweet_text: string | null
-          user_id: string
-          x_user_id: string
-        }
-        Insert: {
-          average_engagement?: number | null
-          last_analyzed?: string
-          peak_times?: string | null
-          posting_frequency?: number | null
-          recommendations?: string | null
-          top_tweet_id?: string | null
-          top_tweet_text?: string | null
-          user_id: string
-          x_user_id: string
-        }
-        Update: {
-          average_engagement?: number | null
-          last_analyzed?: string
-          peak_times?: string | null
-          posting_frequency?: number | null
-          recommendations?: string | null
-          top_tweet_id?: string | null
-          top_tweet_text?: string | null
-          user_id?: string
-          x_user_id?: string
-        }
-        Relationships: []
-      }
       x_posts: {
         Row: {
           content: string
