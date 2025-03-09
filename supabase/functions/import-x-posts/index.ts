@@ -30,49 +30,75 @@ serve(async (req) => {
     
     console.log("Processing import request for user ID:", userId);
     
-    if (!TWITTER_BEARER_TOKEN) {
-      const errorMsg = "Twitter Bearer Token is not configured";
-      console.error(errorMsg);
-      throw new Error(errorMsg);
-    }
-    
     // Create Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     console.log("Looking up X account for user:", userId);
     
-    // Get the user's X account
-    const { data: xAccount, error: xAccountError } = await supabase
-      .from('x_accounts')
-      .select('x_username, x_user_id, access_token')
+    // Get the user's X account tokens
+    const { data: tokensData, error: tokensError } = await supabase
+      .from('user_tokens')
+      .select('access_token, refresh_token')
       .eq('user_id', userId)
-      .single();
+      .eq('provider', 'twitter')
+      .maybeSingle();
     
-    if (xAccountError) {
-      console.error("Error retrieving X account:", xAccountError);
-      
-      // Try the user_tokens table as a fallback
-      console.log("Trying fallback to user_tokens table");
-      const { data: tokenData, error: tokenError } = await supabase
-        .from('user_tokens')
-        .select('*')
+    if (tokensError) {
+      console.error("Error retrieving tokens:", tokensError);
+      throw new Error(`Failed to retrieve user tokens: ${tokensError.message}`);
+    }
+    
+    // Fallback to x_accounts if not found in user_tokens
+    let accessToken = tokensData?.access_token;
+    if (!accessToken) {
+      console.log("No tokens found in user_tokens, checking x_accounts");
+      const { data: xAccount, error: xAccountError } = await supabase
+        .from('x_accounts')
+        .select('x_username, x_user_id, access_token')
         .eq('user_id', userId)
-        .eq('provider', 'twitter')
-        .single();
-        
-      if (tokenError || !tokenData) {
-        console.error("Error retrieving from user_tokens:", tokenError);
+        .maybeSingle();
+    
+      if (xAccountError) {
+        console.error("Error retrieving X account:", xAccountError);
+        throw new Error(`Failed to retrieve X account: ${xAccountError.message}`);
+      }
+      
+      if (!xAccount) {
         throw new Error("X account not found. Please connect your X account first.");
       }
       
-      // We need to get the X user ID separately since it's not in the tokens table
-      console.log("Got token from user_tokens, fetching user info from X API");
-      try {
+      accessToken = xAccount.access_token;
+      console.log("Found access token in x_accounts table");
+    } else {
+      console.log("Found access token in user_tokens table");
+    }
+    
+    if (!accessToken && !TWITTER_BEARER_TOKEN) {
+      throw new Error("No valid token found to access X API.");
+    }
+    
+    // Get the X user ID
+    let xUserId;
+    
+    try {
+      // First try to get X user ID from x_accounts
+      const { data: xAccount } = await supabase
+        .from('x_accounts')
+        .select('x_user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+        
+      if (xAccount?.x_user_id) {
+        xUserId = xAccount.x_user_id;
+        console.log("Found X user ID in x_accounts:", xUserId);
+      } else {
+        // If not found, try to get it from the X API
+        console.log("X user ID not found in database, fetching from X API");
         const userResponse = await fetch(
           "https://api.twitter.com/2/users/me",
           {
             headers: {
-              "Authorization": `Bearer ${tokenData.access_token}`
+              "Authorization": `Bearer ${accessToken || TWITTER_BEARER_TOKEN}`
             }
           }
         );
@@ -84,35 +110,30 @@ serve(async (req) => {
         }
         
         const userData = await userResponse.json();
-        console.log("Got X user data:", userData);
-        
-        // Use token data with the fetched X user ID
-        xAccount = {
-          x_username: userData.data.username,
-          x_user_id: userData.data.id,
-          access_token: tokenData.access_token
-        };
-      } catch (apiError) {
-        console.error("Error fetching X user info:", apiError);
-        throw new Error(`Unable to get X user info: ${apiError.message}`);
+        xUserId = userData.data.id;
+        console.log("Got X user ID from API:", xUserId);
       }
+    } catch (userIdError) {
+      console.error("Error getting X user ID:", userIdError);
+      throw new Error(`Unable to determine X user ID: ${userIdError.message}`);
     }
     
-    if (!xAccount) {
-      const errorMsg = "X account not found. Please connect your X account first.";
-      console.error(errorMsg);
-      throw new Error(errorMsg);
+    if (!xUserId) {
+      throw new Error("Could not determine X user ID");
     }
     
-    console.log("Found X account:", xAccount.x_username);
+    // Try both access token (OAuth 2.0) and bearer token (app-only)
+    const authToken = accessToken || TWITTER_BEARER_TOKEN;
     
-    // Use the user's access token or the bearer token
-    const authToken = xAccount.access_token || TWITTER_BEARER_TOKEN;
+    // Fetch user's tweets with detailed logging
+    console.log("Fetching tweets for user ID:", xUserId);
+    console.log("Using token type:", accessToken ? "User access token" : "App bearer token");
     
-    // Fetch user's tweets
-    console.log("Fetching tweets for user ID:", xAccount.x_user_id);
-    const tweetsUrl = `https://api.twitter.com/2/users/${xAccount.x_user_id}/tweets?max_results=100&tweet.fields=public_metrics,created_at&expansions=attachments.media_keys&media.fields=type,url`;
+    const tweetsUrl = `https://api.twitter.com/2/users/${xUserId}/tweets?max_results=100&tweet.fields=public_metrics,created_at&expansions=attachments.media_keys&media.fields=type,url`;
     console.log("Fetch URL:", tweetsUrl);
+    
+    // Log authorization header (with redaction)
+    console.log("Auth header:", `Bearer ${authToken.substring(0, 10)}...${authToken.substring(authToken.length - 5)}`);
     
     const tweetsResponse = await fetch(
       tweetsUrl,
@@ -127,7 +148,7 @@ serve(async (req) => {
     
     if (!tweetsResponse.ok) {
       const errorText = await tweetsResponse.text();
-      console.error("Twitter API error:", errorText);
+      console.error("X API error:", errorText);
       throw new Error(`Failed to fetch tweets: ${tweetsResponse.status} - ${errorText}`);
     }
     
@@ -165,15 +186,15 @@ serve(async (req) => {
       }
       
       return {
-        id: BigInt(tweet.id),
+        id: tweet.id, // Store as string, we'll convert to bigint later
         user_id: userId,
-        x_user_id: xAccount.x_user_id,
+        x_user_id: xUserId,
         content: tweet.text,
         likes_count: likes,
         retweets_count: retweets,
         replies_count: replies,
         impressions_count: impressions,
-        engagement_rate: impressions > 0 ? ((likes + retweets + replies) / impressions) * 100 : 0,
+        engagement_rate: impressions > 0 ? ((likes + retweets + replies) / impressions) : 0,
         has_media: hasMedia,
         media_urls: mediaUrls,
         created_at: tweet.created_at
@@ -188,12 +209,16 @@ serve(async (req) => {
     
     for (const tweet of processedTweets) {
       try {
-        console.log(`Inserting tweet ID: ${tweet.id}`);
+        // Convert tweet.id to BigInt by removing all non-numeric characters and parsing
+        const numericId = tweet.id.replace(/\D/g, '');
+        const bigIntId = BigInt(numericId);
+        
+        console.log(`Inserting tweet ID: ${tweet.id} as BigInt: ${bigIntId}`);
         
         const { error } = await supabase
           .from('x_posts')
           .upsert({
-            id: tweet.id,  // Store as bigint - now the database expects this
+            id: bigIntId,  // Store as bigint
             user_id: tweet.user_id,
             x_user_id: tweet.x_user_id,
             content: tweet.content,
