@@ -102,19 +102,3 @@ export interface Subscription {
   updated_at: string;
   canceled_at?: string;
 }
-
-export interface XPost {
-  id: string;
-  content: string;
-  likes_count: number;
-  retweets_count: number;
-  replies_count: number;
-  impressions_count: number;
-  engagement_rate: number;
-  has_media: boolean;
-  created_at: string;
-  media_urls?: string[] | null;
-  x_user_id?: string;
-  user_id?: string;
-  imported_at?: string;
-}

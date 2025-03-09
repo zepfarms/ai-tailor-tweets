@@ -1,62 +1,96 @@
 
 import React from 'react';
-import { Card } from '@/components/ui/card';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Sparkles } from 'lucide-react';
-import { XPost } from '@/lib/types';
+import { Card } from '@/components/ui/card';
+import { useToast } from '@/components/ui/use-toast';
+import { Sparkles, TrendingUp } from 'lucide-react';
 
-interface TopPerformingPostsProps {
-  posts: XPost[];
-  onSelectPost: (content: string) => void;
+interface TopPost {
+  text: string;
+  impressions: number;
+  engagementRate: string;
+  likes: number;
+  shares: number;
 }
 
-const TopPerformingPosts: React.FC<TopPerformingPostsProps> = ({ posts, onSelectPost }) => {
-  // Sort posts by engagement rate (descending)
-  const sortedPosts = [...posts].sort((a, b) => b.engagement_rate - a.engagement_rate).slice(0, 5);
+export const TopPerformingPosts = ({ onSelectPost }: { onSelectPost: (content: string) => void }) => {
+  const { toast } = useToast();
 
-  // Truncate post content for display
-  const truncatePost = (content: string, maxLength = 100) => {
-    if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength) + '...';
+  const { data: topPosts, isLoading } = useQuery({
+    queryKey: ['topPosts'],
+    queryFn: async () => {
+      const response = await supabase.functions.invoke('twitter-analytics', {
+        body: { fetchTopPosts: true },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+      return response.data.topPosts as TopPost[];
+    },
+  });
+
+  const generateNewPost = async (inspiration: TopPost) => {
+    try {
+      toast({
+        title: "Generating new post",
+        description: "Using AI to create a similar high-performing post...",
+      });
+
+      const response = await supabase.functions.invoke('twitter-analytics', {
+        body: {
+          generateSimilarPost: true,
+          inspiration: inspiration.text,
+        },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+      onSelectPost(response.data.generatedPost);
+      
+      toast({
+        title: "Post generated",
+        description: "New post created based on your top-performing content",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate post. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleSelectPost = (content: string) => {
-    onSelectPost(content);
-  };
+  if (isLoading) {
+    return <div>Loading top posts...</div>;
+  }
 
   return (
     <div className="space-y-4">
-      {sortedPosts.length === 0 ? (
-        <p className="text-center text-muted-foreground py-4">No posts found</p>
-      ) : (
-        sortedPosts.map((post) => (
-          <Card key={post.id} className="p-4 hover:shadow-md transition-shadow">
-            <div className="flex justify-between gap-4">
-              <div className="flex-1">
-                <p className="mb-2">{truncatePost(post.content)}</p>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span>{new Date(post.created_at).toLocaleDateString()}</span>
-                  <span>•</span>
-                  <span>{post.likes_count} likes</span>
-                  <span>•</span>
-                  <span>{post.retweets_count} retweets</span>
-                  <span>•</span>
-                  <span>{post.impressions_count} impressions</span>
-                </div>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="shrink-0 h-8"
-                onClick={() => handleSelectPost(post.content)}
-              >
-                <Sparkles className="h-4 w-4 mr-1" />
-                Generate
-              </Button>
+      <div className="flex items-center gap-2 mb-4">
+        <TrendingUp className="w-5 h-5 text-blue-500" />
+        <h2 className="text-lg font-semibold">Your Top Performing Posts</h2>
+      </div>
+      
+      <div className="grid gap-4 md:grid-cols-2">
+        {topPosts?.map((post, index) => (
+          <Card key={index} className="p-4">
+            <p className="text-sm mb-2 line-clamp-3">{post.text}</p>
+            <div className="flex justify-between text-sm text-muted-foreground mb-3">
+              <span>{post.impressions.toLocaleString()} impressions</span>
+              <span>{post.engagementRate} engagement</span>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => generateNewPost(post)}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Create Similar Post
+            </Button>
           </Card>
-        ))
-      )}
+        ))}
+      </div>
     </div>
   );
 };

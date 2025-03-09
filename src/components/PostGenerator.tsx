@@ -15,7 +15,6 @@ interface PostGeneratorProps {
   isPosting?: boolean;
   characterLimit?: number;
   useHashtags?: boolean;
-  initialContent?: string;
 }
 
 export const PostGenerator: React.FC<PostGeneratorProps> = ({ 
@@ -25,10 +24,9 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   useWebIntent = false,
   isPosting = false,
   characterLimit = 280,
-  useHashtags = true,
-  initialContent = ''
+  useHashtags = true
 }) => {
-  const [content, setContent] = useState(initialContent || '');
+  const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPostingInternal, setIsPostingInternal] = useState(false);
@@ -39,12 +37,6 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-
-  useEffect(() => {
-    if (initialContent) {
-      setContent(initialContent);
-    }
-  }, [initialContent]);
 
   const selectSuggestedPost = (post: string) => {
     setContent(post);
@@ -63,27 +55,7 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
     setIsPostingInternal(true);
     
     try {
-      const mediaData = [];
-      
-      if (mediaFiles.length > 0) {
-        for (const file of mediaFiles) {
-          const base64Promise = new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-          
-          const base64Data = await base64Promise;
-          
-          mediaData.push({
-            data: base64Data,
-            type: file.type,
-            size: file.size
-          });
-        }
-      }
-      
-      await onPost(content, mediaFiles.length > 0 ? mediaPreviews : undefined);
+      await onPost(content, mediaPreviews);
       
       toast({
         title: "Posted to X",
@@ -102,10 +74,10 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
   };
 
   useEffect(() => {
-    if (selectedTopics.length > 0 && !initialContent) {
+    if (selectedTopics.length > 0) {
       generateSuggestedPosts();
     }
-  }, [selectedTopics, initialContent]);
+  }, [selectedTopics]);
 
   useEffect(() => {
     return () => {
@@ -355,13 +327,13 @@ export const PostGenerator: React.FC<PostGeneratorProps> = ({
         return;
       }
 
-      const sizeLimit = file.type.startsWith('video/') ? 15 * 1024 * 1024 : 5 * 1024 * 1024;
+      const sizeLimit = file.type.startsWith('video/') ? 15 * 1024 * 1024 : 10 * 1024 * 1024;
       if (file.size > sizeLimit) {
         toast({
           title: "File too large",
           description: file.type.startsWith('video/') 
             ? "Videos must be smaller than 15MB" 
-            : "Images must be smaller than 5MB",
+            : "Images must be smaller than 10MB",
           variant: "destructive",
         });
         return;

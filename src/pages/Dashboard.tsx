@@ -1,24 +1,19 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Info, Check, AlertTriangle, Download } from 'lucide-react';
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { PlusCircle, Info, Check } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import XConnectButton from '@/components/XConnectButton';
-import { useToast } from '@/hooks/use-toast';
-import XPostsAnalyzer from '@/components/XPostsAnalyzer';
 
 const Dashboard: React.FC = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { toast } = useToast();
   const isDemoAccount = user?.email === 'demo@postedpal.com';
   const xAuthSuccess = searchParams.get('x_auth_success') === 'true';
   const username = searchParams.get('username');
-  const [errorLogs, setErrorLogs] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -26,30 +21,6 @@ const Dashboard: React.FC = () => {
       return;
     }
   }, [user, isLoading, navigate]);
-
-  const addErrorLog = (message: string) => {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${message}`;
-    console.error(logEntry);
-    setErrorLogs(prev => [...prev, logEntry]);
-  };
-
-  const handleDownloadLogs = () => {
-    const logsText = errorLogs.join('\n');
-    const blob = new Blob([logsText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'error-logs.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const clearErrorLogs = () => {
-    setErrorLogs([]);
-  };
 
   return (
     <div className="min-h-screen flex flex-col page-transition">
@@ -85,7 +56,7 @@ const Dashboard: React.FC = () => {
               <Info className="h-4 w-4" />
               <AlertTitle>Connect your X account</AlertTitle>
               <AlertDescription>
-                To post directly to X, import your posts, and see your analytics, connect your X account.
+                To post directly to X and see your analytics, connect your X account.
               </AlertDescription>
             </Alert>
           )}
@@ -102,42 +73,29 @@ const Dashboard: React.FC = () => {
           )}
         </section>
         
-        {/* Posts Analytics Section */}
-        {user?.xLinked && (
-          <section className="mb-12">
-            <XPostsAnalyzer onGenerateFromPost={(content) => navigate('/create', { state: { initialContent: content } })} />
-          </section>
-        )}
-
-        {/* Error Logs Section */}
-        {errorLogs.length > 0 && (
-          <section className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-semibold tracking-tight">Error Logs</h2>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Logs
-                </Button>
-                <Button variant="outline" size="sm" onClick={clearErrorLogs}>
-                  Clear Logs
-                </Button>
-              </div>
+        {/* Posts Section */}
+        <section>
+          <h2 className="text-2xl font-semibold tracking-tight mb-4">Your Posts</h2>
+          <p className="text-muted-foreground mb-6">
+            Here's an overview of your scheduled and published posts.
+          </p>
+          
+          {/* Placeholder for Posts Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="border rounded-md p-4">
+              <h3 className="font-semibold">Scheduled Posts</h3>
+              <p className="text-muted-foreground">No scheduled posts yet.</p>
             </div>
-            <Alert variant="destructive" className="mb-4">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Debug Information</AlertTitle>
-              <AlertDescription>
-                Error logs are displayed below. You can download these logs to help troubleshoot issues.
-              </AlertDescription>
-            </Alert>
-            <div className="bg-black text-green-400 p-4 rounded-md overflow-auto max-h-80 font-mono text-sm">
-              {errorLogs.map((log, index) => (
-                <div key={index} className="whitespace-pre-wrap mb-1">{log}</div>
-              ))}
+            <div className="border rounded-md p-4">
+              <h3 className="font-semibold">Published Posts</h3>
+              <p className="text-muted-foreground">No published posts yet.</p>
             </div>
-          </section>
-        )}
+            <div className="border rounded-md p-4">
+              <h3 className="font-semibold">Analytics</h3>
+              <p className="text-muted-foreground">Connect your X account to view analytics.</p>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );

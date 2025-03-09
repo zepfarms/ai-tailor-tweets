@@ -49,7 +49,6 @@ export type Database = {
         Row: {
           content: string
           created_at: string | null
-          has_media: boolean | null
           id: string
           published: boolean | null
           scheduled_for: string | null
@@ -59,7 +58,6 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string | null
-          has_media?: boolean | null
           id?: string
           published?: boolean | null
           scheduled_for?: string | null
@@ -69,7 +67,6 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string | null
-          has_media?: boolean | null
           id?: string
           published?: boolean | null
           scheduled_for?: string | null
@@ -144,104 +141,12 @@ export type Database = {
         }
         Relationships: []
       }
-      x_analyses: {
-        Row: {
-          average_engagement: number | null
-          last_analyzed: string
-          peak_times: string | null
-          posting_frequency: number | null
-          recommendations: string | null
-          top_tweet_id: string | null
-          top_tweet_text: string | null
-          user_id: string
-          x_user_id: string
-        }
-        Insert: {
-          average_engagement?: number | null
-          last_analyzed?: string
-          peak_times?: string | null
-          posting_frequency?: number | null
-          recommendations?: string | null
-          top_tweet_id?: string | null
-          top_tweet_text?: string | null
-          user_id: string
-          x_user_id: string
-        }
-        Update: {
-          average_engagement?: number | null
-          last_analyzed?: string
-          peak_times?: string | null
-          posting_frequency?: number | null
-          recommendations?: string | null
-          top_tweet_id?: string | null
-          top_tweet_text?: string | null
-          user_id?: string
-          x_user_id?: string
-        }
-        Relationships: []
-      }
-      x_posts: {
-        Row: {
-          content: string
-          created_at: string
-          engagement_rate: number | null
-          has_media: boolean | null
-          id: number
-          imported_at: string
-          impressions_count: number | null
-          likes_count: number
-          media_urls: string[] | null
-          replies_count: number
-          retweets_count: number
-          user_id: string
-          x_user_id: string
-        }
-        Insert: {
-          content: string
-          created_at: string
-          engagement_rate?: number | null
-          has_media?: boolean | null
-          id: number
-          imported_at?: string
-          impressions_count?: number | null
-          likes_count?: number
-          media_urls?: string[] | null
-          replies_count?: number
-          retweets_count?: number
-          user_id: string
-          x_user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          engagement_rate?: number | null
-          has_media?: boolean | null
-          id?: number
-          imported_at?: string
-          impressions_count?: number | null
-          likes_count?: number
-          media_urls?: string[] | null
-          replies_count?: number
-          retweets_count?: number
-          user_id?: string
-          x_user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      calculate_engagement_rate: {
-        Args: {
-          likes: number
-          retweets: number
-          replies: number
-          impressions: number
-        }
-        Returns: number
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
