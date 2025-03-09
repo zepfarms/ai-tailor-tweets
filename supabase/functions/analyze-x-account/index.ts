@@ -92,26 +92,28 @@ serve(async (req) => {
     // Get the user's X account details
     const { data: xAccount, error: xAccountError } = await supabase
       .from('x_accounts')
-      .select('x_user_id')
+      .select('x_user_id, x_username')
       .eq('user_id', user_id)
       .single();
     
     if (xAccountError || !xAccount) {
       console.error("Error retrieving X account:", xAccountError);
-      throw new Error("X account not found for this user");
+      throw new Error("X account not found for this user. Please reconnect your X account.");
     }
     
     const xUserId = xAccount.x_user_id;
+    const xUsername = xAccount.x_username;
+    console.log(`Processing analysis for X user: ${xUsername} (ID: ${xUserId})`);
     
     // Get the user's access token
     const { data: tokenData, error: tokenError } = await supabase
       .from('user_tokens')
-      .select('access_token')
+      .select('access_token, refresh_token')
       .eq('user_id', user_id)
       .eq('provider', 'twitter')
       .single();
     
-    if (tokenError || !tokenData) {
+    if (tokenError || !tokenData || !tokenData.access_token) {
       console.error("Error retrieving tokens:", tokenError);
       throw new Error("No valid access token found. Please reconnect your X account.");
     }
@@ -133,34 +135,42 @@ serve(async (req) => {
     let paginationCount = 0;
     const maxPagination = 5; // Limit to 5 pages (500 tweets max)
     
-    do {
-      const baseUrl = `https://api.twitter.com/2/users/${xUserId}/tweets`;
-      const params = new URLSearchParams({
-        'max_results': maxResults.toString(),
-        'start_time': startTime,
-        'tweet.fields': 'public_metrics,created_at',
-        'expansions': 'attachments.media_keys',
-        'media.fields': 'type,url'
-      });
-      
-      if (nextToken) {
-        params.append('pagination_token', nextToken);
-      }
-      
-      const url = `${baseUrl}?${params.toString()}`;
-      console.log(`Fetching tweets: ${url}`);
-      
-      try {
+    try {
+      do {
+        const baseUrl = `https://api.twitter.com/2/users/${xUserId}/tweets`;
+        const params = new URLSearchParams({
+          'max_results': maxResults.toString(),
+          'start_time': startTime,
+          'tweet.fields': 'public_metrics,created_at',
+          'expansions': 'attachments.media_keys',
+          'media.fields': 'type,url'
+        });
+        
+        if (nextToken) {
+          params.append('pagination_token', nextToken);
+        }
+        
+        const url = `${baseUrl}?${params.toString()}`;
+        console.log(`Fetching tweets: ${url}`);
+        
         const response = await fetch(url, {
           headers: {
-            'Authorization': `Bearer ${accessToken}`
+            'Authorization': `Bearer ${accessToken}`,
+            'User-Agent': 'PostedPal/1.0'
           }
         });
         
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`X API error (${response.status}):`, errorText);
-          throw new Error(`Failed to fetch tweets: ${response.status} - ${errorText}`);
+          
+          if (response.status === 401) {
+            throw new Error("Authorization failed. Please reconnect your X account in the settings.");
+          } else if (response.status === 429) {
+            throw new Error("Rate limit exceeded. Please try again later.");
+          } else {
+            throw new Error(`Failed to fetch tweets: ${response.status} - ${errorText}`);
+          }
         }
         
         const data = await response.json();
@@ -169,17 +179,23 @@ serve(async (req) => {
           allTweets = [...allTweets, ...data.data];
           console.log(`Fetched ${data.data.length} tweets, total now: ${allTweets.length}`);
         } else {
-          console.log("No tweets returned in this page");
+          console.log("No tweets returned in this page or empty data object");
+          console.log("Response data structure:", JSON.stringify(data));
         }
         
         nextToken = data.meta?.next_token;
         paginationCount++;
-      } catch (fetchError) {
-        console.error("Error fetching tweets:", fetchError);
-        throw new Error(`Failed to fetch tweets: ${fetchError.message}`);
+      } while (nextToken && paginationCount < maxPagination);
+    } catch (fetchError) {
+      console.error("Error fetching tweets:", fetchError);
+      
+      // If we have some tweets but hit an error during pagination, continue with analysis
+      if (allTweets.length === 0) {
+        throw fetchError; // Re-throw if we have no tweets to analyze
       }
       
-    } while (nextToken && paginationCount < maxPagination);
+      console.log("Continuing with partial tweet data for analysis");
+    }
     
     console.log(`Analysis will be based on ${allTweets.length} tweets`);
     
