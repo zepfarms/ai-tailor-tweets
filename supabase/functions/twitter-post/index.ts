@@ -10,6 +10,56 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Custom implementation of createHmac using Deno's native crypto API
+function createHmac(algorithm: string, key: string) {
+  // Convert the key to Uint8Array
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(key);
+  
+  // Return an object that mimics the Node.js createHmac interface
+  return {
+    update(data: string): { digest: (encoding: string) => string } {
+      const dataArr = encoder.encode(data);
+      
+      // Create a method to perform the digest operation with the specified encoding
+      return {
+        digest(encoding: string): string {
+          // If algorithm is sha1, use the Deno.subtle.digest with SHA-1
+          if (algorithm.toLowerCase() === "sha1") {
+            // Create a SubtleCrypto HmacKey
+            const cryptoKey = crypto.subtle.importKey(
+              "raw",
+              keyData,
+              { name: "HMAC", hash: "SHA-1" },
+              false,
+              ["sign"]
+            );
+            
+            // Sign the data
+            const signature = cryptoKey.then(key => 
+              crypto.subtle.sign({ name: "HMAC", hash: "SHA-1" }, key, dataArr)
+            );
+            
+            // Convert to the requested encoding
+            if (encoding === "base64") {
+              return signature.then(sig => btoa(String.fromCharCode(...new Uint8Array(sig))));
+            } else {
+              throw new Error(`Unsupported encoding: ${encoding}`);
+            }
+          } else {
+            throw new Error(`Unsupported algorithm: ${algorithm}`);
+          }
+        }
+      };
+    }
+  };
+}
+
+// Custom implementation of randomBytes for nonce generation
+function randomBytes(size: number): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(size));
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
