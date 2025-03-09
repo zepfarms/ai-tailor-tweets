@@ -1,365 +1,196 @@
 
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { encode } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const TWITTER_CLIENT_ID = Deno.env.get("TWITTER_CLIENT_ID") || "";
-const TWITTER_CLIENT_SECRET = Deno.env.get("TWITTER_CLIENT_SECRET") || "";
-const TWITTER_CALLBACK_URL = Deno.env.get("TWITTER_CALLBACK_URL") || "https://www.postedpal.com/x-callback";
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+interface RequestBody {
+  code: string;
+  state: string;
+  callbackType?: string;
+}
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
   try {
-    console.log("Twitter/X access token function called");
+    console.log('Twitter access token function invoked');
     
-    // Check if environment variables are set
-    if (!TWITTER_CLIENT_ID) {
-      throw new Error("TWITTER_CLIENT_ID environment variable is not set");
-    }
-    
-    if (!TWITTER_CLIENT_SECRET) {
-      throw new Error("TWITTER_CLIENT_SECRET environment variable is not set");
-    }
-    
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Supabase credentials are not properly configured");
-    }
-    
-    // Log available tokens and credentials (safely)
-    console.log("Bearer Token available:", !!TWITTER_BEARER_TOKEN);
-    console.log("Client ID available:", !!TWITTER_CLIENT_ID);
-    console.log("Client Secret available:", !!TWITTER_CLIENT_SECRET);
-    console.log("Default callback URL:", TWITTER_CALLBACK_URL);
-    
-    let requestData;
-    try {
-      requestData = await req.json();
-    } catch (parseError) {
-      console.error("Error parsing request:", parseError);
-      throw new Error("Invalid request format - could not parse JSON");
-    }
-    
-    const { code, state, origin } = requestData;
-    
-    console.log("Request data:", { codeProvided: !!code, state, origin });
-    console.log("Received state from callback:", state);
-    
-    if (!code) {
-      throw new Error("Authorization code is required");
-    }
-    
-    if (!state) {
-      throw new Error("State parameter is required");
-    }
+    // Parse request body
+    const { code, state, callbackType = 'link' } = await req.json() as RequestBody;
+    console.log('Request parameters:', { code, state, callbackType });
     
     // Create Supabase client
-    let supabase;
-    try {
-      supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      console.log("Supabase client created");
-    } catch (supabaseError) {
-      console.error("Error creating Supabase client:", supabaseError);
-      throw new Error("Failed to connect to Supabase");
-    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Retrieve the stored OAuth state
-    const { data: oauthData, error: oauthError } = await supabase
+    // Get stored OAuth state
+    const { data: oauthState, error: stateError } = await supabase
       .from('oauth_states')
       .select('*')
       .eq('state', state)
-      .eq('provider', 'twitter')
-      .maybeSingle();
+      .single();
     
-    console.log("OAuth state query result:", { 
-      dataFound: !!oauthData, 
-      error: oauthError,
-      data: oauthData ? {
-        state: oauthData.state,
-        provider: oauthData.provider,
-        created_at: oauthData.created_at,
-        callback_url: oauthData.callback_url,
-        code_verifier: oauthData.code_verifier ? "[REDACTED]" : null
-      } : null
+    if (stateError || !oauthState) {
+      console.error('Failed to retrieve OAuth state:', stateError);
+      throw new Error('Invalid or expired OAuth state');
+    }
+    
+    // Check if state is still valid
+    if (new Date(oauthState.expires_at) < new Date()) {
+      throw new Error('OAuth state has expired');
+    }
+    
+    // Exchange code for access token
+    const clientId = Deno.env.get('TWITTER_CLIENT_ID');
+    const clientSecret = Deno.env.get('TWITTER_CLIENT_SECRET');
+    const redirectUri = Deno.env.get('TWITTER_CALLBACK_URL');
+    
+    if (!clientId || !clientSecret || !redirectUri) {
+      throw new Error('Twitter credentials not properly configured');
+    }
+    
+    const tokenUrl = 'https://api.twitter.com/2/oauth2/token';
+    const tokenResponse = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`
+      },
+      body: new URLSearchParams({
+        code,
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        code_verifier: oauthState.code_verifier
+      })
     });
     
-    if (oauthError) {
-      console.error("Error retrieving OAuth state:", oauthError);
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Token response error:', errorText);
+      throw new Error(`Failed to exchange code for tokens: ${errorText}`);
+    }
+    
+    const tokenData = await tokenResponse.json();
+    console.log('Token data received');
+    
+    // Get user info from Twitter
+    const userResponse = await fetch('https://api.twitter.com/2/users/me', {
+      headers: {
+        'Authorization': `Bearer ${tokenData.access_token}`
+      }
+    });
+    
+    if (!userResponse.ok) {
+      const errorText = await userResponse.text();
+      console.error('User info response error:', errorText);
+      throw new Error(`Failed to get user info: ${errorText}`);
+    }
+    
+    const userData = await userResponse.json();
+    const userId = userData.data.id;
+    const username = userData.data.username;
+    
+    console.log('User data received:', { userId, username });
+    
+    // For login flow
+    if (oauthState.is_login) {
+      console.log('Processing login flow');
+      
+      // Create a magic link for email-less authentication
+      const magicLink = `x-login:${username}:${userId}:${Math.random().toString(36).substring(2)}`;
+      
+      // Return the magic link for the client to complete authentication
       return new Response(
-        JSON.stringify({ 
-          error: "Database error when retrieving OAuth state",
-          details: oauthError 
+        JSON.stringify({
+          username,
+          userId,
+          magicLink
         }),
-        { 
-          status: 500, 
-          headers: { "Content-Type": "application/json", ...corsHeaders } 
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
         }
       );
     }
     
-    if (!oauthData) {
-      console.error("No matching OAuth state found for:", state);
-      // Try to see if the state exists with a different provider
-      const { data: stateWithAnyProvider, error: anyProviderError } = await supabase
-        .from('oauth_states')
-        .select('state, provider, created_at')
-        .eq('state', state)
-        .maybeSingle();
-        
-      console.log("State with any provider result:", { 
-        found: !!stateWithAnyProvider, 
-        error: anyProviderError,
-        data: stateWithAnyProvider
-      });
-      
-      return new Response(
-        JSON.stringify({ 
-          error: "Invalid or expired state parameter", 
-          details: "The state parameter provided doesn't match any stored OAuth state"
-        }),
-        { 
-          status: 400, 
-          headers: { "Content-Type": "application/json", ...corsHeaders } 
+    // For account linking flow
+    console.log('Processing account linking flow');
+    console.log('User ID from oauth state:', oauthState.user_id);
+    
+    // Store tokens in database
+    const { error: tokenStoreError } = await supabase
+      .from('user_tokens')
+      .upsert({
+        user_id: oauthState.user_id,
+        provider: 'twitter',
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+      }, { onConflict: 'user_id,provider' });
+    
+    if (tokenStoreError) {
+      console.error('Failed to store tokens:', tokenStoreError);
+      throw new Error(`Failed to store tokens: ${tokenStoreError.message}`);
+    }
+    
+    // Store X account details
+    const { error: xAccountError } = await supabase
+      .from('x_accounts')
+      .upsert({
+        user_id: oauthState.user_id,
+        x_user_id: userId,
+        x_username: username,
+        access_token: tokenData.access_token,
+        access_token_secret: tokenData.refresh_token || '',
+        profile_image_url: ''
+      }, { onConflict: 'user_id' });
+    
+    if (xAccountError) {
+      console.error('Failed to store X account:', xAccountError);
+      throw new Error(`Failed to store X account: ${xAccountError.message}`);
+    }
+    
+    // Update user metadata to indicate X is linked
+    const { data: userData2, error: userError } = await supabase.auth.admin.updateUserById(
+      oauthState.user_id,
+      {
+        user_metadata: {
+          xLinked: true,
+          xUsername: username
         }
-      );
+      }
+    );
+    
+    if (userError) {
+      console.error('Failed to update user metadata:', userError);
+      // This is not a critical error, so we continue
     }
     
-    const userId = oauthData.user_id;
-    const codeVerifier = oauthData.code_verifier;
-    const isLogin = oauthData.is_login === true;
-    
-    // Use the stored callback URL if available, otherwise use the origin or default
-    let callbackUrl = oauthData.callback_url;
-    if (!callbackUrl) {
-      if (origin) {
-        callbackUrl = `${origin}/x-callback`;
-        console.log("Using origin-based callback URL:", callbackUrl);
-      } else {
-        callbackUrl = TWITTER_CALLBACK_URL;
-        console.log("Using default callback URL:", callbackUrl);
-      }
-    }
-    
-    console.log("Retrieved user ID:", userId || "Not provided (login flow)");
-    console.log("Code verifier found:", !!codeVerifier);
-    console.log("Is login flow:", isLogin);
-    console.log("Using callback URL:", callbackUrl);
-    
-    // Exchange the authorization code for an access token
-    console.log("Attempting to exchange code for token");
-    
-    // Build the form data for the token request
-    const tokenRequestBody = new URLSearchParams({
-      code,
-      grant_type: "authorization_code",
-      redirect_uri: callbackUrl,
-      code_verifier: codeVerifier,
-    });
-
-    console.log("Token request parameters:", tokenRequestBody.toString());
-    
-    // Create base64 encoded credentials string
-    const credentials = `${TWITTER_CLIENT_ID}:${TWITTER_CLIENT_SECRET}`;
-    const encodedCredentials = btoa(credentials);
-    
-    console.log("Authorization credentials prepared");
-    console.log("Encoded credentials length:", encodedCredentials.length);
-    
-    let tokenResponse;
-    let tokenData;
-    try {
-      console.log("Sending token request to https://api.twitter.com/2/oauth2/token");
-      
-      tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Authorization": `Basic ${encodedCredentials}`,
-        },
-        body: tokenRequestBody.toString(),
-      });
-      
-      console.log("Token response status:", tokenResponse.status);
-      
-      const responseText = await tokenResponse.text();
-      console.log("Token response body:", responseText);
-      
-      if (!tokenResponse.ok) {
-        console.error("Token response error text:", responseText);
-        return new Response(
-          JSON.stringify({ 
-            error: "Failed to exchange code for token", 
-            details: responseText,
-            status: tokenResponse.status
-          }),
-          { 
-            status: 500, 
-            headers: { "Content-Type": "application/json", ...corsHeaders } 
-          }
-        );
-      }
-      
-      try {
-        tokenData = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error("Error parsing token response:", parseError);
-        throw new Error("Invalid response from Twitter token endpoint");
-      }
-      
-      console.log("Token response received:", !!tokenData);
-      console.log("Access token obtained:", !!tokenData.access_token);
-      console.log("Refresh token:", !!tokenData.refresh_token);
-    } catch (fetchError) {
-      console.error("Fetch error when exchanging token:", fetchError);
-      throw new Error(`Network error when exchanging token: ${fetchError.message}`);
-    }
-    
-    // Get Twitter user info
-    console.log("Fetching user info");
-    let userResponse;
-    try {
-      // First try with the obtained access token
-      userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
-        headers: {
-          "Authorization": `Bearer ${tokenData.access_token}`
-        }
-      });
-      
-      console.log("User info response status with access token:", userResponse.status);
-      
-      // If that fails and we have a bearer token, try with the bearer token
-      if (!userResponse.ok && TWITTER_BEARER_TOKEN) {
-        console.log("Retrying with Bearer token");
-        userResponse = await fetch("https://api.twitter.com/2/users/me?user.fields=profile_image_url", {
-          headers: {
-            "Authorization": `Bearer ${TWITTER_BEARER_TOKEN}`
-          }
-        });
-        console.log("User info response status with bearer token:", userResponse.status);
-      }
-      
-      if (!userResponse.ok) {
-        const errorText = await userResponse.text();
-        console.error("User info response error:", errorText);
-        throw new Error(`Failed to fetch user info: HTTP ${userResponse.status} - ${errorText}`);
-      }
-    } catch (fetchError) {
-      console.error("Fetch error when getting user info:", fetchError);
-      throw new Error(`Network error when fetching user info: ${fetchError.message}`);
-    }
-
-    let userData;
-    try {
-      userData = await userResponse.json();
-      console.log("User data received:", !!userData);
-      if (userData.data) {
-        console.log("User data username:", userData.data.username);
-      }
-    } catch (parseError) {
-      console.error("Error parsing user response:", parseError);
-      throw new Error("Invalid response from Twitter user endpoint");
-    }
-
-    // Store user tokens for future use - both in x_accounts for backward compatibility
-    // and in user_tokens for the new structure
-    try {
-      console.log("Storing user token in database");
-      
-      // First, try to store in x_accounts for backward compatibility
-      const { error: storeXAccountError } = await supabase
-        .from('x_accounts')
-        .upsert({
-          user_id: userId,
-          x_username: userData.data?.username,
-          x_user_id: userData.data?.id,
-          access_token: tokenData.access_token,
-          access_token_secret: 'oauth2', // Just a marker that this is OAuth 2.0
-          profile_image_url: userData.data?.profile_image_url,
-          created_at: new Date().toISOString()
-        });
-        
-      if (storeXAccountError) {
-        console.error("Error storing X account info:", storeXAccountError);
-        // Continue anyway as we'll try the new user_tokens table
-      } else {
-        console.log("Successfully stored X account info in x_accounts table");
-      }
-      
-      // Now, store in the user_tokens table for the new structure
-      const { error: storeTokenError } = await supabase
-        .from('user_tokens')
-        .upsert({
-          user_id: userId,
-          provider: 'twitter',
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token || null,
-          expires_at: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000).toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-        
-      if (storeTokenError) {
-        console.error("Error storing token in user_tokens:", storeTokenError);
-        // If this fails too, log but continue as we still have success in one table
-      } else {
-        console.log("Successfully stored token in user_tokens table");
-      }
-    } catch (storeError) {
-      console.error("Error storing token:", storeError);
-      // Continue anyway, as this isn't critical to the auth flow
-    }
-
-    // Clean up the OAuth state
-    console.log("Cleaning up OAuth state");
+    // Delete used OAuth state
     await supabase
       .from('oauth_states')
       .delete()
       .eq('state', state);
-
-    // Return the user data and token information
+    
     return new Response(
       JSON.stringify({
         success: true,
-        username: userData.data?.username,
-        userId: userData.data?.id,
-        tokenInfo: {
-          access_token_available: !!tokenData.access_token,
-          token_type: tokenData.token_type,
-          expires_in: tokenData.expires_in
-        }
+        username
       }),
       {
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        status: 200,
       }
     );
-    
   } catch (error) {
-    console.error("Error:", error);
+    console.error('Error in twitter-access-token:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: "There was an error processing the X authentication callback. Please try again or contact support."
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: 'Failed to complete X authentication',
       }),
       {
+        headers: { 'Content-Type': 'application/json' },
         status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
       }
     );
   }

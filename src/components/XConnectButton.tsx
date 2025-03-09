@@ -1,167 +1,99 @@
-
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Loader2, LogIn } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
+import { Loader2 } from "lucide-react"
 
 interface XConnectButtonProps {
-  className?: string;
-  variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
   showLoginOption?: boolean;
+  variant?: 'default' | 'outline' | 'secondary' | 'destructive';
+  className?: string;
 }
 
 const XConnectButton: React.FC<XConnectButtonProps> = ({ 
-  className = '',
+  showLoginOption = false,
   variant = 'default',
-  size = 'default',
-  showLoginOption = false
+  className = ''
 }) => {
-  const { user, linkXAccount, isLinkingX, loginWithX, isLoginingWithX } = useAuth();
-  const { toast } = useToast();
-  const [localLoading, setLocalLoading] = useState(false);
-
-  const handleConnect = async () => {
+  const { user, linkXAccount, loginWithX, isLinkingX, isLoginingWithX } = useAuth();
+  const [isConnecting, setIsConnecting] = useState(false);
+  
+  const handleXConnect = async () => {
     try {
-      setLocalLoading(true);
-      console.log('Starting X authorization process');
-      toast({
-        title: "Connecting to X",
-        description: "You'll be redirected to X for authorization...",
-      });
-      
-      // Clear any existing state from previous attempts
-      localStorage.removeItem('x_auth_state');
-      
-      const origin = window.location.origin;
-      console.log('Current origin:', origin);
-      
-      console.log('Requesting authorization URL from server...');
-      const { data, error } = await supabase.functions.invoke('twitter-request-token', {
-        body: {
-          userId: user?.id,
-          isLogin: false,
-          origin: origin
-        }
-      });
-      
-      if (error) {
-        console.error('Error getting X authorization URL:', error);
-        throw new Error(error.message || 'Failed to connect to X authorization service');
-      }
-      
-      if (!data || !data.authUrl) {
-        console.error('Invalid response from X authorization service:', data);
-        throw new Error('Received invalid response from authorization service');
-      }
-      
-      console.log('Received auth URL:', data.authUrl.substring(0, 100) + '...');
-      console.log('State from response:', data.state);
-      
-      if (data.state) {
-        localStorage.setItem('x_auth_state', data.state);
-        console.log('Stored state in localStorage for verification:', data.state);
-      } else {
-        console.error('No state returned from authorization service');
-        throw new Error('Authentication failed: No state returned from service');
-      }
-      
-      window.location.href = data.authUrl;
-      
+      setIsConnecting(true);
+      await linkXAccount();
     } catch (error) {
-      console.error('Error connecting to X:', error);
-      toast({
-        title: "Connection Error",
-        description: error instanceof Error ? error.message : "Failed to connect to X",
-        variant: "destructive"
-      });
-      setLocalLoading(false);
+      console.error('Error connecting X account:', error);
+    } finally {
+      setIsConnecting(false);
     }
   };
-
-  const handleLoginWithX = async () => {
+  
+  const handleXLogin = async () => {
     try {
-      console.log('Starting X login process');
-      toast({
-        title: "Logging in with X",
-        description: "You'll be redirected to X for authorization...",
-      });
-      
       await loginWithX();
     } catch (error) {
       console.error('Error logging in with X:', error);
-      toast({
-        title: "Login Error",
-        description: error instanceof Error ? error.message : "Failed to login with X",
-        variant: "destructive"
-      });
     }
   };
-
-  const isLoading = isLinkingX || localLoading || isLoginingWithX;
-
-  // If we're showing login option and user is not logged in
-  if (showLoginOption && !user) {
+  
+  // Determine which button to show
+  if (showLoginOption) {
     return (
       <Button 
-        className={className}
-        variant={variant}
-        size={size}
-        onClick={handleLoginWithX}
-        disabled={isLoading}
+        variant="outline" 
+        className={cn("flex items-center gap-2", className)}
+        onClick={handleXLogin}
+        disabled={isLoginingWithX}
       >
         {isLoginingWithX ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Logging in...
-          </>
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <>
-            <LogIn className="mr-2 h-4 w-4" />
-            Login with X
-          </>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-twitter">
+            <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+          </svg>
         )}
+        {isLoginingWithX ? "Connecting to X..." : "Login with X"}
       </Button>
     );
   }
-
-  // Disabling the button only when already connected
-  // is now handled by conditionally rendering different button states
+  
+  // For existing users to connect X account
   if (user?.xLinked) {
     return (
       <Button 
-        className={className}
-        variant="secondary"
-        size={size}
-        disabled
+        variant={variant}
+        className={cn("flex items-center gap-2", className)}
+        onClick={handleXConnect}
+        disabled={isLinkingX || isConnecting}
       >
-        <X className="mr-2 h-4 w-4" />
-        Connected to X
+        {isLinkingX || isConnecting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-twitter">
+            <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+          </svg>
+        )}
+        {isLinkingX || isConnecting ? "Reconnecting..." : "Reconnect X"}
       </Button>
     );
   }
-
+  
   return (
     <Button 
-      className={className}
       variant={variant}
-      size={size}
-      onClick={handleConnect}
-      disabled={isLoading}
+      className={cn("flex items-center gap-2", className)}
+      onClick={handleXConnect}
+      disabled={isLinkingX || isConnecting}
     >
-      {isLoading ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Connecting...
-        </>
+      {isLinkingX || isConnecting ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <>
-          <X className="mr-2 h-4 w-4" />
-          Connect to X
-        </>
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-twitter">
+          <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+        </svg>
       )}
+      {isLinkingX || isConnecting ? "Connecting..." : "Connect X Account"}
     </Button>
   );
 };
