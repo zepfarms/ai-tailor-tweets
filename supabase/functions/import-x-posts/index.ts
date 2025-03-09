@@ -5,6 +5,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN") || "";
+const TWITTER_API_KEY = Deno.env.get("TWITTER_CONSUMER_KEY") || "";
+const TWITTER_API_SECRET = Deno.env.get("TWITTER_CONSUMER_SECRET") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,70 +37,77 @@ serve(async (req) => {
     
     console.log("Looking up X account for user:", userId);
     
-    // Get the user's X account tokens
-    const { data: tokensData, error: tokensError } = await supabase
-      .from('user_tokens')
-      .select('access_token, refresh_token')
+    // Get the user's X account info with user ID
+    let xUserId = null;
+    let xUsername = null;
+    let accessToken = null;
+    let refreshToken = null;
+    
+    // First try to get X user info from x_accounts
+    const { data: xAccount, error: xAccountError } = await supabase
+      .from('x_accounts')
+      .select('x_username, x_user_id, access_token, refresh_token')
       .eq('user_id', userId)
-      .eq('provider', 'twitter')
       .maybeSingle();
     
-    if (tokensError) {
-      console.error("Error retrieving tokens:", tokensError);
-      throw new Error(`Failed to retrieve user tokens: ${tokensError.message}`);
+    if (xAccountError) {
+      console.error("Error retrieving X account:", xAccountError);
     }
     
-    // Fallback to x_accounts if not found in user_tokens
-    let accessToken = tokensData?.access_token;
-    if (!accessToken) {
-      console.log("No tokens found in user_tokens, checking x_accounts");
-      const { data: xAccount, error: xAccountError } = await supabase
-        .from('x_accounts')
-        .select('x_username, x_user_id, access_token')
-        .eq('user_id', userId)
-        .maybeSingle();
-    
-      if (xAccountError) {
-        console.error("Error retrieving X account:", xAccountError);
-        throw new Error(`Failed to retrieve X account: ${xAccountError.message}`);
-      }
-      
-      if (!xAccount) {
-        throw new Error("X account not found. Please connect your X account first.");
-      }
-      
+    if (xAccount) {
+      console.log("Found X account in x_accounts table:", xAccount.x_username);
+      xUserId = xAccount.x_user_id;
+      xUsername = xAccount.x_username;
       accessToken = xAccount.access_token;
-      console.log("Found access token in x_accounts table");
-    } else {
-      console.log("Found access token in user_tokens table");
+      refreshToken = xAccount.refresh_token;
     }
     
-    if (!accessToken && !TWITTER_BEARER_TOKEN) {
-      throw new Error("No valid token found to access X API.");
-    }
-    
-    // Get the X user ID
-    let xUserId;
-    
-    try {
-      // First try to get X user ID from x_accounts
-      const { data: xAccount } = await supabase
-        .from('x_accounts')
-        .select('x_user_id')
+    // If not found in x_accounts, try user_tokens
+    if (!accessToken) {
+      console.log("Checking user_tokens table for access tokens");
+      const { data: tokensData, error: tokensError } = await supabase
+        .from('user_tokens')
+        .select('access_token, refresh_token, provider_account_id')
         .eq('user_id', userId)
+        .eq('provider', 'twitter')
         .maybeSingle();
+      
+      if (tokensError) {
+        console.error("Error retrieving tokens:", tokensError);
+      }
+      
+      if (tokensData) {
+        console.log("Found tokens in user_tokens table");
+        accessToken = tokensData.access_token;
+        refreshToken = tokensData.refresh_token;
         
-      if (xAccount?.x_user_id) {
-        xUserId = xAccount.x_user_id;
-        console.log("Found X user ID in x_accounts:", xUserId);
-      } else {
-        // If not found, try to get it from the X API
-        console.log("X user ID not found in database, fetching from X API");
+        // If we got the provider_account_id (X user ID) from user_tokens
+        if (tokensData.provider_account_id) {
+          xUserId = tokensData.provider_account_id;
+          console.log("Using X user ID from user_tokens:", xUserId);
+        }
+      }
+    }
+    
+    // If we still don't have an X user ID, try to get it from the API
+    if (!xUserId && accessToken) {
+      console.log("No X user ID found in database, fetching from X API");
+      try {
+        // Create Authorization header based on token format
+        let authHeader;
+        if (accessToken.startsWith("Bearer ")) {
+          authHeader = accessToken; // Token already has Bearer prefix
+        } else {
+          authHeader = `Bearer ${accessToken}`;
+        }
+
+        console.log("Fetching user info with authorization header:", authHeader.substring(0, 15) + "...");
+        
         const userResponse = await fetch(
           "https://api.twitter.com/2/users/me",
           {
             headers: {
-              "Authorization": `Bearer ${accessToken || TWITTER_BEARER_TOKEN}`
+              "Authorization": authHeader
             }
           }
         );
@@ -106,57 +115,142 @@ serve(async (req) => {
         if (!userResponse.ok) {
           const errorText = await userResponse.text();
           console.error("X API user lookup error:", errorText);
+          console.error("Status code:", userResponse.status);
+          console.error("Using authorization header:", authHeader.substring(0, 15) + "...");
           throw new Error(`Failed to fetch X user info: ${userResponse.status} - ${errorText}`);
         }
         
         const userData = await userResponse.json();
-        xUserId = userData.data.id;
-        console.log("Got X user ID from API:", xUserId);
-      }
-    } catch (userIdError) {
-      console.error("Error getting X user ID:", userIdError);
-      throw new Error(`Unable to determine X user ID: ${userIdError.message}`);
-    }
-    
-    if (!xUserId) {
-      throw new Error("Could not determine X user ID");
-    }
-    
-    // Try both access token (OAuth 2.0) and bearer token (app-only)
-    const authToken = accessToken || TWITTER_BEARER_TOKEN;
-    
-    // Fetch user's tweets with detailed logging
-    console.log("Fetching tweets for user ID:", xUserId);
-    console.log("Using token type:", accessToken ? "User access token" : "App bearer token");
-    
-    const tweetsUrl = `https://api.twitter.com/2/users/${xUserId}/tweets?max_results=100&tweet.fields=public_metrics,created_at&expansions=attachments.media_keys&media.fields=type,url`;
-    console.log("Fetch URL:", tweetsUrl);
-    
-    // Log authorization header (with redaction)
-    console.log("Auth header:", `Bearer ${authToken.substring(0, 10)}...${authToken.substring(authToken.length - 5)}`);
-    
-    const tweetsResponse = await fetch(
-      tweetsUrl,
-      {
-        headers: {
-          "Authorization": `Bearer ${authToken}`
+        console.log("X API user response:", JSON.stringify(userData));
+        
+        if (userData.data && userData.data.id) {
+          xUserId = userData.data.id;
+          console.log("Got X user ID from API:", xUserId);
+          
+          // Also get the username if available
+          if (userData.data.username) {
+            xUsername = userData.data.username;
+            console.log("Got X username from API:", xUsername);
+          }
+          
+          // Save this info back to the database for future use
+          if (xUserId && userId) {
+            const { error: updateError } = await supabase
+              .from('x_accounts')
+              .upsert({
+                user_id: userId,
+                x_user_id: xUserId,
+                x_username: xUsername,
+                access_token: accessToken,
+                refresh_token: refreshToken
+              });
+            
+            if (updateError) {
+              console.error("Error saving X account info:", updateError);
+            } else {
+              console.log("Updated X account info in database");
+            }
+          }
+        } else {
+          console.error("Invalid response from X API:", userData);
         }
+      } catch (userIdError) {
+        console.error("Error getting X user ID:", userIdError);
       }
-    );
-    
-    console.log("X API response status:", tweetsResponse.status);
-    
-    if (!tweetsResponse.ok) {
-      const errorText = await tweetsResponse.text();
-      console.error("X API error:", errorText);
-      throw new Error(`Failed to fetch tweets: ${tweetsResponse.status} - ${errorText}`);
     }
     
-    const tweetsData = await tweetsResponse.json();
-    console.log(`Fetched ${tweetsData.data?.length || 0} tweets`);
+    // If we still don't have an X user ID, we can't proceed
+    if (!xUserId) {
+      throw new Error("Could not determine X user ID. Please reconnect your X account.");
+    }
     
-    if (!tweetsData.data || tweetsData.data.length === 0) {
-      console.log("No tweets found in the response");
+    // Now that we have the X user ID, fetch the tweets
+    console.log("Fetching tweets for X user ID:", xUserId);
+    
+    // Try accessing with OAuth 2.0 user token first, fallback to app-only bearer token
+    let tokenToUse = accessToken;
+    let isAppOnlyToken = false;
+    
+    // If no user access token, fall back to app-only bearer token
+    if (!tokenToUse && TWITTER_BEARER_TOKEN) {
+      tokenToUse = TWITTER_BEARER_TOKEN;
+      isAppOnlyToken = true;
+      console.log("Using app-only bearer token");
+    }
+    
+    if (!tokenToUse) {
+      throw new Error("No valid token found to access X API.");
+    }
+    
+    // Ensure token has proper format for Authorization header
+    let authHeader;
+    if (tokenToUse.startsWith("Bearer ")) {
+      authHeader = tokenToUse;
+    } else {
+      authHeader = `Bearer ${tokenToUse}`;
+    }
+    
+    console.log("Using authorization header:", authHeader.substring(0, 15) + "...");
+    
+    // Set up pagination for fetching multiple pages of tweets
+    const baseUrl = `https://api.twitter.com/2/users/${xUserId}/tweets`;
+    const params = new URLSearchParams({
+      "max_results": "100", 
+      "tweet.fields": "public_metrics,created_at",
+      "expansions": "attachments.media_keys",
+      "media.fields": "type,url"
+    });
+    
+    let allTweets = [];
+    let nextToken = null;
+    let paginationCount = 0;
+    const MAX_PAGES = 5; // Limit to 5 pages (500 tweets) to avoid rate limits
+    
+    do {
+      if (nextToken) {
+        params.set("pagination_token", nextToken);
+      }
+      
+      const fullUrl = `${baseUrl}?${params.toString()}`;
+      console.log("Fetching URL:", fullUrl);
+      
+      const tweetsResponse = await fetch(
+        fullUrl,
+        {
+          headers: {
+            "Authorization": authHeader
+          }
+        }
+      );
+      
+      console.log("X API response status:", tweetsResponse.status);
+      
+      if (!tweetsResponse.ok) {
+        const errorText = await tweetsResponse.text();
+        console.error("X API error:", errorText);
+        throw new Error(`Failed to fetch tweets: ${tweetsResponse.status} - ${errorText}`);
+      }
+      
+      const tweetsData = await tweetsResponse.json();
+      
+      if (!tweetsData.data || tweetsData.data.length === 0) {
+        console.log("No tweets found in the response");
+        break;
+      }
+      
+      console.log(`Fetched ${tweetsData.data.length} tweets in page ${paginationCount + 1}`);
+      allTweets = [...allTweets, ...tweetsData.data];
+      
+      // Check for next_token in the response metadata
+      nextToken = tweetsData.meta?.next_token;
+      console.log("Next token:", nextToken || "None");
+      
+      paginationCount++;
+    } while (nextToken && paginationCount < MAX_PAGES);
+    
+    console.log(`Total tweets fetched across ${paginationCount} pages: ${allTweets.length}`);
+    
+    if (allTweets.length === 0) {
       return new Response(
         JSON.stringify({ success: true, message: "No tweets found", count: 0 }),
         { headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -164,84 +258,85 @@ serve(async (req) => {
     }
     
     // Process and store tweets
-    const processedTweets = tweetsData.data.map(tweet => {
-      const metrics = tweet.public_metrics || {};
-      const likes = metrics.like_count || 0;
-      const retweets = metrics.retweet_count || 0;
-      const replies = metrics.reply_count || 0;
-      const impressions = metrics.impression_count || 0;
-      
-      // Check if tweet has media
-      const hasMedia = !!tweet.attachments?.media_keys?.length;
-      
-      // Get media URLs if available
-      let mediaUrls = [];
-      if (hasMedia && tweetsData.includes?.media) {
-        mediaUrls = tweet.attachments.media_keys
-          .map(key => {
-            const media = tweetsData.includes.media.find(m => m.media_key === key);
-            return media?.url || null;
-          })
-          .filter(url => url !== null);
+    let insertedCount = 0;
+    let errorCount = 0;
+    const processedTweets = [];
+    
+    for (const tweet of allTweets) {
+      try {
+        const metrics = tweet.public_metrics || {};
+        const likes = metrics.like_count || 0;
+        const retweets = metrics.retweet_count || 0;
+        const replies = metrics.reply_count || 0;
+        const impressions = metrics.impression_count || 0;
+        
+        // Check if tweet has media
+        const hasMedia = !!tweet.attachments?.media_keys?.length;
+        
+        // Get media URLs if available
+        let mediaUrls = [];
+        
+        processedTweets.push({
+          id: tweet.id, 
+          user_id: userId,
+          x_user_id: xUserId,
+          content: tweet.text,
+          likes_count: likes,
+          retweets_count: retweets,
+          replies_count: replies,
+          impressions_count: impressions,
+          engagement_rate: impressions > 0 ? ((likes + retweets + replies) / impressions) : 0,
+          has_media: hasMedia,
+          media_urls: mediaUrls,
+          created_at: tweet.created_at,
+          imported_at: new Date().toISOString()
+        });
+      } catch (processError) {
+        console.error("Error processing tweet:", processError);
+        errorCount++;
       }
-      
-      return {
-        id: tweet.id, // Store as string, we'll convert to bigint later
-        user_id: userId,
-        x_user_id: xUserId,
-        content: tweet.text,
-        likes_count: likes,
-        retweets_count: retweets,
-        replies_count: replies,
-        impressions_count: impressions,
-        engagement_rate: impressions > 0 ? ((likes + retweets + replies) / impressions) : 0,
-        has_media: hasMedia,
-        media_urls: mediaUrls,
-        created_at: tweet.created_at
-      };
-    });
+    }
     
     console.log(`Processed ${processedTweets.length} tweets, now storing in database`);
     
-    // Insert tweets into the database with upsert to avoid duplicates
-    let insertedCount = 0;
-    let errorCount = 0;
-    
-    for (const tweet of processedTweets) {
+    // Insert tweets in batches to avoid payload size limits
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < processedTweets.length; i += BATCH_SIZE) {
+      const batch = processedTweets.slice(i, i + BATCH_SIZE);
+      
       try {
-        // Convert tweet.id to BigInt by removing all non-numeric characters and parsing
-        const numericId = tweet.id.replace(/\D/g, '');
-        const bigIntId = BigInt(numericId);
-        
-        console.log(`Inserting tweet ID: ${tweet.id} as BigInt: ${bigIntId}`);
-        
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('x_posts')
-          .upsert({
-            id: bigIntId,  // Store as bigint
-            user_id: tweet.user_id,
-            x_user_id: tweet.x_user_id,
-            content: tweet.content,
-            likes_count: tweet.likes_count,
-            retweets_count: tweet.retweets_count,
-            replies_count: tweet.replies_count,
-            impressions_count: tweet.impressions_count,
-            engagement_rate: tweet.engagement_rate,
-            has_media: tweet.has_media,
-            media_urls: tweet.media_urls,
-            created_at: tweet.created_at,
-            imported_at: new Date().toISOString()
-          });
+          .upsert(
+            batch.map(tweet => {
+              // Convert tweet.id to BigInt
+              const numericId = tweet.id.replace(/\D/g, '');
+              let bigIntId;
+              try {
+                bigIntId = BigInt(numericId);
+              } catch (e) {
+                console.error(`Error converting ID ${tweet.id} to BigInt:`, e);
+                bigIntId = BigInt(0); // Fallback ID
+              }
+              
+              return {
+                ...tweet,
+                id: bigIntId
+              };
+            }),
+            { onConflict: 'id' }
+          );
         
         if (error) {
-          console.error("Error inserting tweet:", error);
-          errorCount++;
+          console.error("Error inserting tweet batch:", error);
+          errorCount += batch.length;
         } else {
-          insertedCount++;
+          console.log(`Successfully inserted batch of ${batch.length} tweets`);
+          insertedCount += batch.length;
         }
-      } catch (insertError) {
-        console.error("Error processing tweet:", insertError);
-        errorCount++;
+      } catch (batchError) {
+        console.error("Error processing batch:", batchError);
+        errorCount += batch.length;
       }
     }
     
@@ -251,7 +346,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         message: `Successfully imported ${insertedCount} tweets`,
-        total: processedTweets.length,
+        total: allTweets.length,
         inserted: insertedCount,
         errors: errorCount
       }),

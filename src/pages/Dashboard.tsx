@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Info, Check, Download, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Info, Check, Download, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import XConnectButton from '@/components/XConnectButton';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +19,8 @@ const Dashboard: React.FC = () => {
   const xAuthSuccess = searchParams.get('x_auth_success') === 'true';
   const username = searchParams.get('username');
   const [importLoading, setImportLoading] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [importResult, setImportResult] = useState<{total?: number, inserted?: number, errors?: number} | null>(null);
   const [errorLogs, setErrorLogs] = useState<string[]>([]);
 
   useEffect(() => {
@@ -41,6 +42,8 @@ const Dashboard: React.FC = () => {
     }
 
     setImportLoading(true);
+    setImportSuccess(false);
+    setImportResult(null);
     addErrorLog("Starting import process for user: " + user.id);
 
     try {
@@ -49,16 +52,27 @@ const Dashboard: React.FC = () => {
       });
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error(error.message || "Unknown error occurred during import");
       }
 
       addErrorLog("Import response: " + JSON.stringify(data));
-
-      toast({
-        title: "Success",
-        description: data.message || "Successfully imported posts",
-        variant: "default",
-      });
+      
+      if (data.success) {
+        setImportSuccess(true);
+        setImportResult({
+          total: data.total,
+          inserted: data.inserted,
+          errors: data.errors
+        });
+        
+        toast({
+          title: "Success",
+          description: data.message || `Successfully imported ${data.inserted || 0} posts`,
+          variant: "default",
+        });
+      } else {
+        throw new Error(data.error || "Import failed");
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       addErrorLog("Import error: " + errorMessage);
@@ -121,7 +135,7 @@ const Dashboard: React.FC = () => {
                 className="flex items-center"
               >
                 {importLoading ? (
-                  <span className="animate-spin mr-2">⊙</span>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
@@ -156,6 +170,18 @@ const Dashboard: React.FC = () => {
               <AlertTitle>X account connected</AlertTitle>
               <AlertDescription>
                 Successfully connected to {username ? `@${username}` : 'your X account'}.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {/* Import Results Alert */}
+          {importSuccess && importResult && (
+            <Alert className="mb-6 bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
+              <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <AlertTitle className="text-green-700 dark:text-green-300">Import Successful</AlertTitle>
+              <AlertDescription className="text-green-700 dark:text-green-300">
+                Successfully imported {importResult.inserted} out of {importResult.total} posts 
+                {importResult.errors ? ` (${importResult.errors} errors)` : ''}.
               </AlertDescription>
             </Alert>
           )}
