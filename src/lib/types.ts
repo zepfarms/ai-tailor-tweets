@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email: string;
@@ -101,4 +100,17 @@ export interface Subscription {
   created_at: string;
   updated_at: string;
   canceled_at?: string;
+}
+
+export interface XPost {
+  id: string;
+  content: string;
+  likes_count: number;
+  retweets_count: number;
+  replies_count: number;
+  impressions_count: number;
+  engagement_rate: number;
+  has_media: boolean;
+  created_at: string;
+  media_urls?: string[] | null;
 }

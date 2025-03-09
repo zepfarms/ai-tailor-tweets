@@ -124,7 +124,7 @@ serve(async (req) => {
         const { error } = await supabase
           .from('x_posts')
           .upsert({
-            id: tweet.id.toString(),  // Convert BigInt to string for compatibility
+            id: tweet.id,  // Store as bigint - now the database expects this
             user_id: tweet.user_id,
             x_user_id: tweet.x_user_id,
             content: tweet.content,

@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Progress } from '@/components/ui/progress';
-import { BarChart, AreaChart } from '@/components/ui/chart';
+import { ChartContainer } from '@/components/ui/chart';
 import { Download, RefreshCw, Sparkles, MessageCircle, Heart, Repeat, LineChart, CheckCircle2, Loader2 } from 'lucide-react';
+import { ResponsiveBar, ResponsiveArea } from 'recharts';
 
 interface XPostsAnalyzerProps {
   onGenerateFromPost: (content: string) => void;
@@ -46,7 +47,12 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
         .limit(10);
       
       if (error) throw error;
-      return data as XPost[];
+      
+      // Convert id from number to string to match our interface
+      return (data || []).map(post => ({
+        ...post,
+        id: post.id.toString()
+      })) as XPost[];
     },
     enabled: !!user?.id && user?.xLinked === true,
   });
@@ -65,8 +71,14 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
       
       if (error) throw error;
       
+      // Convert ids before passing to helper function
+      const postsWithStringIds = (data || []).map(post => ({
+        ...post,
+        id: post.id.toString()
+      })) as XPost[];
+      
       // Group by day for time-based chart
-      const byDay = groupPostsByDay(data);
+      const byDay = groupPostsByDay(postsWithStringIds);
       
       // Group by engagement rate for distribution chart
       const byEngagement = [
@@ -77,7 +89,7 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
         { name: '>10%', value: 0 },
       ];
       
-      data.forEach(post => {
+      postsWithStringIds.forEach(post => {
         const rate = post.engagement_rate;
         if (rate < 1) byEngagement[0].value++;
         else if (rate < 2) byEngagement[1].value++;
@@ -306,17 +318,31 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
               </CardHeader>
               <CardContent>
                 {engagementData?.byDay && engagementData.byDay.length > 0 ? (
-                  <AreaChart 
-                    data={engagementData.byDay.map(item => ({
-                      name: item.day.split('-').slice(1).join('/'),
-                      "Engagement Rate": (item.engagement / item.posts).toFixed(2)
-                    }))} 
-                    categories={["Engagement Rate"]}
-                    index="name"
-                    colors={["blue"]}
-                    valueFormatter={(value) => `${value}%`}
-                    className="h-72"
-                  />
+                  <ChartContainer 
+                    className="h-72" 
+                    config={{
+                      "Engagement Rate": { color: "hsl(var(--chart-blue))" }
+                    }}
+                  >
+                    <ResponsiveArea 
+                      data={engagementData.byDay.map(item => ({
+                        name: item.day.split('-').slice(1).join('/'),
+                        "Engagement Rate": Number((item.engagement / item.posts).toFixed(2))
+                      }))}
+                      margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorEngagement" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--chart-blue))" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="hsl(var(--chart-blue))" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <xAxis dataKey="name" />
+                      <yAxis />
+                      <tooltip formatter={(value) => [`${value}%`, 'Engagement Rate']} />
+                      <area type="monotone" dataKey="Engagement Rate" stroke="hsl(var(--chart-blue))" fillOpacity={1} fill="url(#colorEngagement)" />
+                    </ResponsiveArea>
+                  </ChartContainer>
                 ) : (
                   <div className="flex items-center justify-center h-72 text-muted-foreground">
                     No engagement data available
@@ -334,14 +360,39 @@ const XPostsAnalyzer: React.FC<XPostsAnalyzerProps> = ({ onGenerateFromPost }) =
               </CardHeader>
               <CardContent>
                 {engagementData?.byEngagement && engagementData.byEngagement.some(item => item.value > 0) ? (
-                  <BarChart 
-                    data={engagementData.byEngagement}
-                    index="name"
-                    categories={["value"]}
-                    colors={["blue"]}
-                    valueFormatter={(value) => `${value} posts`}
-                    className="h-72"
-                  />
+                  <ChartContainer 
+                    className="h-72" 
+                    config={{
+                      "value": { color: "hsl(var(--chart-blue))" }
+                    }}
+                  >
+                    <ResponsiveBar
+                      data={engagementData.byEngagement}
+                      keys={["value"]}
+                      indexBy="name"
+                      margin={{ top: 10, right: 10, bottom: 40, left: 40 }}
+                      padding={0.3}
+                      valueScale={{ type: 'linear' }}
+                      colors={["hsl(var(--chart-blue))"]}
+                      borderColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+                      axisLeft={{
+                        tickSize: 5,
+                        tickPadding: 5,
+                        tickRotation: 0,
+                        legend: 'posts',
+                        legendPosition: 'middle',
+                        legendOffset: -40
+                      }}
+                      labelSkipWidth={12}
+                      labelSkipHeight={12}
+                      role="application"
+                      tooltip={({ value, indexValue }) => (
+                        <div className="bg-background text-foreground px-3 py-2 text-sm rounded-md border shadow-md">
+                          <strong>{indexValue}</strong>: {value} posts
+                        </div>
+                      )}
+                    />
+                  </ChartContainer>
                 ) : (
                   <div className="flex items-center justify-center h-72 text-muted-foreground">
                     No engagement data available
