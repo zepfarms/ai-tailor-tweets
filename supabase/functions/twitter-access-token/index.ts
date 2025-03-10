@@ -1,6 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { Client } from 'npm:tweepy@4.14.0';
 
 interface RequestBody {
   code: string;
@@ -16,7 +17,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: corsHeaders,
@@ -27,7 +27,6 @@ serve(async (req) => {
   try {
     console.log('Twitter access token function invoked');
     
-    // Parse request body
     const { code, state, callbackType = 'link' } = await req.json() as RequestBody;
     console.log('Request parameters:', { code, state, callbackType });
     
@@ -53,56 +52,20 @@ serve(async (req) => {
       throw new Error('OAuth state has expired');
     }
     
-    // Exchange code for access token
-    const clientId = Deno.env.get('TWITTER_CLIENT_ID');
-    const clientSecret = Deno.env.get('TWITTER_CLIENT_SECRET');
-    const redirectUri = Deno.env.get('TWITTER_CALLBACK_URL');
-    
-    if (!clientId || !clientSecret || !redirectUri) {
-      throw new Error('Twitter credentials not properly configured');
-    }
-    
-    const tokenUrl = 'https://api.twitter.com/2/oauth2/token';
-    const tokenResponse = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`
-      },
-      body: new URLSearchParams({
-        code,
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        code_verifier: oauthState.code_verifier
-      })
+    // Initialize Tweepy client
+    const client = new Client({
+      consumer_key: Deno.env.get('TWITTER_CLIENT_ID') || '',
+      consumer_secret: Deno.env.get('TWITTER_CLIENT_SECRET') || '',
+      callback: Deno.env.get('TWITTER_CALLBACK_URL') || '',
     });
     
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error('Token response error:', errorText);
-      throw new Error(`Failed to exchange code for tokens: ${errorText}`);
-    }
-    
-    const tokenData = await tokenResponse.json();
-    console.log('Token data received');
+    // Exchange code for access token using Tweepy
+    const { access_token, refresh_token } = await client.get_access_token(code, oauthState.code_verifier);
     
     // Get user info from Twitter
-    const userResponse = await fetch('https://api.twitter.com/2/users/me', {
-      headers: {
-        'Authorization': `Bearer ${tokenData.access_token}`
-      }
-    });
-    
-    if (!userResponse.ok) {
-      const errorText = await userResponse.text();
-      console.error('User info response error:', errorText);
-      throw new Error(`Failed to get user info: ${errorText}`);
-    }
-    
-    const userData = await userResponse.json();
-    const userId = userData.data.id;
-    const username = userData.data.username;
+    const userInfo = await client.get_me();
+    const userId = userInfo.id;
+    const username = userInfo.username;
     
     console.log('User data received:', { userId, username });
     
@@ -110,10 +73,8 @@ serve(async (req) => {
     if (oauthState.is_login) {
       console.log('Processing login flow');
       
-      // Create a magic link for email-less authentication
       const magicLink = `x-login:${username}:${userId}:${Math.random().toString(36).substring(2)}`;
       
-      // Return the magic link for the client to complete authentication
       return new Response(
         JSON.stringify({
           username,
@@ -129,7 +90,6 @@ serve(async (req) => {
     
     // For account linking flow
     console.log('Processing account linking flow');
-    console.log('User ID from oauth state:', oauthState.user_id);
     
     // Store tokens in database
     const { error: tokenStoreError } = await supabase
@@ -137,9 +97,9 @@ serve(async (req) => {
       .upsert({
         user_id: oauthState.user_id,
         provider: 'twitter',
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+        access_token,
+        refresh_token,
+        expires_at: new Date(Date.now() + 7200 * 1000).toISOString() // 2 hours expiry
       }, { onConflict: 'user_id,provider' });
     
     if (tokenStoreError) {
@@ -152,11 +112,11 @@ serve(async (req) => {
       .from('x_accounts')
       .upsert({
         user_id: oauthState.user_id,
-        x_user_id: userId,
+        x_user_id: userId.toString(),
         x_username: username,
-        access_token: tokenData.access_token,
-        access_token_secret: tokenData.refresh_token || '',
-        profile_image_url: ''
+        access_token,
+        access_token_secret: refresh_token || '',
+        profile_image_url: userInfo.profile_image_url || ''
       }, { onConflict: 'user_id' });
     
     if (xAccountError) {
@@ -164,8 +124,8 @@ serve(async (req) => {
       throw new Error(`Failed to store X account: ${xAccountError.message}`);
     }
     
-    // Update user metadata to indicate X is linked
-    const { data: userData2, error: userError } = await supabase.auth.admin.updateUserById(
+    // Update user metadata
+    const { data: userData, error: userError } = await supabase.auth.admin.updateUserById(
       oauthState.user_id,
       {
         user_metadata: {
@@ -177,7 +137,6 @@ serve(async (req) => {
     
     if (userError) {
       console.error('Failed to update user metadata:', userError);
-      // This is not a critical error, so we continue
     }
     
     // Delete used OAuth state

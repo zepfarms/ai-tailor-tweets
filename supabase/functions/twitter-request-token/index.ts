@@ -2,6 +2,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import * as crypto from 'https://deno.land/std@0.165.0/node/crypto.ts';
+import { Client } from 'npm:tweepy@4.14.0';
 
 interface RequestBody {
   userId?: string;
@@ -32,6 +33,13 @@ serve(async (req) => {
     const { userId, isLogin = false, origin } = await req.json() as RequestBody;
     console.log('Request parameters:', { userId, isLogin, origin });
     
+    // Initialize Tweepy client
+    const client = new Client({
+      consumer_key: Deno.env.get('TWITTER_CLIENT_ID') || '',
+      consumer_secret: Deno.env.get('TWITTER_CLIENT_SECRET') || '',
+      callback: Deno.env.get('TWITTER_CALLBACK_URL') || '',
+    });
+    
     // Generate OAuth state and PKCE verifier
     const state = crypto.randomBytes(32).toString('hex');
     const codeVerifier = crypto.randomBytes(64).toString('hex');
@@ -41,22 +49,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Determine callback URL - for both login and account linking
-    const callbackUrl = isLogin
-      ? `${origin}/x-callback?type=login`
-      : `${origin}/x-callback?type=link`;
-    
-    console.log('Generated state:', state);
-    console.log('Callback URL:', callbackUrl);
-    
-    // Get Twitter client ID
-    const clientId = Deno.env.get('TWITTER_CLIENT_ID');
-    if (!clientId) {
-      throw new Error('Twitter client ID not configured');
-    }
+    // Get auth URL from Tweepy
+    const authUrl = await client.get_authorization_url(state, codeVerifier);
     
     // Store OAuth state in database
-    // Generate a random UUID for temporary auth users
     const tempId = crypto.randomBytes(16).toString('hex');
     const storeUser = isLogin ? `temp-${tempId}` : userId;
     
@@ -72,7 +68,7 @@ serve(async (req) => {
         state,
         code_verifier: codeVerifier,
         is_login: isLogin,
-        callback_url: callbackUrl,
+        callback_url: origin + '/x-callback?type=' + (isLogin ? 'login' : 'link'),
         expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes expiry
       });
     
@@ -81,20 +77,9 @@ serve(async (req) => {
       throw new Error(`Failed to store OAuth state: ${storeError.message}`);
     }
     
-    // Generate Twitter OAuth URL
-    const scope = 'tweet.read tweet.write users.read offline.access';
-    const authUrl = new URL('https://twitter.com/i/oauth2/authorize');
-    authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('client_id', clientId);
-    authUrl.searchParams.append('redirect_uri', Deno.env.get('TWITTER_CALLBACK_URL') || '');
-    authUrl.searchParams.append('scope', scope);
-    authUrl.searchParams.append('state', state);
-    authUrl.searchParams.append('code_challenge', codeVerifier);
-    authUrl.searchParams.append('code_challenge_method', 'plain');
-    
     return new Response(
       JSON.stringify({
-        authUrl: authUrl.toString(),
+        authUrl,
         state
       }),
       {
