@@ -2,7 +2,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import * as crypto from 'https://deno.land/std@0.165.0/node/crypto.ts';
-import { Client } from 'npm:tweepy@4.14.0';
+import { OAuth2Client } from 'https://deno.land/x/oauth2_client/mod.ts';
 
 interface RequestBody {
   userId?: string;
@@ -33,11 +33,16 @@ serve(async (req) => {
     const { userId, isLogin = false, origin } = await req.json() as RequestBody;
     console.log('Request parameters:', { userId, isLogin, origin });
     
-    // Initialize Tweepy client
-    const client = new Client({
-      consumer_key: Deno.env.get('TWITTER_CLIENT_ID') || '',
-      consumer_secret: Deno.env.get('TWITTER_CLIENT_SECRET') || '',
-      callback: Deno.env.get('TWITTER_CALLBACK_URL') || '',
+    // Initialize OAuth2 client
+    const client = new OAuth2Client({
+      clientId: Deno.env.get('TWITTER_CLIENT_ID') || '',
+      clientSecret: Deno.env.get('TWITTER_CLIENT_SECRET') || '',
+      authorizationEndpointUri: 'https://twitter.com/i/oauth2/authorize',
+      tokenUri: 'https://api.twitter.com/2/oauth2/token',
+      redirectUri: Deno.env.get('TWITTER_CALLBACK_URL') || '',
+      defaults: {
+        scope: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+      },
     });
     
     // Generate OAuth state and PKCE verifier
@@ -49,8 +54,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Get auth URL from Tweepy
-    const authUrl = await client.get_authorization_url(state, codeVerifier);
+    // Get OAuth authorization URL
+    const { uri: authUrl } = await client.code.getAuthorizationUri({
+      state,
+      codeVerifier,
+      scope: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+    });
     
     // Store OAuth state in database
     const tempId = crypto.randomBytes(16).toString('hex');
@@ -79,13 +88,13 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({
-        authUrl,
-        state
+        authUrl: authUrl.toString(),
+        state,
       }),
       {
         headers: { 
           'Content-Type': 'application/json',
-          ...corsHeaders
+          ...corsHeaders,
         },
         status: 200,
       }
@@ -100,7 +109,7 @@ serve(async (req) => {
       {
         headers: { 
           'Content-Type': 'application/json',
-          ...corsHeaders
+          ...corsHeaders,
         },
         status: 500,
       }

@@ -1,7 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { Client } from 'npm:tweepy@4.14.0';
+import { OAuth2Client } from 'https://deno.land/x/oauth2_client/mod.ts';
 
 interface RequestBody {
   code: string;
@@ -52,20 +52,36 @@ serve(async (req) => {
       throw new Error('OAuth state has expired');
     }
     
-    // Initialize Tweepy client
-    const client = new Client({
-      consumer_key: Deno.env.get('TWITTER_CLIENT_ID') || '',
-      consumer_secret: Deno.env.get('TWITTER_CLIENT_SECRET') || '',
-      callback: Deno.env.get('TWITTER_CALLBACK_URL') || '',
+    // Initialize OAuth2 client
+    const client = new OAuth2Client({
+      clientId: Deno.env.get('TWITTER_CLIENT_ID') || '',
+      clientSecret: Deno.env.get('TWITTER_CLIENT_SECRET') || '',
+      authorizationEndpointUri: 'https://twitter.com/i/oauth2/authorize',
+      tokenUri: 'https://api.twitter.com/2/oauth2/token',
+      redirectUri: Deno.env.get('TWITTER_CALLBACK_URL') || '',
     });
     
-    // Exchange code for access token using Tweepy
-    const { access_token, refresh_token } = await client.get_access_token(code, oauthState.code_verifier);
+    // Exchange code for tokens
+    const tokens = await client.code.getToken(code, {
+      codeVerifier: oauthState.code_verifier,
+    });
+    
+    const accessToken = tokens.accessToken;
+    const refreshToken = tokens.refreshToken;
     
     // Get user info from Twitter
-    const userInfo = await client.get_me();
-    const userId = userInfo.id;
-    const username = userInfo.username;
+    const userResponse = await fetch('https://api.twitter.com/2/users/me', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+    
+    if (!userResponse.ok) {
+      throw new Error('Failed to fetch user info from Twitter');
+    }
+    
+    const userData = await userResponse.json();
+    const { data: { id: userId, username } } = userData;
     
     console.log('User data received:', { userId, username });
     
@@ -97,8 +113,8 @@ serve(async (req) => {
       .upsert({
         user_id: oauthState.user_id,
         provider: 'twitter',
-        access_token,
-        refresh_token,
+        access_token: accessToken,
+        refresh_token: refreshToken,
         expires_at: new Date(Date.now() + 7200 * 1000).toISOString() // 2 hours expiry
       }, { onConflict: 'user_id,provider' });
     
@@ -114,9 +130,9 @@ serve(async (req) => {
         user_id: oauthState.user_id,
         x_user_id: userId.toString(),
         x_username: username,
-        access_token,
-        access_token_secret: refresh_token || '',
-        profile_image_url: userInfo.profile_image_url || ''
+        access_token: accessToken,
+        access_token_secret: refreshToken || '',
+        profile_image_url: userData.data.profile_image_url || ''
       }, { onConflict: 'user_id' });
     
     if (xAccountError) {
@@ -125,7 +141,7 @@ serve(async (req) => {
     }
     
     // Update user metadata
-    const { data: userData, error: userError } = await supabase.auth.admin.updateUserById(
+    const { data: userData2, error: userError } = await supabase.auth.admin.updateUserById(
       oauthState.user_id,
       {
         user_metadata: {
